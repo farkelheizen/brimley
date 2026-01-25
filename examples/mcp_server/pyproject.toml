@@ -2,7 +2,9 @@
 name = "brimley-mcp-example"
 version = "0.1.0"
 description = "Example MCP server using Brimley"
-authors = ["Your Name <your.email@example.com>"]
+authors = [
+  { name="William W. Spratley", email="billspratley@gmail.com" },
+]
 package-mode = false
 
 [tool.poetry.dependencies]

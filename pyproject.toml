@@ -2,7 +2,9 @@
 name = "brimley"
 version = "0.1.0"
 description = "A defined SQL engine for AI agents"
-authors = ["Brimley Team"]
+authors = [
+  { name="William W. Spratley", email="billspratley@gmail.com" },
+]
 readme = "README.md"
 packages = [{include = "brimley", from = "src"}]
 

@@ -60,3 +60,9 @@ pip install brimley
 ## License
 
 MIT
+
+## Author
+
+**William W. Spratley**
+
+* GitHub: [@farkelheizen](https://github.com/farkelheizen)

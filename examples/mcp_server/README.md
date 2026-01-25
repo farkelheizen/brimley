@@ -136,3 +136,13 @@ This will launch a web interface where you can try the `get_vip_users` tool.
   1. Loads `BrimleyEngine` with `extensions_file="extensions.py"`.
   2. Autos-registers the function `vip_score` into the SQLite connection.
   3. Wraps Brimley tools as MCP tools.
+
+## License
+
+MIT
+
+## Author
+
+**William W. Spratley**
+
+* GitHub: [@farkelheizen](https://github.com/farkelheizen)
