@@ -1,0 +1,18 @@
+tool_name: upsert_setting
+description: Insert or update a setting in the settings table.
+tool_type: LOCAL_SQL
+arguments:
+  inline:
+    - name: setting_name
+      type: string
+      required: true
+    - name: setting_value
+      type: string
+      required: true
+implementation:
+  engine: jinja2
+  sql_template:
+    - "INSERT INTO settings (setting_name, setting_value) VALUES (:setting_name, :setting_value)"
+    - "ON CONFLICT(setting_name) DO UPDATE SET setting_value=excluded.setting_value;"
+return_shape:
+  type: VALUE

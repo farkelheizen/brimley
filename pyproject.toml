@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "brimley"
+version = "0.1.0"
+description = "A defined SQL engine for AI agents"
+authors = ["Brimley Team"]
+readme = "README.md"
+packages = [{include = "brimley", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.14"
+pydantic = "^2.0"
+pyyaml = "^6.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+black = "^24.0"
+
+
+[tool.poetry.group.examples.dependencies]
+fastmcp = "^2.14.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,11 @@
+tool_name: get_all_settings
+description: Retrieves all settings from the settings table.
+tool_type: LOCAL_SQL
+arguments:
+  inline: []
+implementation:
+  engine: jinja2
+  sql_template:
+    - "SELECT setting_name, setting_value FROM settings order by setting_name"
+return_shape:
+  type: TABLE

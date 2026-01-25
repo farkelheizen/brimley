@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "brimley-mcp-example"
+version = "0.1.0"
+description = "Example MCP server using Brimley"
+authors = ["Your Name <your.email@example.com>"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.14"
+fastmcp = "*"
+# In a real scenario you would depend on the published package,
+
+# but here we can just assume the user runs it within the repo context or we refer to it by path if we used a workspace.
+# For simplicity in this mono-environment, we will just rely on the parent env or install it.
+# However, to be "correct" as an isolated example:
+brimley = {path = "../../", develop = true}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

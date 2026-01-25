@@ -1,0 +1,14 @@
+tool_name: get_setting
+description: Retrieve a setting value by name from the settings table.
+tool_type: LOCAL_SQL
+arguments:
+  inline:
+    - name: setting_name
+      type: string
+      required: true
+implementation:
+  engine: jinja2
+  sql_template:
+    - "SELECT setting_value FROM settings WHERE setting_name = :setting_name LIMIT 1"
+return_shape:
+  type: VALUE

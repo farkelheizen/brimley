@@ -1,0 +1,17 @@
+tool_name: get_vip_users
+tool_type: LOCAL_SQL
+description: Retrieve users with a high VIP score using a custom python UDF.
+arguments:
+  inline:
+    - name: min_score
+      type: int
+      required: false
+      default: 50
+implementation:
+  engine: jinja2
+  sql_template:
+    - "SELECT id, username, vip_score(purchase_count) as score"
+    - "FROM users"
+    - "WHERE vip_score(purchase_count) > :min_score"
+return_shape:
+  type: TABLE
