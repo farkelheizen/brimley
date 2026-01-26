@@ -1,17 +1,19 @@
-[tool.poetry]
+[project]
 name = "brimley"
 version = "0.1.0"
 description = "A defined SQL engine for AI agents"
 authors = [
-  { name="William W. Spratley", email="billspratley@gmail.com" },
+    {name = "William W. Spratley", email = "billspratley@gmail.com"}
 ]
 readme = "README.md"
-packages = [{include = "brimley", from = "src"}]
+requires-python = ">=3.14,<4.0"
+dependencies = [
+    "pydantic>=2.0,<3.0",
+    "pyyaml>=6.0,<7.0"
+]
 
-[tool.poetry.dependencies]
-python = "^3.14"
-pydantic = "^2.0"
-pyyaml = "^6.0"
+[tool.poetry]
+packages = [{include = "brimley", from = "src"}]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
