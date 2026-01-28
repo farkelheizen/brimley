@@ -43,11 +43,11 @@ The server will be a command-line application installed via pip.
 
 ```bash
 # Explicit
-brimley-mcp start --db-path ./user_data.db --tools-dir ./my_tools
+brimley-mcp --db-path ./user_data.db --tools-dir ./my_tools
 
 # Using Env Vars
 export BRIMLEY_DB_PATH=./data.db
-brimley-mcp start
+brimley-mcp
 ```
 
 ## 4. The Adapter Layer (Technical Detail)

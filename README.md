@@ -53,7 +53,7 @@ result = engine.execute_tool("get_user", {"id": 1})
 Or run it as a server for Claude/Cursor:
 
 ```bash
-brimley-mcp start --db-path ./my_data.db --tools-dir ./tools
+brimley-mcp --db-path ./my_data.db --tools-dir ./tools
 ```
 
 ## Installation
@@ -63,7 +63,7 @@ brimley-mcp start --db-path ./my_data.db --tools-dir ./tools
 pip install brimley
 
 # With MCP Server support (to run the 'brimley-mcp' command)
-pip install brimley[server]
+pip install "brimley[server]"
 ```
 
 ## License

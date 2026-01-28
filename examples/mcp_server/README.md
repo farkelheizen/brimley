@@ -21,7 +21,7 @@ You can run this example using `poetry` (recommended if you are developing Briml
 
 #### Option A: Using Poetry (Recommended)
 
-From the root of the `brimley-poc` repository:
+From the root of the repository:
 
 ```bash
 # Install root project dependencies
@@ -89,12 +89,12 @@ Here is the configuration you would add:
 {
   "servers": {
     "brimley": {
-      "command": "/ABSOLUTE/PATH/TO/brimley-poc/.venv/bin/python",
+      "command": "/ABSOLUTE/PATH/TO/.venv/bin/python",
       "args": [
-        "/ABSOLUTE/PATH/TO/brimley-poc/examples/mcp_server/server.py"
+        "/ABSOLUTE/PATH/TO/brimley/examples/mcp_server/server.py"
       ],
       "env": {
-        "PYTHONPATH": "/ABSOLUTE/PATH/TO/brimley-poc/src"
+        "PYTHONPATH": "/ABSOLUTE/PATH/TO/brimley/src"
       }
     }
   }

@@ -7,7 +7,15 @@ Brimley includes a built-in server that implements the [Model Context Protocol (
 Install Brimley with the server "extra":
 
 ```bash
-pip install brimley[server]
+pip install "brimley"
+pip install "brimley[server]"
+```
+
+Or locally from the `brimley` directory:
+
+```bash
+pip install "."
+pip install ".[server]"
 ```
 
 Or install the dependencies manually:
@@ -22,7 +30,7 @@ The server is available as a command-line interface (CLI) named `brimley-mcp`.
 ### Core Command
 
 ```bash
-brimley-mcp start --db-path ./my.db --tools-dir ./tools
+brimley-mcp --db-path ./my.db --tools-dir ./tools
 ```
 
 ### Arguments
