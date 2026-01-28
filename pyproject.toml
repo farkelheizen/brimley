@@ -1,6 +1,6 @@
 [project]
 name = "brimley"
-version = "0.1.0"
+version = "0.1.1"
 description = "A defined SQL engine for AI agents"
 authors = [
     {name = "William W. Spratley", email = "billspratley@gmail.com"}
