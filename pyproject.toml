@@ -19,8 +19,14 @@ server = [
     "python-dotenv>=1.0.0"
 ]
 
+[project.scripts]
+brimley-mcp = "brimley_mcp.main:app"
+
 [tool.poetry]
-packages = [{include = "brimley", from = "src"}]
+packages = [
+    {include = "brimley", from = "src"},
+    {include = "brimley_mcp", from = "src"}
+]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
