@@ -58,7 +58,6 @@ To use your tools in Claude (`claude-desktop`), add the server to your configura
     "my-data": {
       "command": "brimley-mcp",
       "args": [
-        "start",
         "--db-path", "/absolute/path/to/my_data.db",
         "--tools-dir", "/absolute/path/to/tools"
       ]
@@ -79,7 +78,6 @@ Add a `.vscode/mcp.json` file to your project:
     "project-db": {
       "command": "brimley-mcp",
       "args": [
-        "start",
         "--db-path", "${workspaceFolder}/data/local.db",
         "--tools-dir", "${workspaceFolder}/tools"
       ]
@@ -95,7 +93,7 @@ The MCP protocol uses `stdout` (standard output) for communication. If your appl
 Brimley handles this by strictly routing all logs to `stderr`. To see what's happening under the hood:
 
 ```bash
-brimley-mcp start --db-path ... --tools-dir ... --debug
+brimley-mcp --db-path ... --tools-dir ... --debug
 ```
 
 In Claude Desktop, you can view these logs (`stderr`) using the "Developer" tools or log viewer provided by the app.
