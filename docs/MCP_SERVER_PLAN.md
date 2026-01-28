@@ -93,7 +93,8 @@
 
 ## Checklist
 
-- [ ] Create `src/brimley_mcp`
+- [x] Create `src/brimley_mcp`
+- [x] Add Dependencies (`pyproject.toml`)
 - [ ] Implement `Adapter` logic
 - [ ] Implement `CLI`
 - [ ] Update `pyproject.toml`
