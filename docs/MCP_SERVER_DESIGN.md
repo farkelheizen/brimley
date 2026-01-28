@@ -121,4 +121,4 @@ A host Node.js or Python app can spin up the server to provide tools to an AI ru
 
 We will move the logic currently in `examples/mcp_server/server.py` into the core library structure, potentially as a separate package namespace or an "extras" module.
 
-Proposed Location: `src/brimley_mcp/`
+Proposed Location: `src/brimley/mcp/`

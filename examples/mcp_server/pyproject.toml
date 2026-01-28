@@ -1,6 +1,6 @@
 [project]
 name = "brimley-mcp-example"
-version = "0.1.0"
+version = "0.1.2"
 description = "Example MCP server using Brimley"
 authors = [
     {name = "William W. Spratley", email = "billspratley@gmail.com"}
