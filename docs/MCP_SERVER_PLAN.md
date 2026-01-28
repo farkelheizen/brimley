@@ -46,9 +46,17 @@
         brimley-mcp = "brimley_mcp.main:app"
         ```
 
-## Phase 5: Verification
+## Phase 5: Testing & Verification
 
-1.  **Refactor Example:**
+**Goal:** Ensure the server implementation is robust and correct.
+
+1.  **Unit Tests:**
+    *   Create `tests/test_mcp_adapter.py`.
+    *   Test that Brimley tools are correctly converted to FastMCP tools (check names, descriptions, arguments).
+    *   Test dynamic signature generation logic.
+    *   Mock `BrimleyEngine` and verify that the adapter calls `execute_tool` correctly.
+
+2.  **Refactor Example (Integration Verification):**
     *   Delete the code in `examples/mcp_server/server.py` and replace it with a call to the new library or run it via the new CLI to verify parity.
 
 ## Phase 6: Configuration & DX (Developer Experience)
