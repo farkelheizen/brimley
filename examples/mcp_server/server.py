@@ -21,7 +21,6 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         print("Running with default example arguments...", file=sys.stderr)
         sys.argv.extend([
-            "start",
             "--db-path", str(CURRENT_DIR / "demo.db"),
             "--tools-dir", str(CURRENT_DIR / "tools"),
             "--extensions-file", str(CURRENT_DIR / "extensions.py"),
