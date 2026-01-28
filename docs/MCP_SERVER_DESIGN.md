@@ -87,7 +87,6 @@ Add to `claude_desktop_config.json`:
     "my-data": {
       "command": "brimley-mcp",
       "args": [
-        "start", 
         "--db-path", "/absolute/path/to/data.db", 
         "--tools-dir", "/absolute/path/to/tools"
       ]
@@ -105,7 +104,6 @@ Add to `.vscode/mcp.json`:
     "my-data": {
       "command": "brimley-mcp",
       "args": [
-        "start",
         "--db-path", "${workspaceFolder}/data/local.db", 
         "--tools-dir", "${workspaceFolder}/tools"
       ]
