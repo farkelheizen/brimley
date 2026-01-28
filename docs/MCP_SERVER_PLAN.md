@@ -95,7 +95,8 @@
 
 - [x] Create `src/brimley_mcp`
 - [x] Add Dependencies (`pyproject.toml`)
-- [ ] Implement `Adapter` logic
-- [ ] Implement `CLI`
-- [ ] Update `pyproject.toml`
-- [ ] Test with `examples/mcp_server` data
+- [x] Implement `Adapter` logic
+- [x] Implement `CLI`
+- [x] Update `pyproject.toml`
+- [x] Test with `examples/mcp_server` data
+- [x] Documentation & Guides
