@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, ANY
-from brimley_mcp.adapter import BrimleyMCPAdapter
+from brimley.mcp.adapter import BrimleyMCPAdapter
 
 # Mock objects to simulate Brimley and FastMCP
 class MockToolArg:

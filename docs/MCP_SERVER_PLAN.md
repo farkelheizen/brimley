@@ -5,10 +5,10 @@
 **Goal:** Establish a home for the server code within the repo.
 
 1.  **Create Directory Structure:**
-    *   Initialize `src/brimley_mcp/`.
-    *   Add `src/brimley_mcp/__init__.py`.
-    *   Add `src/brimley_mcp/main.py` (CLI entrypoint).
-    *   Add `src/brimley_mcp/adapter.py` (Brimley -> FastMCP logic).
+    *   Initialize `src/brimley/mcp/`.
+    *   Add `src/brimley/mcp/__init__.py`.
+    *   Add `src/brimley/mcp/main.py` (CLI entrypoint).
+    *   Add `src/brimley/mcp/adapter.py` (Brimley -> FastMCP logic).
 
 2.  **Dependencies:**
     *   Add `fastmcp` to `pyproject.toml` (likely as an optional dependency group `[mcp]` or a separate package dependency if we split).
@@ -27,7 +27,7 @@
 
 **Goal:** Create the executable command.
 
-1.  **Implement `src/brimley_mcp/main.py`:**
+1.  **Implement `src/brimley/mcp/main.py`:**
     *   Use `typer` to define the version and `start` command.
     *   Validation: Ensure `db_path` and `tools_dir` exist before starting.
     *   Import path handling: Ensure `extensions_file` is loaded correctly (sys.path hacks might be needed to allow loading arbitrary python files).
@@ -43,7 +43,7 @@
     *   Define the CLI entrypoint:
         ```toml
         [project.scripts]
-        brimley-mcp = "brimley_mcp.main:app"
+        brimley-mcp = "brimley.mcp.main:app"
         ```
 
 ## Phase 5: Testing & Verification
@@ -93,7 +93,7 @@
 
 ## Checklist
 
-- [x] Create `src/brimley_mcp`
+- [x] Create `src/brimley/mcp`
 - [x] Add Dependencies (`pyproject.toml`)
 - [x] Implement `Adapter` logic
 - [x] Implement `CLI`

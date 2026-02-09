@@ -3,23 +3,23 @@ import pytest
 from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 from pathlib import Path
-from brimley_mcp.main import app
+from brimley.mcp.main import app
 
 runner = CliRunner()
 
 @pytest.fixture
 def mock_brimley_engine():
-    with patch("brimley_mcp.main.BrimleyEngine") as mock:
+    with patch("brimley.mcp.main.BrimleyEngine") as mock:
         yield mock
 
 @pytest.fixture
 def mock_fast_mcp():
-    with patch("brimley_mcp.main.FastMCP") as mock:
+    with patch("brimley.mcp.main.FastMCP") as mock:
         yield mock
 
 @pytest.fixture
 def mock_adapter():
-    with patch("brimley_mcp.main.BrimleyMCPAdapter") as mock:
+    with patch("brimley.mcp.main.BrimleyMCPAdapter") as mock:
         yield mock
 
 def test_cli_missing_args():

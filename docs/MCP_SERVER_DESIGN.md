@@ -43,11 +43,11 @@ The server will be a command-line application installed via pip.
 
 ```bash
 # Explicit
-brimley-mcp start --db-path ./user_data.db --tools-dir ./my_tools
+brimley-mcp --db-path ./user_data.db --tools-dir ./my_tools
 
 # Using Env Vars
 export BRIMLEY_DB_PATH=./data.db
-brimley-mcp start
+brimley-mcp
 ```
 
 ## 4. The Adapter Layer (Technical Detail)
@@ -87,7 +87,6 @@ Add to `claude_desktop_config.json`:
     "my-data": {
       "command": "brimley-mcp",
       "args": [
-        "start", 
         "--db-path", "/absolute/path/to/data.db", 
         "--tools-dir", "/absolute/path/to/tools"
       ]
@@ -105,7 +104,6 @@ Add to `.vscode/mcp.json`:
     "my-data": {
       "command": "brimley-mcp",
       "args": [
-        "start",
         "--db-path", "${workspaceFolder}/data/local.db", 
         "--tools-dir", "${workspaceFolder}/tools"
       ]
@@ -121,4 +119,4 @@ A host Node.js or Python app can spin up the server to provide tools to an AI ru
 
 We will move the logic currently in `examples/mcp_server/server.py` into the core library structure, potentially as a separate package namespace or an "extras" module.
 
-Proposed Location: `src/brimley_mcp/`
+Proposed Location: `src/brimley/mcp/`

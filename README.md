@@ -1,7 +1,5 @@
 # Brimley
 
-**The Local-First SQL Toolbelt for AI Agents.**
-
 Brimley is a lightweight Python framework that gives Large Language Models (LLMs) safe, structured access to local data. It allows you to define tools using simple JSON/SQL configurations, validates AI inputs using strict schemas, and executes them against SQLite.
 
 ## Why Brimley?
@@ -15,6 +13,7 @@ Most agent frameworks either let the AI write dangerous raw SQL or require you t
 * **Zero-Code Tool Definitions:** Define tools in JSON or YAML.
 * **Safe by Design:** Uses parameterized queries to prevent SQL injection.
 * **Strict Validation:** Powered by **Pydantic** to catch AI hallucinations before execution.
+* **MCP Ready:** Built-in [Model Context Protocol](https://modelcontextprotocol.io/) server to use your tools in Claude/Cursor instantly.
 * **Local First:** Built for SQLite, making it perfect for rapid prototyping and local analysis.
 * **Extensible:** Add custom Python logic (UDFs) when SQL isn't enough.
 
@@ -23,6 +22,7 @@ Most agent frameworks either let the AI write dangerous raw SQL or require you t
 | I want to... | Go here |
 | --- | --- |
 | **Define a new tool** | [📖 Tool Schema Reference](./docs/TOOL_SCHEMA_REFERENCE.md) |
+| **Run as an MCP Server** | [🤖 MCP Server Guide](./docs/MCP_SERVER_GUIDE.md) |
 | **Add custom Python logic** | [🔌 Extensions Guide](./docs/EXTENSIONS_GUIDE.md) |
 
 ## Quick Example
@@ -50,11 +50,20 @@ result = engine.execute_tool("get_user", {"id": 1})
 
 ```
 
+Or run it as a server for Claude/Cursor:
+
+```bash
+brimley-mcp --db-path ./my_data.db --tools-dir ./tools
+```
+
 ## Installation
 
 ```bash
+# Core library
 pip install brimley
 
+# With MCP Server support (to run the 'brimley-mcp' command)
+pip install "brimley[server]"
 ```
 
 ## License

@@ -1,6 +1,6 @@
 [project]
 name = "brimley"
-version = "0.1.0"
+version = "0.1.2"
 description = "A defined SQL engine for AI agents"
 authors = [
     {name = "William W. Spratley", email = "billspratley@gmail.com"}
@@ -20,12 +20,11 @@ server = [
 ]
 
 [project.scripts]
-brimley-mcp = "brimley_mcp.main:app"
+brimley-mcp = "brimley.mcp.main:app"
 
 [tool.poetry]
 packages = [
-    {include = "brimley", from = "src"},
-    {include = "brimley_mcp", from = "src"}
+    {include = "brimley", from = "src"}
 ]
 
 [tool.poetry.group.dev.dependencies]

@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # Logic handles import paths if installed or running from source
 try:
     from brimley.core import BrimleyEngine
-    from brimley_mcp.adapter import BrimleyMCPAdapter
+    from brimley.mcp.adapter import BrimleyMCPAdapter
     from fastmcp import FastMCP
 except ImportError:
     # If not installed, these might fail. 
@@ -109,7 +109,7 @@ def start(
     Start the MCP server.
     """
     configure_logging(debug)
-    logger = logging.getLogger("brimley_mcp")
+    logger = logging.getLogger("brimley.mcp")
     
     logger.info(f"Starting server '{name}'")
     logger.debug(f"DB Path: {db_path}")
