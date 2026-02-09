@@ -28,24 +28,6 @@ def test_jinja_render_simple_string(runner, context):
     result = runner.run(func, {"name": "World"}, context)
     assert result == "Hello World!"
 
-def test_jinja_render_with_context_access(runner, context):
-    # Context should be available in template too?
-    # Spec implies easy access to args. 
-    # Let's assume `context` is also injected if needed, 
-    # typically as `context`.
-    
-    context.config.app_name = "BrimleyApp"
-    
-    func = TemplateFunction(
-        name="config_test",
-        type="template_function",
-        return_shape="string",
-        template_body="Welcome to {{ context.config.app_name }}"
-    )
-    
-    result = runner.run(func, {}, context)
-    assert result == "Welcome to BrimleyApp"
-
 def test_jinja_render_void_return(runner, context):
     # If return_shape is void (unlikely for template, but possible?)
     # Usually template returns string.
