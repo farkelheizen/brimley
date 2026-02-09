@@ -24,7 +24,9 @@ class BrimleyContext(Entity):
     app: Dict[str, Any] = Field(default_factory=dict)
     
     # Function Registry: Lookup for available functions (Phase 2)
-    functions: Dict[str, Any] = Field(default_factory=dict)
+    # Using Any for now to avoid circular imports or Pydantic strictness issues with custom classes
+    # Ideally this is 'Registry'
+    functions: Any = Field(default_factory=dict)
     
     # Database Manager: Registry of SQL connection pools (Phase 2)
     databases: Dict[str, Any] = Field(default_factory=dict)
