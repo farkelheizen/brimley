@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "brimley"
+version = "0.2.0"
+description = "A lightweight, file-based function execution engine."
+authors = ["Brimley Team"]
+readme = "README.md"
+packages = [{include = "brimley", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pydantic = "^2.0"
+pydantic-settings = "^2.0"
+typer = "^0.9"
+jinja2 = "^3.1"
+pyyaml = "^6.0"
+rich = "^13.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+brimley = "brimley.cli.main:app"
