@@ -12,8 +12,19 @@ from brimley.core.registry import Registry
 from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
+from brimley.cli.repl import BrimleyREPL
 
 app = typer.Typer(name="brimley", help="Brimley CLI Interface")
+
+@app.command()
+def repl(
+    root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
+):
+    """
+    Start an interactive REPL session.
+    """
+    repl_session = BrimleyREPL(root_dir)
+    repl_session.start()
 
 @app.command()
 def invoke(
