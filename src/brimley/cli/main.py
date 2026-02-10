@@ -7,6 +7,7 @@ from typing import Optional, Annotated
 # from typing_extensions import Annotated # Use standard library
 
 from brimley.core.context import BrimleyContext
+from brimley.config.loader import load_config
 from brimley.discovery.scanner import Scanner
 from brimley.core.registry import Registry
 from brimley.execution.dispatcher import Dispatcher
@@ -44,10 +45,12 @@ def invoke(
         names.pop(0)
 
     function_name = names[0]
-    # ... rest ...
+
     # 1. Load Context & Resources
+    config_path = Path.cwd() / "brimley.yaml"
+    config_data = load_config(config_path)
     root_path = Path(root_dir)
-    context = BrimleyContext()
+    context = BrimleyContext(config_dict=config_data)
     
     # 2. Scan & Register
     if root_path.exists():

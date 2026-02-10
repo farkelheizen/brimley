@@ -93,16 +93,29 @@ brimley > quit
 
 ## 📚 Documentation
 
-The detailed design and specifications are located in the `docs/` directory:
+Detailed architectural designs and technical specifications are located in the [docs/](docs/) directory:
 
-- **Architecture:** [High-Level Design](./docs/brimley-high-level-design.md)
-- **Roadmap:** [Implementation Plan](./docs/brimley-implementation-plan.md)
-- **CLI Guide:** [CLI & REPL Harness](./docs/brimley-cli-and-repl-harness.md)
-- **Project Structure:** [Project Structure](./docs/brimley-project-structure.md)
-- **Core Concepts:**
-    - [Brimley Context](./docs/brimley-context.md)
-    - [Discovery & Registry](./docs/brimley-discovery-and-loader-specification.md)
-    - [Functions](./docs/brimley-functions.md)
+### 🏛️ Core Architecture
+- [High-Level Design](docs/brimley-high-level-design.md): The vision and architectural overview.
+- [Project Structure](docs/brimley-project-structure.md): Layout and module responsibilities.
+- [Discovery & Loader](docs/brimley-discovery-and-loader-specification.md): How files are scanned and registered.
+- [Brimley Context](docs/brimley-context.md): Service injection and state management.
+
+### 🧩 Function Types
+- [Python Functions](docs/brimley-python-functions.md): Native code with schema inference.
+- [SQL Functions](docs/brimley-sql-functions.md): Parameterized query execution.
+- [Template Functions](docs/brimley-template-functions.md): Jinja2 prompt engineering.
+- [General Principles](docs/brimley-functions.md): Standards common to all function types.
+
+### 📐 Specifications
+- [Function Arguments](docs/brimley-function-arguments.md): Input mapping and validation.
+- [Return Shapes](docs/brimley-function-return-shape.md): Output contract management.
+- [Entities](docs/brimley-entities.md): Shared data models.
+- [Naming Conventions](docs/brimley-naming-conventions.md): Standards for functions and files.
+
+### 🛠️ Developer Experience
+- [CLI & REPL Harness](docs/brimley-cli-and-repl-harness.md): Using the interactive tools.
+- [Diagnostics & Error Reporting](docs/brimley-diagnostics-and-error-reporting.md): Troubleshooting and validation.
 
 ## 🧪 Development
 

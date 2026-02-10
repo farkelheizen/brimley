@@ -1,19 +1,8 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from pydantic import Field, ConfigDict
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from brimley.core.entity import Entity, ContentBlock, PromptMessage
 from brimley.core.registry import Registry
-from brimley.core.models import BrimleyFunction
-
-class Settings(BaseSettings):
-    """
-    Global configuration loaded from environment variables.
-    Prefix: BRIMLEY_
-    """
-    model_config = SettingsConfigDict(env_prefix='BRIMLEY_', env_file='.env', extra='ignore')
-
-    env: str = "development"
-    app_name: str = "Brimley App"
+from brimley.core.models import BrimleyFunction, FrameworkSettings, AppConfig
 
 class BrimleyContext(Entity):
     """
@@ -21,8 +10,11 @@ class BrimleyContext(Entity):
     """
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
     
-    # Config is initialized via environment variables by default
-    config: Settings = Field(default_factory=Settings)
+    # Framework Settings (Maps to 'brimley' section)
+    settings: FrameworkSettings = Field(default_factory=FrameworkSettings)
+    
+    # Application Config (Maps to 'config' section)
+    config: AppConfig = Field(default_factory=AppConfig)
     
     # Application State: Mutable storage for request/session data
     app: Dict[str, Any] = Field(default_factory=dict)
@@ -33,8 +25,25 @@ class BrimleyContext(Entity):
     # Entity Registry: Lookup for domain models and data schemas
     entities: Registry[Entity] = Field(default_factory=Registry)
     
-    # Database Manager: Registry of SQL connection pools (Phase 2)
+    # Database Definitions (Maps to 'databases' section)
     databases: Dict[str, Any] = Field(default_factory=dict)
+
+    def __init__(self, config_dict: Optional[Dict[str, Any]] = None, **data: Any):
+        """
+        Initialize the context, optionally with a configuration dictionary.
+        """
+        if config_dict:
+            # Seed fields from config_dict if not explicitly provided in data
+            if 'settings' not in data:
+                data['settings'] = FrameworkSettings(**config_dict.get('brimley', {}))
+            if 'config' not in data:
+                data['config'] = AppConfig(**config_dict.get('config', {}))
+            if 'app' not in data:
+                data['app'] = config_dict.get('state', {})
+            if 'databases' not in data:
+                data['databases'] = config_dict.get('databases', {})
+        
+        super().__init__(**data)
 
     def model_post_init(self, __context: Any) -> None:
         """

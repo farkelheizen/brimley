@@ -1,6 +1,23 @@
 from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from brimley.core.entity import Entity, PromptMessage
+
+class FrameworkSettings(BaseSettings):
+    """
+    Framework-level settings (the 'brimley' section in brimley.yaml).
+    """
+    model_config = SettingsConfigDict(env_prefix='BRIMLEY_', extra='ignore')
+    
+    env: str = "development"
+    app_name: str = "Brimley App"
+    log_level: str = "INFO"
+
+class AppConfig(BaseModel):
+    """
+    User-defined application configuration (the 'config' section in brimley.yaml).
+    """
+    model_config = ConfigDict(extra='allow')
 
 class BrimleyFunction(Entity):
     """
