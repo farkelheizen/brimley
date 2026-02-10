@@ -17,6 +17,11 @@ class Registry:
         
         self._functions[func.name] = func
 
+    def register_all(self, functions: list[BrimleyFunction]) -> None:
+        for func in functions:
+            self.register(func)
+
+
     def get(self, name: str) -> BrimleyFunction:
         """
         Retrieve a function by name. Raises KeyError if not found.
