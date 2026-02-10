@@ -8,6 +8,7 @@ class BrimleyDiagnostic(BaseModel):
     file_path: str
     error_code: str
     message: str
+    severity: str = "error" # 'error', 'warning', 'critical'
     suggestion: Optional[str] = None
     line_number: Optional[int] = None
 

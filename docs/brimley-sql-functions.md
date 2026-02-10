@@ -1,6 +1,6 @@
 # Brimley SQL Functions
-> Version 0.2
 
+> Version 0.02
 SQL Functions in Brimley allow developers to expose database queries as Tools or internal logic. They support advanced metadata definition via YAML blocks embedded directly within `.sql` files or via standalone `.yaml` definition files.
 
 ## 1. Core Properties
@@ -70,7 +70,23 @@ SET status = :new_status,
 WHERE id = :user_id;
 ```
 
-## 3. Named Parameters
+## 3. Arguments & State Injection
+
+SQL functions cannot access `context.app` directly. To use dynamic values (like the current User ID) in your query, you must map them in the `args` block using `from_context`.
+
+```
+args:
+  inline:
+    user_id:
+      type: int
+      from_context: "app.user.id" # Mapped automatically by the runner
+```
+
+```
+SELECT * FROM orders WHERE user_id = :user_id
+```
+
+## 4. Named Parameters
 
 Brimley uses **colon-prefixed** named parameters (e.g., `:parameter_name`).
 
@@ -78,25 +94,20 @@ Brimley uses **colon-prefixed** named parameters (e.g., `:parameter_name`).
     
 2. **Injection Security:** Brimley utilizes parameterized queries (prepared statements) to prevent SQL injection. Values are passed as bound variables rather than string concatenation.
     
-3. **Complex Logic:** You can use these parameters anywhere a standard SQL variable is allowed (e.g., `LIMIT :limit_count` or `OFFSET :offset`).
-    
 
-## 4. Connection Management
+## 5. Connection Management
 
 The `connection` property determines which database resource the query executes against.
 
 - **Default Behavior:** If `connection` is omitted, Brimley defaults to the connection named `default` in the context.
     
 - **Registry:** Connection names must correspond to the keys available in `context.databases`.
-    
 
-## 5. Result Sets and Return Shapes
+## 6. Result Sets and Return Shapes
 
 SQL functions typically return an array of objects (rows).
 
 - **Entity Mapping:** If a `return_shape` uses an `entity_ref` with the `[]` suffix (e.g., `Order[]`), Brimley automatically maps the column names from the `SELECT` statement to the Entity properties.
-    
-- **Anonymous Sets:** If no `return_shape` is provided, Brimley returns a list of dictionaries where keys are the column aliases.
     
 
 > [!TIP]

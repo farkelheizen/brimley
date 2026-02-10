@@ -14,7 +14,10 @@ class JinjaRunner:
 
     def run(self, func: TemplateFunction, resolved_args: Dict[str, Any], context: BrimleyContext) -> str:
         """
-        Renders the template body with the provided arguments and context.
+        Renders the template body with the provided arguments.
+        
+        NOTE: Context is NOT passed to the template to enforce strict functional boundaries.
+        Any context data needed must be mapped via 'from_context' in function arguments.
         """
         if not func.template_body:
             return ""
@@ -23,10 +26,8 @@ class JinjaRunner:
         
         # We inject:
         # 1. 'args': The resolved arguments dict
-        # 2. 'context': The BrimleyContext object
         render_context = {
-            "args": resolved_args,
-            "context": context
+            "args": resolved_args
         }
         
         return template.render(**render_context)
