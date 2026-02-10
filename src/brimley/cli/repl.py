@@ -17,7 +17,6 @@ class BrimleyREPL:
     def __init__(self, root_dir: Path):
         self.root_dir = root_dir
         self.context = BrimleyContext()
-        self.registry = Registry()
         self.dispatcher = Dispatcher()
         self.prompt_session = PromptSession()
 
@@ -36,9 +35,13 @@ class BrimleyREPL:
         if scan_result.diagnostics:
              OutputFormatter.print_diagnostics(scan_result.diagnostics)
 
-        self.registry = Registry()
-        self.registry.register_all(scan_result.functions)
-        OutputFormatter.log(f"Loaded {len(self.registry)} functions: {', '.join(self.registry._functions.keys())}", severity="success")
+        # Register everything into context
+        self.context.functions.register_all(scan_result.functions)
+        self.context.entities.register_all(scan_result.entities)
+        
+        func_names = [f.name for f in self.context.functions]
+        OutputFormatter.log(f"Loaded {len(self.context.functions)} functions: {', '.join(func_names)}", severity="success")
+        OutputFormatter.log(f"Loaded {len(scan_result.entities)} entities.", severity="success")
 
     def start(self):
         OutputFormatter.log("Brimley REPL. Type 'exit' to quit.", severity="info")
@@ -81,11 +84,11 @@ class BrimleyREPL:
         func_name = parts[0]
         arg_str = parts[1] if len(parts) > 1 else None
 
-        if func_name not in self.registry:
+        if func_name not in self.context.functions:
             OutputFormatter.log(f"Function '{func_name}' not found.", severity="error")
             return
 
-        func = self.registry.get(func_name)
+        func = self.context.functions.get(func_name)
         input_content = "{}"
 
         # 1. Multi-line Input

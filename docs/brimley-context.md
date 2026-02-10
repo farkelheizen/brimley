@@ -1,70 +1,97 @@
-# BrimleyContext Design Specification
+# Brimley Context
 
 > Version 0.2
 
-The `BrimleyContext` is the central orchestration object in the Brimley framework. It acts as the "Engine Room" that holds configuration, database connections, and application state.
+The `BrimleyContext` is the central nervous system of a Brimley application. It is a singleton-per-request (or singleton-per-session) object that is injected into every function execution. It holds configuration, state, and access to the core registries.
 
-Execution Runners use the `BrimleyContext` to resolve dependencies and inject arguments explicitly requested by the function definitions.
+## The Context Object
 
-## 1. Object Architecture
+The Context is an implementation of the Entity pattern, but it serves as the container for all other entities and functions.
 
-The `BrimleyContext` is composed of four primary pillars, categorized by their mutability and purpose.
+```
+class BrimleyContext(Entity):
+    app: Dict[str, Any]
+    config: Settings
+    functions: Registry[BrimleyFunction]
+    entities: Registry[Entity]  # <--- NEW
+    databases: Dict[str, Any]
+```
 
 |**Attribute**|**Category**|**Mutability**|**Description**|
 |---|---|---|---|
 |`app`|State|**Mutable**|Global or session-specific shared state.|
 |`config`|Environment|**Read-Only**|Static configuration loaded at startup.|
 |`functions`|Logic|**Resolved**|Registry of internal Brimley functions.|
+|`entities`|Domain|**Resolved**|Registry of domain models and data schemas.|
 |`databases`|Infrastructure|**Managed**|Named SQL connection pools for data persistence.|
 
-## 2. Component Details
+### Fields
 
-### A. Application State (`app`)
-
-The `app` attribute is a thread-safe, key-value store intended for runtime data.
-
-- **Scope:** Can be scoped to a single request lifecycle or persisted globally depending on the runner configuration.
+1. **`app`**:
     
-- **Best Practice:** Use namespaced keys (e.g., `context.app["plugin_name.variable"]`) to prevent collisions across different modules.
+    - **Type**: `Dict[str, Any]`
+        
+    - **Purpose**: Mutable, application-level state. This is where you store data that needs to persist across function calls within a session or request lifecycle.
+        
+    - **Access**: `ctx.app["current_user"]`
     
-
-### B. Configuration (`config`)
-
-A read-only object containing environmental settings.
-
-- **Sources:** Populated from `.yaml` config files, `.env` variables, or system defaults.
+2. **`config`**:
     
-- **Access:** Typically accessed via a dot-notation or `get()` method to handle missing keys gracefully (e.g., `context.config.llm.model_name`).
+    - **Type**: `pydantic_settings.BaseSettings`
     
-
-### C. Function Registry (`functions`)
-
-Provides a lookup mechanism for calling other Brimley functions.
-
-### D. Database Manager (`databases`)
-
-A registry of named SQL connection pools.
-
-- **Default Pool:** A specific pool designated as `default` to simplify configurations.
+    - **Purpose**: Immutable global configuration loaded from environment variables (e.g., `BRIMLEY_ENV`, `BRIMLEY_DB_URL`).
+        
+    - **Access**: `ctx.config.app_name`
+        
+3. **`functions`**:
     
-
-## 3. Usage in Execution
-
-**The `BrimleyContext` is never passed directly to functions.**
-
-Instead, the Execution Runners use the context as a reservoir to resolve dependencies before invoking logic:
-
-1. **Argument Resolution:** The runner looks at the function's `arguments` spec. If an argument defines `from_context: "app.user_id"`, the runner extracts that value from the Context and passes it as a standard argument.
+    - **Type**: `Registry[BrimleyFunction]`
+        
+    - **Purpose**: The lookup table for all executable capabilities available to the system.
+        
+    - **Access**: `ctx.functions.get("calculate_tax")`
+        
+4. **`entities`** (New in v0.2):
     
-2. **Dependency Injection (Python):** The runner inspects Python type hints. If a function requests `Annotated[Connection, "orders_db"]`, the runner retrieves the specific pool from `context.databases` and injects it.
+    - **Type**: `Registry[Entity]`
+        
+    - **Purpose**: The central repository for all domain models and data schemas.
+        
+    - **Built-ins**:
+        
+        - `ContentBlock`
+            
+        - `PromptMessage`
+            
+    - **Access**: `ctx.entities.get("UserProfile")`
+        
+5. **`databases`**:
     
+    - **Type**: `Dict[str, Any]`
+        
+    - **Purpose**: A registry of active database connection pools (Phase 2).
+        
 
-## 4. Design Advantages
+## Lifecycle
 
-1. **Decoupling:** Functions are pure and testable. A Python function can be tested by passing simple mock objects instead of a complex Framework Context.
+1. **Initialization**:
     
-2. **Security (Least Privilege):** Functions only receive the specific data and connections they explicitly request.
+    - The `BrimleyContext` is instantiated at the entry point of the application (CLI start or Server boot).
+        
+    - Environment variables are loaded into `config`.
+        
+    - **Built-in Entities** (`ContentBlock`, `PromptMessage`) are automatically registered in `entities`.
+        
+2. **Hydration (Discovery)**:
     
-3. **Reflection-Driven Schema:** By using typed Python arguments, Brimley can automatically generate JSON schemas for tools and API documentation.
+    - The **Discovery Engine** scans the file system.
+        
+    - Found **Functions** are registered into `ctx.functions`.
+        
+    - Found **Entities** (defined in YAML) are registered into `ctx.entities`.
+        
+3. **Execution**:
     
-4. **Observability:** Centralizing access to databases and state changes allows the framework to implement global logging, auditing, and performance monitoring.
+    - When a request comes in (or a CLI command is run), the `context` is passed to the dispatcher.
+        
+    - Functions receive the `context` as their first argument (or via dependency injection), allowing them to access config, other functions, or look up entity definitions.
