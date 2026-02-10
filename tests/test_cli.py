@@ -53,3 +53,36 @@ return_shape: void
 ---
 """)
     result = runner.invoke(app, ["invoke", "f", "--root", str(tmp_path), "--input", "{invalid"])
+    assert result.exit_code == 1
+    assert "Invalid YAML" in result.stdout
+
+def test_invoke_sql_function_json_output(tmp_path):
+    (tmp_path / "sql").mkdir()
+    f = tmp_path / "sql" / "get_users.sql"
+    f.write_text("""/*
+---
+type: sql_function
+name: get_users
+return_shape: list[dict]
+arguments:
+  inline:
+    id: int
+---
+*/
+select * from users where id = {{ args.id }}
+""")
+    
+    result = runner.invoke(app, ["invoke", "get_users", 
+                                 "--root", str(tmp_path / "sql"), 
+                                 "--input", '{"id": 123}'])
+    
+    if result.exit_code != 0:
+        print(f"FAILED OUTPUT:\n{result.stdout}")
+
+    assert result.exit_code == 0
+    # Verify we got JSON back (check keys)
+    # CliRunner mixes stdout/stderr by default, so strict json.loads fails if runners log to stderr
+    assert '"function": "get_users"' in result.stdout
+    assert '"connection": "default"' in result.stdout
+    assert '"mock_data": []' in result.stdout
+    assert "select * from users" in result.stdout

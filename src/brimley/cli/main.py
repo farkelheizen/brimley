@@ -11,6 +11,7 @@ from brimley.discovery.scanner import Scanner
 from brimley.core.registry import Registry
 from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
+from brimley.cli.formatter import OutputFormatter
 
 app = typer.Typer(name="brimley", help="Brimley CLI Interface")
 
@@ -38,24 +39,23 @@ def invoke(
     context = BrimleyContext()
     
     # 2. Scan & Register
-    # Use stderr for system logs
     if root_path.exists():
         scanner = Scanner(root_path)
         scan_result = scanner.scan()
     else:
-        typer.echo(f"[SYSTEM] Warning: Root directory '{root_dir}' does not exist.", err=True)
+        OutputFormatter.log(f"Warning: Root directory '{root_dir}' does not exist.", severity="warning")
         from brimley.discovery.scanner import BrimleyScanResult
         scan_result = BrimleyScanResult()
 
     # Log Diagnostics
     if scan_result.diagnostics:
-        typer.echo(f"[SYSTEM] Encountered {len(scan_result.diagnostics)} diagnostics:", err=True)
+        OutputFormatter.log(f"Encountered {len(scan_result.diagnostics)} diagnostics:", severity="warning")
         for err in scan_result.diagnostics:
-            typer.echo(f"  - [{err.severity}] {err.message} ({err.file_path})", err=True)
+            OutputFormatter.log(f"- {err.message} ({err.file_path})", severity=err.severity)
             
     failed = [d for d in scan_result.diagnostics if d.severity in ("critical", "error")]
     if failed:
-         typer.echo(f"[SYSTEM] Scan failed with {len(failed)} errors.", err=True)
+         OutputFormatter.log(f"Scan failed with {len(failed)} errors.", severity="error")
     
     registry = Registry()
     registry.register_all(scan_result.functions)
@@ -64,9 +64,8 @@ def invoke(
     try:
         func = registry.get(function_name)
     except KeyError:
-        # Retry logic or better error
-        typer.echo(f"Error: Function '{function_name}' not found.", err=True)
-        typer.echo(f"Available: {list(registry._functions.keys())}", err=True)
+        OutputFormatter.log(f"Error: Function '{function_name}' not found.", severity="error")
+        OutputFormatter.log(f"Available: {list(registry._functions.keys())}", severity="info")
         raise typer.Exit(code=1)
 
     # 4. Parse Input
@@ -85,17 +84,17 @@ def invoke(
             if parsed_input is None:
                 parsed_input = {}
             elif not isinstance(parsed_input, dict):
-                 typer.echo(f"Error: Input must resolve to a dictionary argument map.", err=True)
+                 OutputFormatter.log("Error: Input must resolve to a dictionary argument map.", severity="error")
                  raise typer.Exit(code=1)
         except yaml.YAMLError as e:
-            typer.echo(f"Error: Invalid YAML format in input: {e}", err=True)
+            OutputFormatter.log(f"Error: Invalid YAML format in input: {e}", severity="error")
             raise typer.Exit(code=1)
 
     # 5. Resolve Arguments
     try:
         resolved_args = ArgumentResolver.resolve(func, parsed_input, context)
     except Exception as e:
-        typer.echo(f"Error Resolving Arguments: {e}", err=True)
+        OutputFormatter.log(f"Error Resolving Arguments: {e}", severity="error")
         raise typer.Exit(code=1)
 
     # 6. Execute
@@ -103,18 +102,11 @@ def invoke(
     try:
         result = dispatcher.run(func, resolved_args, context)
     except Exception as e:
-        # In case of python errors, we might want traceback?
-        # For CLI, just print error for now.
-        typer.echo(f"Execution Error: {e}", err=True)
+        OutputFormatter.log(f"Execution Error: {e}", severity="error")
         raise typer.Exit(code=1)
 
     # 7. Output
-    # If result is simple string (template), print raw
-    if isinstance(result, str):
-        print(result)
-    else:
-        # Dump JSON
-        print(json.dumps(result, indent=2, default=str))
+    OutputFormatter.print_data(result)
 
 if __name__ == "__main__":
     app()

@@ -1,3 +1,4 @@
+import sys
 from typing import Any, Dict
 from brimley.core.models import SqlFunction
 from brimley.core.context import BrimleyContext
@@ -20,9 +21,9 @@ class SqlRunner:
         connection_name = func.connection
 
         # 3. Log execution (Mock behavior)
-        print(f"[SQL Runner] Executing '{func.name}' on connection '{connection_name}'.")
-        print(f"Query: {func.sql_body}")
-        print(f"Params: {resolved_params}")
+        print(f"[SQL Runner] Executing '{func.name}' on connection '{connection_name}'.", file=sys.stderr)
+        print(f"Query: {func.sql_body}", file=sys.stderr)
+        print(f"Params: {resolved_params}", file=sys.stderr)
 
         # 4. Return mock result for verification
         return {
