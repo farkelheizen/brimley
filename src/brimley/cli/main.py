@@ -60,9 +60,7 @@ def invoke(
 
     # Log Diagnostics
     if scan_result.diagnostics:
-        OutputFormatter.log(f"Encountered {len(scan_result.diagnostics)} diagnostics:", severity="warning")
-        for err in scan_result.diagnostics:
-            OutputFormatter.log(f"- {err.message} ({err.file_path})", severity=err.severity)
+        OutputFormatter.print_diagnostics(scan_result.diagnostics)
             
     failed = [d for d in scan_result.diagnostics if d.severity in ("critical", "error")]
     if failed:

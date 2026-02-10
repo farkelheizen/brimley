@@ -31,8 +31,7 @@ class BrimleyREPL:
             scan_result = BrimleyScanResult()
 
         if scan_result.diagnostics:
-             OutputFormatter.log(f"Encountered {len(scan_result.diagnostics)} diagnostics.", severity="warning")
-             # Print diagnostics?
+             OutputFormatter.print_diagnostics(scan_result.diagnostics)
 
         self.registry = Registry()
         self.registry.register_all(scan_result.functions)

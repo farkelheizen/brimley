@@ -2,6 +2,13 @@ import json
 import typer
 from typing import Any, List, Dict, Union
 from pydantic import BaseModel
+from rich.console import Console
+from rich.table import Table
+from rich import print as rprint
+from brimley.utils.diagnostics import BrimleyDiagnostic
+
+# Create a stderr console for logging
+error_console = Console(stderr=True)
 
 class OutputFormatter:
     """
@@ -14,17 +21,54 @@ class OutputFormatter:
         """
         Print system messages to stderr with color coding.
         """
-        color = typer.colors.WHITE
+        style = "white"
         prefix = "[SYSTEM]"
         
         if severity == "warning":
-            color = typer.colors.YELLOW
+            style = "yellow"
         elif severity == "error":
-            color = typer.colors.RED
+            style = "red"
+        elif severity == "critical":
+            style = "bold red"
         elif severity == "success":
-            color = typer.colors.GREEN
+            style = "green"
             
-        typer.secho(f"{prefix} {message}", err=True, fg=color)
+        error_console.print(f"[{style}]{prefix} {message}[/{style}]")
+
+    @staticmethod
+    def print_diagnostics(diagnostics: List[BrimleyDiagnostic]) -> None:
+        """
+        Prints a 'Wall of Shame' table for diagnostics.
+        """
+        if not diagnostics:
+            return
+
+        table = Table(title="Brimley Diagnostics", border_style="red", header_style="bold red")
+        table.add_column("Severity", style="bold")
+        table.add_column("Code")
+        table.add_column("Message")
+        table.add_column("Location")
+        
+        for diag in diagnostics:
+            color = "red"
+            if diag.severity == "warning":
+                color = "yellow"
+            elif diag.severity == "critical":
+                color = "bold red"
+                
+            loc = f"{diag.file_path}"
+            if diag.line_number:
+                loc += f":{diag.line_number}"
+                
+            table.add_row(
+                f"[{color}]{diag.severity.upper()}[/{color}]",
+                diag.error_code,
+                diag.message,
+                loc
+            )
+            
+        error_console.print(table)
+        error_console.print() # spacing
 
     @staticmethod
     def print_data(data: Any) -> None:
