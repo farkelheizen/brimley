@@ -2,48 +2,57 @@
 
 > Version 0.2
 
-The `BrimleyContext` is the central nervous system of a Brimley application. It is a singleton-per-request (or singleton-per-session) object that is injected into every function execution. It holds configuration, state, and access to the core registries.
+The `BrimleyContext` is the central nervous system of a Brimley application.
 
 ## The Context Object
 
-The Context is an implementation of the Entity pattern, but it serves as the container for all other entities and functions.
-
 ```
 class BrimleyContext(Entity):
-    app: Dict[str, Any]
-    config: Settings
+    settings: FrameworkSettings     # Internal Framework Config
+    config: AppConfig               # User Application Config
+    app: Dict[str, Any]             # Mutable Application State
+    
     functions: Registry[BrimleyFunction]
-    entities: Registry[Entity]  # <--- NEW
+    entities: Registry[Entity]
     databases: Dict[str, Any]
 ```
 
-|**Attribute**|**Category**|**Mutability**|**Description**|
+|**Attribute**|**Source (YAML)**|**Mutability**|**Description**|
 |---|---|---|---|
-|`app`|State|**Mutable**|Global or session-specific shared state.|
-|`config`|Environment|**Read-Only**|Static configuration loaded at startup.|
-|`functions`|Logic|**Resolved**|Registry of internal Brimley functions.|
-|`entities`|Domain|**Resolved**|Registry of domain models and data schemas.|
-|`databases`|Infrastructure|**Managed**|Named SQL connection pools for data persistence.|
+|`settings`|`brimley:`|**Read-Only**|Framework settings (env, logging, app name).|
+|`config`|`config:`|**Read-Only**|User-defined configuration (API keys, constants).|
+|`app`|`state:`|**Mutable**|Global shared state. Seeded from YAML, modified at runtime.|
+|`functions`|N/A|**Resolved**|Registry of internal Brimley functions.|
+|`entities`|N/A|**Resolved**|Registry of domain models.|
+|`databases`|`databases:`|**Managed**|Connection pools.|
 
-### Fields
+## Fields
 
-1. **`app`**:
+1. **`settings`**:
+    
+    - **Type**: `FrameworkSettings`
+        
+    - **Purpose**: Internal framework configuration loaded from the `brimley` section of `brimley.yaml` (e.g., environment, log level).
+        
+    - **Access**: `ctx.settings.env`
+        
+2. **`config`**:
+    
+    - **Type**: `AppConfig`
+        
+    - **Purpose**: User-defined application configuration loaded from the `config` section of `brimley.yaml`.
+        
+    - **Access**: `ctx.config.support_email`
+        
+3. **`app`**:
     
     - **Type**: `Dict[str, Any]`
         
-    - **Purpose**: Mutable, application-level state. This is where you store data that needs to persist across function calls within a session or request lifecycle.
+    - **Purpose**: Mutable, application-level state. Seeded from the `state` section of `brimley.yaml`.
         
-    - **Access**: `ctx.app["current_user"]`
-    
-2. **`config`**:
-    
-    - **Type**: `pydantic_settings.BaseSettings`
-    
-    - **Purpose**: Immutable global configuration loaded from environment variables (e.g., `BRIMLEY_ENV`, `BRIMLEY_DB_URL`).
+    - **Access**: `ctx.app["maintenance_mode"]`
         
-    - **Access**: `ctx.config.app_name`
-        
-3. **`functions`**:
+4. **`functions`**:
     
     - **Type**: `Registry[BrimleyFunction]`
         
@@ -51,7 +60,7 @@ class BrimleyContext(Entity):
         
     - **Access**: `ctx.functions.get("calculate_tax")`
         
-4. **`entities`** (New in v0.2):
+5. **`entities`**:
     
     - **Type**: `Registry[Entity]`
         
@@ -65,7 +74,7 @@ class BrimleyContext(Entity):
             
     - **Access**: `ctx.entities.get("UserProfile")`
         
-5. **`databases`**:
+6. **`databases`**:
     
     - **Type**: `Dict[str, Any]`
         
@@ -78,7 +87,9 @@ class BrimleyContext(Entity):
     
     - The `BrimleyContext` is instantiated at the entry point of the application (CLI start or Server boot).
         
-    - Environment variables are loaded into `config`.
+    - `brimley.yaml` is loaded and interpolated.
+        
+    - `settings`, `config`, and `app` (initial state) are populated.
         
     - **Built-in Entities** (`ContentBlock`, `PromptMessage`) are automatically registered in `entities`.
         
@@ -94,4 +105,4 @@ class BrimleyContext(Entity):
     
     - When a request comes in (or a CLI command is run), the `context` is passed to the dispatcher.
         
-    - Functions receive the `context` as their first argument (or via dependency injection), allowing them to access config, other functions, or look up entity definitions.
+    - Functions receive the `context` as their first argument (or via dependency injection), allowing them to access settings, config, state, or look up entity definitions.
