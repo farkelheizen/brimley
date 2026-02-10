@@ -90,6 +90,7 @@ brimley2/
 |`pyyaml`|Parsing YAML frontmatter and config files.|
 |`pytest`|Critical testing framework.|
 |`rich`|For "Wall of Shame" diagnostic reporting and REPL UI.|
+|`prompt_toolkit`|Interactive REPL with command history.|
 
 ## 3. Environment Setup
 
