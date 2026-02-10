@@ -3,6 +3,8 @@ import yaml
 import shlex
 from pathlib import Path
 from typing import Optional
+import sys
+from prompt_toolkit import PromptSession
 
 from brimley.core.context import BrimleyContext
 from brimley.discovery.scanner import Scanner, BrimleyScanResult
@@ -17,6 +19,7 @@ class BrimleyREPL:
         self.context = BrimleyContext()
         self.registry = Registry()
         self.dispatcher = Dispatcher()
+        self.prompt_session = PromptSession()
 
     def load(self):
         """
@@ -43,10 +46,10 @@ class BrimleyREPL:
 
         while True:
             try:
-                # Use typer.prompt for clean input handling or generic input()
-                # We use simple input() to allow raw string typing.
-                # using click.prompt allows validation, but we want a shell feel.
-                command_line = typer.prompt("brimley >", prompt_suffix=" ", default="", show_default=False)
+                if sys.stdin.isatty():
+                    command_line = self.prompt_session.prompt("brimley > ")
+                else:
+                    command_line = typer.prompt("brimley >", prompt_suffix=" ", default="", show_default=False)
                 
                 if not command_line:
                     continue
@@ -91,8 +94,10 @@ class BrimleyREPL:
             lines = []
             while True:
                 try:
-                    # Generic input loop for accumulation
-                    part = typer.prompt("", default="", show_default=False)
+                    if sys.stdin.isatty():
+                        part = self.prompt_session.prompt("")
+                    else:
+                        part = typer.prompt("", default="", show_default=False)
                     if not part:
                         break
                     lines.append(part)
