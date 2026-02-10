@@ -75,21 +75,53 @@ class BrimleyREPL:
 
     def handle_command(self, line: str):
         # Format: [NAME] [ARGS...]
-        # Simple split on first space
         parts = line.split(" ", 1)
         func_name = parts[0]
-        arg_str = parts[1] if len(parts) > 1 else "{}"
+        arg_str = parts[1] if len(parts) > 1 else None
 
         if func_name not in self.registry:
             OutputFormatter.log(f"Function '{func_name}' not found.", severity="error")
             return
 
         func = self.registry.get(func_name)
+        input_content = "{}"
+
+        # 1. Multi-line Input
+        if arg_str is None:
+            OutputFormatter.log("** Enter multi-line input (finish with empty line) **", severity="info")
+            lines = []
+            while True:
+                try:
+                    # Generic input loop for accumulation
+                    part = typer.prompt("", default="", show_default=False)
+                    if not part:
+                        break
+                    lines.append(part)
+                except (EOFError, KeyboardInterrupt):
+                    break
+            input_content = "\n".join(lines)
+            if not input_content.strip():
+                input_content = "{}"
+        
+        # 2. File Input (@filename)
+        elif arg_str.startswith("@"):
+            file_path = Path(arg_str[1:].strip())
+            if not file_path.exists():
+                OutputFormatter.log(f"Error: Input file '{file_path}' not found.", severity="error")
+                return
+            try:
+                input_content = file_path.read_text()
+            except Exception as e:
+                OutputFormatter.log(f"Error reading file {file_path}: {e}", severity="error")
+                return
+        
+        # 3. Inline Input
+        else:
+            input_content = arg_str
 
         # Parse args
         try:
-            # We assume inline YAML/JSON for now
-            parsed_input = yaml.safe_load(arg_str)
+            parsed_input = yaml.safe_load(input_content)
             if parsed_input is None:
                 parsed_input = {}
             if not isinstance(parsed_input, dict):

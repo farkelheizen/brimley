@@ -53,3 +53,46 @@ def test_repl_reset(tmp_path):
     result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="reset\nquit\n")
     assert "Reloading..." in result.stdout
     assert "Rescan complete" in result.stdout
+
+def test_repl_file_input(tmp_path):
+    (tmp_path / "funcs").mkdir()
+    f = tmp_path / "funcs" / "hello.md"
+    f.write_text("""---
+name: hello
+type: template_function
+return_shape: string
+arguments:
+  inline:
+    name: string 
+---
+Hello {{ args.name }}""")
+    
+    arg_file = tmp_path / "args.json"
+    arg_file.write_text('{"name": "FileLoader"}')
+
+    # Input: hello @args.json
+    repl_input = f"hello @{str(arg_file)}\nquit\n"
+    
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input=repl_input)
+    assert "Hello FileLoader" in result.stdout
+
+def test_repl_multiline_input(tmp_path):
+    (tmp_path / "funcs").mkdir()
+    f = tmp_path / "funcs" / "hello.md"
+    f.write_text("""---
+name: hello
+type: template_function
+return_shape: string
+arguments:
+  inline:
+    name: string 
+---
+Hello {{ args.name }}""")
+
+    # Trigger multiline by NOT providing args on first line
+    # Then provide args, then empty line
+    repl_input = "hello\nname: MultiLine\n\nquit\n"
+    
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input=repl_input)
+    assert "** Enter multi-line input" in result.stdout # We expect this prompt
+    assert "Hello MultiLine" in result.stdout
