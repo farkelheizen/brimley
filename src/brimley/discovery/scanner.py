@@ -8,6 +8,7 @@ from brimley.core.models import BrimleyFunction
 from brimley.utils.diagnostics import BrimleyDiagnostic
 from brimley.discovery.sql_parser import parse_sql_file
 from brimley.discovery.template_parser import parse_template_file
+from brimley.discovery.python_parser import parse_python_file
 
 class BrimleyScanResult(BaseModel):
     functions: List[BrimleyFunction] = Field(default_factory=list)
@@ -119,9 +120,6 @@ class Scanner:
         elif func_type == "template_function":
             return parse_template_file(file_path)
         elif func_type == "python_function":
-            # P2-S3: Python parser not fully implemented/required yet.
-            # But if a file declares itself as python_function, we should handle or error.
-            # For now, validation error is appropriate if we can't load it.
-            raise ValueError("Python function parsing not yet implemented.")
+            return parse_python_file(file_path)
         else:
             raise ValueError(f"Unknown function type: {func_type}")
