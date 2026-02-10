@@ -1,0 +1,26 @@
+# brimley.yaml - Example Configuration for Brimley
+
+# 1. Framework Settings (ctx.settings)
+brimley:
+  env: ${BRIMLEY_ENV:development}
+  app_name: "Brimley Example Suite"
+  log_level: "DEBUG"
+
+# 2. Application Config (ctx.config) - Immutable user settings
+config:
+  support_email: "support@example.com"
+  api_timeout: 30
+  feature_flags:
+    enable_experimental: ${ENABLE_EXPERIMENTAL:false}
+
+# 3. Initial Application State (ctx.app) - Mutable seed data
+state:
+  session_started: false
+  request_count: 0
+  active_user: null
+
+# 4. Database Definitions (ctx.databases)
+databases:
+  default:
+    connector: sqlite
+    url: "sqlite:///./examples/data.db"
