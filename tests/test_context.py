@@ -15,7 +15,7 @@ def test_context_initialization_defaults():
     
     # Config should be present (even if empty/defaults)
     assert ctx.config is not None
-    assert ctx.config.env == "development" # Default
+    assert ctx.settings.env == "development" # Default
 
 def test_context_config_from_env():
     """Verify Config loads from environment variables."""
@@ -25,8 +25,8 @@ def test_context_config_from_env():
     try:
         # Re-initialize to pick up env vars
         ctx = BrimleyContext()
-        assert ctx.config.env == "production"
-        assert ctx.config.app_name == "TestApp"
+        assert ctx.settings.env == "production"
+        assert ctx.settings.app_name == "TestApp"
     finally:
         # Cleanup
         del os.environ["BRIMLEY_ENV"]
