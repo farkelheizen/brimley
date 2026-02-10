@@ -1,40 +1,43 @@
-from typing import Dict, Iterator, Optional
-from brimley.core.models import BrimleyFunction
+from typing import Dict, Iterator, Optional, TypeVar, Generic, Protocol, List
 
-class Registry:
+class HasName(Protocol):
+    name: str
+
+T = TypeVar("T", bound=HasName)
+
+class Registry(Generic[T]):
     """
-    A centralized repository for all loaded BrimleyFunctions.
+    A generic centralized repository for objects with a name attribute.
     """
     def __init__(self):
-        self._functions: Dict[str, BrimleyFunction] = {}
+        self._items: Dict[str, T] = {}
 
-    def register(self, func: BrimleyFunction) -> None:
+    def register(self, item: T) -> None:
         """
-        Register a function. Raises ValueError if name already exists.
+        Register an item. Raises ValueError if name already exists.
         """
-        if func.name in self._functions:
-            raise ValueError(f"Function '{func.name}' is already registered.")
+        if item.name in self._items:
+            raise ValueError(f"Item with name '{item.name}' is already registered.")
         
-        self._functions[func.name] = func
+        self._items[item.name] = item
 
-    def register_all(self, functions: list[BrimleyFunction]) -> None:
-        for func in functions:
-            self.register(func)
+    def register_all(self, items: List[T]) -> None:
+        for item in items:
+            self.register(item)
 
-
-    def get(self, name: str) -> BrimleyFunction:
+    def get(self, name: str) -> T:
         """
-        Retrieve a function by name. Raises KeyError if not found.
+        Retrieve an item by name. Raises KeyError if not found.
         """
-        if name not in self._functions:
-            raise KeyError(f"Function '{name}' not found in registry.")
-        return self._functions[name]
+        if name not in self._items:
+            raise KeyError(f"'{name}' not found in registry.")
+        return self._items[name]
 
     def __contains__(self, name: str) -> bool:
-        return name in self._functions
+        return name in self._items
 
     def __len__(self) -> int:
-        return len(self._functions)
+        return len(self._items)
 
-    def __iter__(self) -> Iterator[BrimleyFunction]:
-        return iter(self._functions.values())
+    def __iter__(self) -> Iterator[T]:
+        return iter(self._items.values())

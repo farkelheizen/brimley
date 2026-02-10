@@ -41,8 +41,17 @@ def test_app_state_mutability():
     ctx.app["counter"] += 1
     assert ctx.app["counter"] == 2
 
-def test_databases_and_functions_placeholders():
-    """Verify 'databases' and 'functions' attributes exist."""
+def test_context_registries_initialization():
+    """Verify 'databases' and 'functions' and 'entities' registries exist."""
     ctx = BrimleyContext()
-    assert ctx.functions == {}
+    # Now they are Registry objects
+    assert len(ctx.functions) == 0
     assert ctx.databases == {}
+    
+    # Entities should have built-ins
+    assert "ContentBlock" in ctx.entities
+    assert "PromptMessage" in ctx.entities
+    
+    from brimley.core.entity import ContentBlock, PromptMessage
+    assert ctx.entities.get("ContentBlock") == ContentBlock
+    assert ctx.entities.get("PromptMessage") == PromptMessage
