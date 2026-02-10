@@ -66,15 +66,18 @@ def invoke(
     if failed:
          OutputFormatter.log(f"Scan failed with {len(failed)} errors.", severity="error")
     
-    registry = Registry()
-    registry.register_all(scan_result.functions)
+    # Register everything into context
+    context.functions.register_all(scan_result.functions)
+    context.entities.register_all(scan_result.entities)
 
     # 3. Lookup Function
     try:
-        func = registry.get(function_name)
+        func = context.functions.get(function_name)
     except KeyError:
         OutputFormatter.log(f"Error: Function '{function_name}' not found.", severity="error")
-        OutputFormatter.log(f"Available: {list(registry._functions.keys())}", severity="info")
+        # Accessing internal _items for logging is okay, but list(context.functions) also works
+        available = [f.name for f in context.functions]
+        OutputFormatter.log(f"Available: {available}", severity="info")
         raise typer.Exit(code=1)
 
     # 4. Parse Input

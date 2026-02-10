@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 class Entity(BaseModel):
     """Base class for all Brimley domain entities."""
+    name: Optional[str] = None
     model_config = ConfigDict(extra="forbid")
 
 class ContentBlock(Entity):
