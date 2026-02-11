@@ -48,6 +48,10 @@ Used for an interactive, stateful session.
     - Print: `[SYSTEM] Loaded [N] functions: [name1], [name2]...` (or show the "Wall of Shame" if errors occur).
         
 - **Prompt:** `brimley >` 
+
+- **Admin Commands:**
+    - The REPL supports meta-commands prefixed with `/` for observability.
+    - See the full [Admin Commands Reference](brimley-repl-admin-commands.md) for details on `/settings`, `/config`, `/state`, etc.
     
 - **Interactive Parsing Logic:**
     
