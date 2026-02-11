@@ -28,7 +28,7 @@ The [BrimleyContext](brimley-context.md) is the spine of the application. It hol
     
 - **Logic (`functions`)**: The registry of executable tools.
     
-- **Infrastructure (`databases`)**: Connection pools.
+- **Infrastructure (`databases`)**: Active SQLAlchemy connection pools.
     
 - **Config (`config`)**: Immutable settings.
     
@@ -52,7 +52,7 @@ Brimley supports three primary function primitives:
 
 1. [Python Functions](brimley-python-functions.md): Native code execution with reflection-based schema inference.
     
-2. [SQL Functions](brimley-sql-functions.md): Database queries wrapped in metadata, executed via the Context's connection pools.
+2. [SQL Functions](brimley-sql-functions.md): Database queries wrapped in metadata, executed via SQLAlchemy using the Context's connection pools.
     
 3. [Template Functions](brimley-template-functions.md): Jinja2-based text generation returning strings or structured messages.
     

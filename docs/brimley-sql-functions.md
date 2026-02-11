@@ -57,6 +57,7 @@ WHERE customer_id = :customer_id
 name: update_user_status
 type: sql_function
 description: "Updates a user's status in the system."
+connection: default  # Maps to a key in brimley.yaml
 args:
   inline:
     user_id: int
@@ -88,11 +89,11 @@ SELECT * FROM orders WHERE user_id = :user_id
 
 ## 4. Named Parameters
 
-Brimley uses **colon-prefixed** named parameters (e.g., `:parameter_name`).
+Brimley uses **colon-prefixed** named parameters (e.g., `:parameter_name`) supported by SQLAlchemy.
 
 1. **Mapping:** The keys defined in the `args.inline` or `args.entity_ref` block must match the parameter names used in the SQL body.
     
-2. **Injection Security:** Brimley utilizes parameterized queries (prepared statements) to prevent SQL injection. Values are passed as bound variables rather than string concatenation.
+2. **Injection Security:** Brimley utilizes parameterized queries (prepared statements) to prevent SQL injection. Values are passed as bound variables rather than string concatenation.  **Do not** use string formatting or f-strings in your SQL, as this leads to SQL injection vulnerabilities.
     
 
 ## 5. Connection Management

@@ -14,7 +14,7 @@ class BrimleyContext(Entity):
     
     functions: Registry[BrimleyFunction]
     entities: Registry[Entity]
-    databases: Dict[str, Any]
+    databases: Dict[str, Engine]
 ```
 
 |**Attribute**|**Source (YAML)**|**Mutability**|**Description**|
@@ -24,7 +24,7 @@ class BrimleyContext(Entity):
 |`app`|`state:`|**Mutable**|Global shared state. Seeded from YAML, modified at runtime.|
 |`functions`|N/A|**Resolved**|Registry of internal Brimley functions.|
 |`entities`|N/A|**Resolved**|Registry of domain models.|
-|`databases`|`databases:`|**Managed**|Connection pools.|
+|`databases`|`databases:`|**Managed**|Active SQLAlchemy engines.|
 
 ## Fields
 
@@ -76,9 +76,9 @@ class BrimleyContext(Entity):
         
 6. **`databases`**:
     
-    - **Type**: `Dict[str, Any]`
+    - **Type**: `Dict[str, Engine]`
         
-    - **Purpose**: A registry of active database connection pools (Phase 2).
+    - **Purpose**: A registry of active database connection pools (SQLAlchemy engines).
         
 
 ## Lifecycle
@@ -93,7 +93,12 @@ class BrimleyContext(Entity):
         
     - **Built-in Entities** (`ContentBlock`, `PromptMessage`) are automatically registered in `entities`.
         
-2. **Hydration (Discovery)**:
+2. **Infrastructure Hydration**:
+
+    - Active database connections are established based on the `databases` section in `brimley.yaml`.
+    - SQLAlchemy `Engine` objects are created and stored in `ctx.databases`.
+
+3. **Hydration (Discovery)**:
     
     - The **Discovery Engine** scans the file system.
         
