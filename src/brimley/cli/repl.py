@@ -1,6 +1,7 @@
 import typer
 import yaml
 import shlex
+import json
 from pathlib import Path
 from typing import Optional
 import sys
@@ -18,8 +19,11 @@ class BrimleyREPL:
     def __init__(self, root_dir: Path):
         self.root_dir = root_dir
         
-        # Load config
-        config_path = Path.cwd() / "brimley.yaml"
+        # Load config: check root_dir first, then CWD
+        config_path = self.root_dir / "brimley.yaml"
+        if not config_path.exists():
+            config_path = Path.cwd() / "brimley.yaml"
+            
         config_data = load_config(config_path)
         self.context = BrimleyContext(config_dict=config_data)
         
@@ -50,7 +54,7 @@ class BrimleyREPL:
         OutputFormatter.log(f"Loaded {len(scan_result.entities)} entities.", severity="success")
 
     def start(self):
-        OutputFormatter.log("Brimley REPL. Type 'exit' to quit.", severity="info")
+        OutputFormatter.log("Brimley REPL. Type '/help' for admin commands or '/quit' to exit.", severity="info")
         self.load()
 
         while True:
@@ -65,13 +69,24 @@ class BrimleyREPL:
                     
                 command_line = command_line.strip()
                 
+                # Admin Commands
+                if command_line.startswith('/'):
+                    should_continue = self.handle_admin_command(command_line)
+                    if not should_continue:
+                        break
+                    continue
+
+                # Legacy/Direct exit
                 if command_line in ("exit", "quit"):
                     OutputFormatter.log("Exiting Brimley REPL.", severity="info")
                     break
                     
                 if command_line == "reset":
                     OutputFormatter.log("Reloading...", severity="info")
-                    self.context = BrimleyContext() # Reset context state
+                    # Reload config when resetting
+                    config_path = Path.cwd() / "brimley.yaml"
+                    config_data = load_config(config_path)
+                    self.context = BrimleyContext(config_dict=config_data)
                     self.load()
                     OutputFormatter.log("Rescan complete.", severity="success")
                     continue
@@ -83,6 +98,102 @@ class BrimleyREPL:
                  break
             except Exception as e:
                 OutputFormatter.log(f"System Error: {e}", severity="critical")
+
+    def handle_admin_command(self, line: str) -> bool:
+        """
+        Processes commands starting with '/'.
+        Returns False to signal REPL exit, True to continue.
+        """
+        parts = line[1:].split()
+        if not parts:
+            return True
+        
+        cmd = parts[0].lower()
+        args = parts[1:]
+
+        handlers = {
+            "quit": self._cmd_quit,
+            "exit": self._cmd_quit,
+            "help": self._cmd_help,
+            "settings": self._cmd_settings,
+            "config": self._cmd_config,
+            "state": self._cmd_state,
+            "functions": self._cmd_functions,
+            "entities": self._cmd_entities,
+            "databases": self._cmd_databases,
+        }
+
+        handler = handlers.get(cmd)
+        if handler:
+            return handler(args)
+        else:
+            OutputFormatter.log(f"Unknown admin command: /{cmd}. Type /help for options.", severity="error")
+            return True
+
+    def _cmd_quit(self, args) -> bool:
+        OutputFormatter.log("Exiting Brimley REPL.", severity="info")
+        return False
+
+    def _cmd_help(self, args) -> bool:
+        commands = [
+            ("/settings", "Dumps internal framework configuration (read-only)."),
+            ("/config", "Dumps user application configuration (read-only)."),
+            ("/state", "Dumps current mutable application state."),
+            ("/functions", "Lists all registered functions and their types."),
+            ("/entities", "Lists all registered entities."),
+            ("/databases", "Lists configured database connections."),
+            ("/help", "Lists available admin commands."),
+            ("/quit", "Exits the REPL."),
+        ]
+        OutputFormatter.log("\nAvailable Admin Commands:", severity="info")
+        for cmd, desc in commands:
+            typer.echo(f"  {cmd:<12} {desc}")
+        typer.echo("")
+        return True
+
+    def _cmd_settings(self, args) -> bool:
+        typer.echo(self.context.settings.model_dump_json(indent=2))
+        return True
+
+    def _cmd_config(self, args) -> bool:
+        typer.echo(self.context.config.model_dump_json(indent=2))
+        return True
+
+    def _cmd_state(self, args) -> bool:
+        typer.echo(json.dumps(self.context.app, indent=2, default=str))
+        return True
+
+    def _cmd_functions(self, args) -> bool:
+        if not self.context.functions:
+            OutputFormatter.log("No functions registered.", severity="info")
+            return True
+        
+        OutputFormatter.log(f"Registered Functions ({len(self.context.functions)}):", severity="info")
+        # Registry items are BrimleyFunction objects (which have name and type)
+        for func in self.context.functions:
+            typer.echo(f"  [{func.type}] {func.name}")
+        return True
+
+    def _cmd_entities(self, args) -> bool:
+        if not self.context.entities:
+            OutputFormatter.log("No entities registered.", severity="info")
+            return True
+        
+        OutputFormatter.log(f"Registered Entities ({len(self.context.entities)}):", severity="info")
+        for entity in self.context.entities:
+            # entities registry stores classes or items with .name
+            name = getattr(entity, "name", entity.__class__.__name__)
+            typer.echo(f"  {name}")
+        return True
+
+    def _cmd_databases(self, args) -> bool:
+        if not self.context.databases:
+            OutputFormatter.log("No database connections configured.", severity="info")
+            return True
+        
+        OutputFormatter.log("Database Configurations:", severity="info")
+        typer.echo(json.dumps(self.context.databases, indent=2, default=str))
+        return True
 
     def handle_command(self, line: str):
         # Format: [NAME] [ARGS...]
