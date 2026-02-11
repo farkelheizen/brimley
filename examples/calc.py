@@ -3,7 +3,7 @@
 name: calculate_tax
 type: python_function
 return_shape: float
-handler: examples.calc.calculate_tax
+handler: calculate_tax
 arguments:
   inline:
     amount: float
