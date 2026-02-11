@@ -1,47 +1,57 @@
 import pytest
+from sqlalchemy import create_engine, text
 from brimley.execution.sql_runner import SqlRunner
 from brimley.core.models import SqlFunction
 from brimley.core.context import BrimleyContext
+
+@pytest.fixture
+def engine():
+    # In-memory SQLite for testing
+    engine = create_engine("sqlite:///:memory:")
+    with engine.connect() as conn:
+        conn.execute(text("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)"))
+        conn.execute(text("INSERT INTO users (id, name, email) VALUES (1, 'Alice', 'alice@example.com')"))
+        conn.execute(text("INSERT INTO users (id, name, email) VALUES (2, 'Bob', 'bob@example.com')"))
+        conn.commit()
+    return engine
 
 @pytest.fixture
 def runner():
     return SqlRunner()
 
 @pytest.fixture
-def context():
+def context(engine):
     ctx = BrimleyContext()
-    ctx.app["user_id"] = 999
-    ctx.databases = {"default": "sqlite:///:memory:"}
+    ctx.app["user_id"] = 1
+    ctx.databases = {"default": engine}
     return ctx
 
-def test_sql_execution_simple(runner, context):
+def test_sql_execution_select(runner, context):
     func = SqlFunction(
         name="get_user",
         type="sql_function",
         return_shape="dict",
-        sql_body="SELECT * FROM users WHERE id = :user_id",
+        sql_body="SELECT id, name FROM users WHERE id = :id",
         arguments={
             "inline": {
-                "user_id": "int"
+                "id": "int"
             }
         }
     )
     
     # Run with explicit argument
-    result = runner.run(func, {"user_id": 123}, context)
+    result = runner.run(func, {"id": 1}, context)
     
-    # Verify mock output structure
-    assert result["function"] == "get_user"
-    assert result["executed_sql"] == "SELECT * FROM users WHERE id = :user_id"
-    assert result["parameters"]["user_id"] == 123
-    assert result["connection"] == "default"
+    assert len(result) == 1
+    assert result[0]["name"] == "Alice"
+    assert result[0]["id"] == 1
 
 def test_sql_execution_context_injection(runner, context):
     func = SqlFunction(
-        name="get_my_orders",
+        name="get_my_profile",
         type="sql_function",
-        return_shape="list",
-        sql_body="SELECT * FROM orders WHERE user_id = :uid",
+        return_shape="dict",
+        sql_body="SELECT * FROM users WHERE id = :uid",
         arguments={
             "inline": {
                 "uid": {
@@ -55,20 +65,45 @@ def test_sql_execution_context_injection(runner, context):
     # Run without explicit argument, relying on context injection
     result = runner.run(func, {}, context)
     
-    assert result["parameters"]["uid"] == 999
+    assert len(result) == 1
+    assert result[0]["name"] == "Alice"
 
-def test_sql_execution_missing_arg(runner, context):
+def test_sql_execution_insert(runner, context):
     func = SqlFunction(
-        name="fail_test",
+        name="add_user",
         type="sql_function",
         return_shape="void",
-        sql_body="SELECT :val",
+        sql_body="INSERT INTO users (id, name, email) VALUES (:id, :name, :email)",
         arguments={
             "inline": {
-                "val": "string"
+                "id": "int",
+                "name": "string",
+                "email": "string"
             }
         }
     )
     
-    with pytest.raises(ValueError, match="Missing required argument"):
+    result = runner.run(func, {"id": 3, "name": "Charlie", "email": "charlie@example.com"}, context)
+    
+    assert result["rows_affected"] == 1
+    
+    # Verify insertion
+    engine = context.databases["default"]
+    with engine.connect() as conn:
+        res = conn.execute(text("SELECT name FROM users WHERE id = 3")).mappings().one()
+        assert res["name"] == "Charlie"
+
+def test_sql_execution_missing_connection(runner):
+    context = BrimleyContext()
+    # No databases registered
+    
+    func = SqlFunction(
+        name="fail_test",
+        type="sql_function",
+        sql_body="SELECT 1",
+        connection="missing",
+        return_shape="void"
+    )
+    
+    with pytest.raises(RuntimeError, match="Database connection 'missing' not found"):
         runner.run(func, {}, context)

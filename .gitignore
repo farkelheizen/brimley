@@ -49,6 +49,11 @@ cover/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
 # macOS
 .DS_Store
 .AppleDouble

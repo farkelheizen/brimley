@@ -16,11 +16,37 @@ def test_e2e_hello_template():
     assert result.exit_code == 0
     assert "Hello E2E!" in result.stdout
 
-def test_e2e_users_sql():
-    result = runner.invoke(app, ["invoke", "get_users", "--root", str(EXAMPLES_DIR), "--input", '{"limit": 5}'])
+def test_e2e_users_sql(tmp_path):
+    # Setup a local brimley.yaml and DB to avoid mess in examples
+    db_path = tmp_path / "test.db"
+    
+    # Create the DB
+    from sqlalchemy import create_engine, text
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as conn:
+        conn.execute(text("CREATE TABLE users (id int, username text, email text)"))
+        conn.execute(text("INSERT INTO users VALUES (1, 'alice', 'alice@test.com')"))
+        conn.commit()
+
+    # Create brimley.yaml
+    config = tmp_path / "brimley.yaml"
+    config.write_text(f"""
+databases:
+  default:
+    url: "sqlite:///{db_path}"
+""")
+
+    # Copy users.sql to tmp_path
+    import shutil
+    shutil.copy(EXAMPLES_DIR / "users.sql", tmp_path / "users.sql")
+
+    result = runner.invoke(app, ["invoke", "get_users", "--root", str(tmp_path), "--input", '{"limit": 5}'])
+    
+    if result.exit_code != 0:
+        print(f"FAILED OUTPUT:\n{result.stdout}")
+
     assert result.exit_code == 0
-    assert '"function": "get_users"' in result.stdout
-    assert '"limit": 5' in result.stdout
+    assert "alice" in result.stdout
 
 def test_e2e_calc_python():
     # This relies on examples.calc being importable
