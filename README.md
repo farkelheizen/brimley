@@ -115,6 +115,7 @@ Detailed architectural designs and technical specifications are located in the [
 
 ### 🛠️ Developer Experience
 - [CLI & REPL Harness](docs/brimley-cli-and-repl-harness.md): Using the interactive tools.
+- [REPL Admin Commands](docs/brimley-repl-admin-commands.md): Observability commands for the REPL.
 - [Diagnostics & Error Reporting](docs/brimley-diagnostics-and-error-reporting.md): Troubleshooting and validation.
 
 ## 🧪 Development

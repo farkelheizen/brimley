@@ -15,7 +15,7 @@ Brimley operates as a **Monolithic Engine** with a distinct lifecycle:
     
 3. **Context Injection:** Every execution is injected with a `BrimleyContext`, providing access to configuration, databases, and shared application state.
     
-4. **Invocation:** The `CLI` or `REPL` invokes functions by name, passing arguments that are validated and merged against the function's schema.
+4. **Invocation:** The `CLI` or `REPL` invokes functions by name, passing arguments that are validated and merged against the function's schema. The REPL also supports [Admin Commands](brimley-repl-admin-commands.md) for inspecting engine state.
     
 
 ## 3. Key Components

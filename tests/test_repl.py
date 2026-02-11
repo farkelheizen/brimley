@@ -96,3 +96,29 @@ Hello {{ args.name }}""")
     result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input=repl_input)
     assert "** Enter multi-line input" in result.stdout # We expect this prompt
     assert "Hello MultiLine" in result.stdout
+
+def test_repl_admin_help(tmp_path):
+    (tmp_path / "funcs").mkdir()
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input="/help\n/quit\n")
+    assert "/settings" in result.stdout
+    assert "/config" in result.stdout
+    assert "/state" in result.stdout
+    assert "/functions" in result.stdout
+
+def test_repl_admin_settings(tmp_path):
+    (tmp_path / "funcs").mkdir()
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input="/settings\n/quit\n")
+    assert '"env": "development"' in result.stdout
+
+def test_repl_admin_functions(tmp_path):
+    (tmp_path / "funcs").mkdir()
+    f = tmp_path / "funcs" / "hello.md"
+    f.write_text("---\nname: hello\ntype: template_function\nreturn_shape: string\n---\nHi")
+    
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input="/functions\n/quit\n")
+    assert "[template_function] hello" in result.stdout
+
+def test_repl_admin_invalid(tmp_path):
+    (tmp_path / "funcs").mkdir()
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input="/unknown_cmd\n/quit\n")
+    assert "Unknown admin command: /unknown_cmd" in result.stdout
