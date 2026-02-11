@@ -47,9 +47,12 @@ def invoke(
     function_name = names[0]
 
     # 1. Load Context & Resources
-    config_path = Path.cwd() / "brimley.yaml"
-    config_data = load_config(config_path)
     root_path = Path(root_dir)
+    config_path = root_path / "brimley.yaml"
+    if not config_path.exists():
+        config_path = Path.cwd() / "brimley.yaml"
+        
+    config_data = load_config(config_path)
     context = BrimleyContext(config_dict=config_data)
     
     # 2. Scan & Register

@@ -7,7 +7,12 @@ arguments:
     name:
       type: string
       default: "World"
+    support_email:
+      type: string
+      from_context: "config.support_email"
 ---
 # Hello {{ args.name }}!
 
 Welcome to Brimley.
+
+Contact us at: {{ args.support_email }}
