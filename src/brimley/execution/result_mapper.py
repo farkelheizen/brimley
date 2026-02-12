@@ -17,6 +17,9 @@ class ResultMapper:
         "bool": bool,
         "void": type(None),
         "decimal": float, # For now mapping decimal to float
+        "dict": dict,
+        "list": list,
+        "any": Any,
     }
 
     @classmethod
@@ -36,6 +39,14 @@ class ResultMapper:
 
     @classmethod
     def _map_by_shorthand(cls, data: Any, shape_str: str, context: BrimleyContext) -> Any:
+        # Handle complex list[dict] or List[Any] style strings by converting to [] syntax
+        if "[" in shape_str and not shape_str.endswith("[]"):
+            # Very naive conversion of "list[something]" to "something[]"
+            import re
+            match = re.match(r"list\[(.*)\]", shape_str, re.IGNORECASE)
+            if match:
+                shape_str = f"{match.group(1)}[]"
+
         is_list = False
         base_type_str = shape_str
         
@@ -116,14 +127,21 @@ class ResultMapper:
 
     @classmethod
     def _resolve_type(cls, type_name: str, context: BrimleyContext) -> Type:
+        # Lowercase for case-insensitivity in shorthand strings
+        tn = type_name.lower()
+
         # 1. Check Primitives
-        if type_name in cls.PRIMITIVE_MAP:
-            return cls.PRIMITIVE_MAP[type_name]
+        if tn in cls.PRIMITIVE_MAP:
+            return cls.PRIMITIVE_MAP[tn]
         
-        # 2. Check Entities
+        # 2. Check Entities (Keep original casing for entities)
         entity_class = context.entities.get(type_name)
         if entity_class:
             return entity_class
         
-        # 3. Default to Any or raise? Let's raise for clarity in this engine.
+        # 3. Handle Python built-ins like list[dict] where user might use literal python typing
+        # If it contains '[', it's handled by _map_by_shorthand usually, 
+        # but if the user passed 'list' or 'dict' it should map to the primitives.
+        
+        # 4. Default to Any or raise? Let's raise for clarity in this engine.
         raise ValueError(f"Unknown return type or entity: '{type_name}'")

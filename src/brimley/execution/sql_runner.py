@@ -4,6 +4,7 @@ from sqlalchemy import text
 from brimley.core.models import SqlFunction
 from brimley.core.context import BrimleyContext
 from brimley.execution.arguments import ArgumentResolver
+from brimley.execution.result_mapper import ResultMapper
 
 class SqlRunner:
     """
@@ -33,8 +34,13 @@ class SqlRunner:
             # Check if it returns rows
             if result.returns_rows:
                 # Return list of dicts
-                return [dict(row) for row in result.mappings()]
+                raw_rows = [dict(row) for row in result.mappings()]
+                return ResultMapper.map_result(raw_rows, func, context)
             else:
                 # Commit for INSERT/UPDATE/DELETE if auto-commit isn't on by default
                 conn.commit()
-                return {"rows_affected": result.rowcount}
+                # If the shape is void, we return None as per ResultMapper logic
+                if func.return_shape == "void" or not func.return_shape:
+                    return ResultMapper.map_result(None, func, context)
+                # Otherwise, if they expected something else (like dict), return the rowcount
+                return ResultMapper.map_result({"rows_affected": result.rowcount}, func, context)

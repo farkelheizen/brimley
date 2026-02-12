@@ -30,7 +30,7 @@ def test_sql_execution_select(runner, context):
     func = SqlFunction(
         name="get_user",
         type="sql_function",
-        return_shape="dict",
+        return_shape="dict[]",
         sql_body="SELECT id, name FROM users WHERE id = :id",
         arguments={
             "inline": {
@@ -50,7 +50,7 @@ def test_sql_execution_context_injection(runner, context):
     func = SqlFunction(
         name="get_my_profile",
         type="sql_function",
-        return_shape="dict",
+        return_shape="dict[]",
         sql_body="SELECT * FROM users WHERE id = :uid",
         arguments={
             "inline": {
@@ -72,7 +72,7 @@ def test_sql_execution_insert(runner, context):
     func = SqlFunction(
         name="add_user",
         type="sql_function",
-        return_shape="void",
+        return_shape="dict",
         sql_body="INSERT INTO users (id, name, email) VALUES (:id, :name, :email)",
         arguments={
             "inline": {
