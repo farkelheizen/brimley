@@ -36,6 +36,9 @@ brimley2/
 │       ├── infrastructure/ # Database connection management
 │       │   ├── __init__.py
 │       │   └── database.py
+│       ├── mcp/            # MCP adapter and FastMCP integration
+│       │   ├── __init__.py
+│       │   └── adapter.py
 │       └── utils/          # Diagnostics & Helpers
 │           ├── __init__.py
 │           └── diagnostics.py
@@ -49,6 +52,7 @@ brimley2/
 │   ├── brimley-function-return-shape.md
 │   ├── brimley-functions.md
 │   ├── brimley-high-level-design.md
+│   ├── brimley-model-context-protocol-integration.md
 │   ├── brimley-naming-conventions.md
 │   ├── brimley-project-structure.md
 │   ├── brimley-python-functions.md
@@ -95,6 +99,7 @@ brimley2/
 |`pytest`|Critical testing framework.|
 |`rich`|For "Wall of Shame" diagnostic reporting and REPL UI.|
 |`prompt_toolkit`|Interactive REPL with command history.|
+|`fastmcp`|Optional dependency for exposing Brimley functions as MCP tools.|
 
 ## 3. Environment Setup
 
