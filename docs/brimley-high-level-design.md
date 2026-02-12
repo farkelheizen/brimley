@@ -3,7 +3,7 @@
 
 ## 1. Executive Summary
 
-Brimley is a lightweight, file-based function execution engine designed to bridge the gap between static definitions (SQL, Python, Templates) and dynamic execution environments (CLI, REPL, and eventually FastMCP). It emphasizes a "Configuration over Code" approach for discovery and a strict contract for inputs and outputs.
+Brimley is a lightweight, file-based function execution engine designed to bridge the gap between static definitions (SQL, Python, Templates) and dynamic execution environments (CLI, REPL, and FastMCP). It emphasizes a "Configuration over Code" approach for discovery and a strict contract for inputs and outputs.
 
 ## 2. Core Architecture
 
@@ -15,7 +15,7 @@ Brimley operates as a **Monolithic Engine** with a distinct lifecycle:
     
 3. **Context Injection:** Every execution is injected with a `BrimleyContext`, providing access to configuration, databases, and shared application state.
     
-4. **Invocation:** The `CLI` or `REPL` invokes functions by name, passing arguments that are validated and merged against the function's schema. The REPL also supports [Admin Commands](brimley-repl-admin-commands.md) for inspecting engine state.
+4. **Invocation:** The `CLI` or `REPL` invokes functions by name, passing arguments that are validated and merged against the function's schema. The REPL also supports [Admin Commands](brimley-repl-admin-commands.md) for inspecting engine state and can run an embedded MCP server over SSE when configured.
     
 
 ## 3. Key Components
@@ -64,6 +64,18 @@ Defined in [CLI & REPL Harness](brimley-cli-and-repl-harness.md):
 - **`invoke`**: Single-shot execution for scripts/pipes.
     
 - **`repl`**: Interactive loop with state persistence and multi-line input support.
+
+### E. The MCP Integration Layer
+
+Defined in [MCP Integration](brimley-model-context-protocol-integration.md), this component handles:
+
+- **Tool Exposure**: Functions tagged with `mcp: { type: tool }` are exposed to MCP clients.
+
+- **Schema Filtering**: Arguments sourced from `from_context` are hidden from MCP tool input schemas.
+
+- **Embedded Hosting**: REPL can host FastMCP over SSE without conflicting with interactive terminal input.
+
+- **Adapter Reuse**: MCP tool registration is modular so external apps can attach Brimley tools to existing FastMCP servers.
     
 
 ## 4. Data Flow
@@ -88,3 +100,4 @@ Defined in [CLI & REPL Harness](brimley-cli-and-repl-harness.md):
 - [Function Arguments](brimley-function-arguments.md)
 - [Return Shapes](brimley-function-return-shape.md)
 - [Entities](brimley-entities.md)
+- [Model Context Protocol Integration](brimley-model-context-protocol-integration.md)

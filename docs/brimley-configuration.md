@@ -6,7 +6,7 @@ Brimley applications are configured via a single YAML file (`brimley.yaml`) loca
 
 ## 1. The Configuration File: `brimley.yaml`
 
-The configuration file is divided into four sections, mapping directly to the Context:
+The configuration file is divided into five sections, mapping directly to the Context:
 
 1. **`brimley`**: Framework-level settings (maps to `ctx.settings`).
     
@@ -14,7 +14,9 @@ The configuration file is divided into four sections, mapping directly to the Co
     
 3. **`state`**: Initial seed data for application state (maps to `ctx.app`).
     
-4. **`databases`**: Definitions for SQL connections (hydrates `ctx.infrastructure`).
+4. **`databases`**: Definitions for SQL connections (hydrates `ctx.databases`).
+
+5. **`mcp`**: MCP runtime settings (mapped to MCP runtime configuration in the application context/runtime).
     
 
 ### Example
@@ -46,11 +48,16 @@ state:
 # 4. Database Definitions
 databases:
   default:
-    url: "sqlite:///./brimley.db"
-    connect_args:
-      check_same_thread: false
-  warehouse:
+    connector: postgresql
     url: ${DATABASE_URL}
+    pool_size: 5
+
+# 5. Model Context Protocol Integration
+mcp:
+  embedded: true            # Set to false to skip embedded server startup in REPL
+  transport: "sse"          # 'sse' (HTTP) or 'stdio'. The REPL forces 'sse' to prevent conflicts.
+  host: "127.0.0.1"         # Bind address for the SSE server
+  port: 8000                # Port for the SSE server
 ```
 
 ## 2. Environment Variable Substitution
@@ -70,8 +77,9 @@ Brimley parses the raw YAML file _as a string_ first to interpolate environmen
 |---|---|---|---|
 |`brimley`|`ctx.settings`|Read-Only|Internal framework settings.|
 |`config`|`ctx.config`|Read-Only|User-defined configuration (API keys, constants).|
-|state`|`ctx.app`|Mutable|Initial values for the shared state dictionary.|
-|`databases`|`ctx.infrastructure`|Managed|Connection definitions.|
+|`state`|`ctx.app`|Mutable|Initial values for the shared state dictionary.|
+|`databases`|`ctx.databases`|Managed|Connection definitions.|
+|`mcp`|`ctx.mcp` (or runtime MCP settings)|Read-Only|Embedded MCP server behavior and transport settings.|
 
 ### Updated Context Structure
 
@@ -79,7 +87,9 @@ Brimley parses the raw YAML file _as a string_ first to interpolate environmen
 class BrimleyContext(Entity):
     settings: FrameworkSettings     # from 'brimley'
     config: AppConfig               # from 'config'
+    mcp: MCPSettings                # from 'mcp'
     app: Dict[str, Any]             # from 'state'
+    databases: Dict[str, Any]       # from 'databases'
     
     # ... registries ...
 ```
