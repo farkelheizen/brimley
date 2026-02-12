@@ -108,7 +108,16 @@ The `connection` property determines which database resource the query execute
 
 SQL functions typically return an array of objects (rows).
 
-- **Entity Mapping:** If a `return_shape` uses an `entity_ref` with the `[]` suffix (e.g., `Order[]`), Brimley automatically maps the column names from the `SELECT` statement to the Entity properties.
+### Entity Auto-Mapping
+
+If a `return_shape` uses an `entity_ref` (e.g., `Order` or `Order[]`), Brimley automatically maps the raw database rows to that Entity.
+
+1. **Column Matching:** The columns returned by your SQL `SELECT` statement must match the fields defined in the Entity.
+    
+2. **Aliasing:** Use SQL `AS` aliases to match Pydantic field names if the database schema differs (e.g., `SELECT user_id AS id`).
+    
+3. **Validation:** The framework will raise a runtime error if the database result cannot be coerced into the defined Entity (e.g., missing required fields).
+    
     
 
 > [!TIP]
