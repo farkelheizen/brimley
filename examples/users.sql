@@ -2,7 +2,7 @@
 ---
 name: get_users
 type: sql_function
-connection: analytics_db
+connection: default
 return_shape: list[dict]
 arguments:
   inline:
@@ -13,5 +13,5 @@ arguments:
 */
 SELECT id, username, email 
 FROM users 
-ORDER BY created_at DESC 
-LIMIT {{ args.limit }}
+ORDER BY id DESC 
+LIMIT :limit

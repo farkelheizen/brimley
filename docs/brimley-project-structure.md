@@ -33,6 +33,9 @@ brimley2/
 │       │   ├── jinja_runner.py
 │       │   ├── python_runner.py
 │       │   └── sql_runner.py
+│       ├── infrastructure/ # Database connection management
+│       │   ├── __init__.py
+│       │   └── database.py
 │       └── utils/          # Diagnostics & Helpers
 │           ├── __init__.py
 │           └── diagnostics.py
@@ -85,6 +88,7 @@ brimley2/
 |---|---|
 |`pydantic`|Data validation.|
 |`pydantic-settings`|Configuration loading (.env support).|
+|`sqlalchemy`|Database abstraction layer.|
 |`typer`|CLI command framework.|
 |`jinja2`|Template engine for Markdown/YAML functions.|
 |`pyyaml`|Parsing YAML frontmatter and config files.|

@@ -1,4 +1,5 @@
 # Brimley Function Return Shape Specification
+
 > Version 0.2
 
 This specification defines the syntax and validation rules for **Brimley Function Return Shapes**, used to define the expected output structure for Functions (SQL, API, Python).
@@ -7,10 +8,10 @@ This specification defines the syntax and validation rules for **Brimley Functi
 
 The `return_shape` property is polymorphic. It can be defined as a **String** (Shorthand) or a **Dictionary** (Structured).
 
-| **Format**            | **Type** | **Description**                                            |
-| --------------------- | -------- | ---------------------------------------------------------- |
-| **Shorthand String**  | `string` | A single type string (primitive, entity, or collection).   |
-| **Structured Object** | `dict`   | A dictionary containing `entity_ref` and/or `inline` keys. |
+|**Format**|**Type**|**Description**|
+|---|---|---|
+|**Shorthand String**|`string`|A single type string (primitive, entity, or collection).|
+|**Structured Object**|`dict`|A dictionary containing `entity_ref` and/or `inline` keys.|
 
 ## 2. Shorthand String Mode
 
@@ -79,6 +80,7 @@ return_shape:
 - **Explicit Void:** `return_shape: void`. Tells the framework and LLM that no data is returned.
     
 - **Omitted:** If `return_shape` is missing entirely (common in SQL UPDATE statements), it defaults to **void**.
+    
 
 ## 5. Summary Table of Syntax
 
@@ -92,3 +94,23 @@ return_shape:
 > [!TIP]
 > 
 > **SQL Functions:** Always use `MyEntity[]` when your SELECT statement returns multiple rows that match a defined Entity schema.
+
+## 6. Runtime Marshaling
+
+Brimley employs a **Result Mapper** at runtime to ensure the output of a function matches the contract defined in `return_shape`.
+
+1. **Scalar Marshaling**: If a function returns a primitive (e.g., `int`) but the implementation returns a string "123", Brimley attempts to cast it.
+    
+2. **Entity Marshaling**:
+    
+    - If `return_shape` references an Entity (e.g., `Order`), Brimley looks up the `Order` definition in the registry.
+        
+    - It validates the raw output (e.g., a database row dict) against the Entity's schema.
+        
+    - **Strictness**: Missing required fields in the output will raise a runtime error. Extra fields in the output are generally ignored (depending on Entity configuration).
+        
+3. **Collection Handling**:
+    
+    - If `return_shape` ends in `[]` (e.g., `Order[]`), Brimley expects an iterable (List) of items.
+        
+    - It iterates over the raw list and validates each item against the target Entity.

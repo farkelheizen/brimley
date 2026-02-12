@@ -57,6 +57,33 @@ return_shape: void
     assert "Invalid YAML" in result.stdout
 
 def test_invoke_sql_function_json_output(tmp_path):
+    # 1. Create brimley.yaml with a database
+    config = tmp_path / "brimley.yaml"
+    config.write_text("""
+databases:
+  default:
+    url: "sqlite:///:memory:"
+""")
+    
+    # 2. Setup: Create users table in that in-memory DB? 
+    # Hard to do via CLI directly if it's transient.
+    # Let's use a file-based SQLite instead so we can prep it.
+    db_path = tmp_path / "test.db"
+    config.write_text(f"""
+databases:
+  default:
+    url: "sqlite:///{db_path}"
+""")
+    
+    # Prep the DB
+    from sqlalchemy import create_engine, text
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as conn:
+        conn.execute(text("CREATE TABLE users (id int, name text)"))
+        conn.execute(text("INSERT INTO users VALUES (123, 'CLI User')"))
+        conn.commit()
+
+    # 3. Create the SQL function
     (tmp_path / "sql").mkdir()
     f = tmp_path / "sql" / "get_users.sql"
     f.write_text("""/*
@@ -69,20 +96,17 @@ arguments:
     id: int
 ---
 */
-select * from users where id = {{ args.id }}
+SELECT * FROM users WHERE id = :id
 """)
     
     result = runner.invoke(app, ["invoke", "get_users", 
-                                 "--root", str(tmp_path / "sql"), 
+                                 "--root", str(tmp_path), 
                                  "--input", '{"id": 123}'])
     
     if result.exit_code != 0:
         print(f"FAILED OUTPUT:\n{result.stdout}")
 
     assert result.exit_code == 0
-    # Verify we got JSON back (check keys)
-    # CliRunner mixes stdout/stderr by default, so strict json.loads fails if runners log to stderr
-    assert '"function": "get_users"' in result.stdout
-    assert '"connection": "default"' in result.stdout
-    assert '"mock_data": []' in result.stdout
-    assert "select * from users" in result.stdout
+    # The output should now be a JSON list of dicts
+    assert "CLI User" in result.stdout
+    assert "123" in result.stdout

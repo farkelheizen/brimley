@@ -46,9 +46,11 @@ state:
 # 4. Database Definitions
 databases:
   default:
-    connector: postgresql
+    url: "sqlite:///./brimley.db"
+    connect_args:
+      check_same_thread: false
+  warehouse:
     url: ${DATABASE_URL}
-    pool_size: 5
 ```
 
 ## 2. Environment Variable Substitution

@@ -4,6 +4,7 @@ from typing import Any, Dict, get_args, get_origin, Annotated
 from brimley.core.models import PythonFunction
 from brimley.core.context import BrimleyContext
 from brimley.core.di import AppState, Config, Connection
+from brimley.execution.result_mapper import ResultMapper
 
 class PythonRunner:
     """
@@ -23,7 +24,10 @@ class PythonRunner:
         # Prepare arguments
         final_args = self._resolve_dependencies(handler, args, context)
         
-        return handler(**final_args)
+        raw_result = handler(**final_args)
+        
+        # Validate result against return_shape if specified
+        return ResultMapper.map_result(raw_result, func, context)
 
     def _load_handler(self, handler_path: str):
         """

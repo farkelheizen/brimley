@@ -23,4 +23,4 @@ state:
 databases:
   default:
     connector: sqlite
-    url: "sqlite:///./examples/data.db"
+    url: "sqlite:///./data.db"
