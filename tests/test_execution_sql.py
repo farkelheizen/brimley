@@ -3,6 +3,11 @@ from sqlalchemy import create_engine, text
 from brimley.execution.sql_runner import SqlRunner
 from brimley.core.models import SqlFunction
 from brimley.core.context import BrimleyContext
+from brimley.core.entity import Entity
+
+class UserEntity(Entity):
+    id: int
+    name: str
 
 @pytest.fixture
 def engine():
@@ -24,7 +29,24 @@ def context(engine):
     ctx = BrimleyContext()
     ctx.app["user_id"] = 1
     ctx.databases = {"default": engine}
+    UserEntity.name = "User"
+    ctx.entities.register(UserEntity)
     return ctx
+
+def test_sql_execution_entity_mapping(runner, context):
+    func = SqlFunction(
+        name="get_users",
+        type="sql_function",
+        return_shape="User[]",
+        sql_body="SELECT id, name FROM users"
+    )
+    
+    result = runner.run(func, {}, context)
+    
+    assert len(result) == 2
+    assert isinstance(result[0], UserEntity)
+    assert result[0].name == "Alice"
+    assert result[1].name == "Bob"
 
 def test_sql_execution_select(runner, context):
     func = SqlFunction(
