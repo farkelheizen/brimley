@@ -48,6 +48,8 @@ For every identified file:
 3. **Registry Check:** Is `name` unique within `ctx.functions`?
     
 4. **Handler Check:** (Python only) Can the `handler` be resolved?
+
+5. **MCP Metadata Check:** If an `mcp` block exists, validate its schema (e.g., currently `type: tool` with optional description override). Invalid MCP metadata should produce diagnostics and not crash scanning.
     
 
 ### For Entities

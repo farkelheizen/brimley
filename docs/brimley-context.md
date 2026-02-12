@@ -10,6 +10,7 @@ The `BrimleyContext` is the central nervous system of a Brimley application.
 class BrimleyContext(Entity):
     settings: FrameworkSettings     # Internal Framework Config
     config: AppConfig               # User Application Config
+    mcp: MCPSettings                # MCP Runtime Settings
     app: Dict[str, Any]             # Mutable Application State
     
     functions: Registry[BrimleyFunction]
@@ -21,6 +22,7 @@ class BrimleyContext(Entity):
 |---|---|---|---|
 |`settings`|`brimley:`|**Read-Only**|Framework settings (env, logging, app name).|
 |`config`|`config:`|**Read-Only**|User-defined configuration (API keys, constants).|
+|`mcp`|`mcp:`|**Read-Only**|MCP runtime settings (embedded mode, transport, host, port).|
 |`app`|`state:`|**Mutable**|Global shared state. Seeded from YAML, modified at runtime.|
 |`functions`|N/A|**Resolved**|Registry of internal Brimley functions.|
 |`entities`|N/A|**Resolved**|Registry of domain models.|
@@ -43,8 +45,16 @@ class BrimleyContext(Entity):
     - **Purpose**: User-defined application configuration loaded from the `config` section of `brimley.yaml`.
         
     - **Access**: `ctx.config.support_email`
+
+3. **`mcp`**:
+    
+    - **Type**: `MCPSettings` (or equivalent MCP config model)
         
-3. **`app`**:
+    - **Purpose**: Runtime MCP behavior loaded from the `mcp` section of `brimley.yaml`.
+        
+    - **Access**: `ctx.mcp.port`
+        
+4. **`app`**:
     
     - **Type**: `Dict[str, Any]`
         
@@ -52,7 +62,7 @@ class BrimleyContext(Entity):
         
     - **Access**: `ctx.app["maintenance_mode"]`
         
-4. **`functions`**:
+5. **`functions`**:
     
     - **Type**: `Registry[BrimleyFunction]`
         
@@ -60,7 +70,7 @@ class BrimleyContext(Entity):
         
     - **Access**: `ctx.functions.get("calculate_tax")`
         
-5. **`entities`**:
+6. **`entities`**:
     
     - **Type**: `Registry[Entity]`
         
@@ -74,7 +84,7 @@ class BrimleyContext(Entity):
             
     - **Access**: `ctx.entities.get("UserProfile")`
         
-6. **`databases`**:
+7. **`databases`**:
     
     - **Type**: `Dict[str, Engine]`
         
@@ -89,7 +99,7 @@ class BrimleyContext(Entity):
         
     - `brimley.yaml` is loaded and interpolated.
         
-    - `settings`, `config`, and `app` (initial state) are populated.
+    - `settings`, `config`, `mcp`, and `app` (initial state) are populated.
         
     - **Built-in Entities** (`ContentBlock`, `PromptMessage`) are automatically registered in `entities`.
         

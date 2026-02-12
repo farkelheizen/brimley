@@ -20,6 +20,8 @@ It emphasizes a **"Configuration over Code"** approach for discovery and a str
     - **Templates:** Jinja2-based text/prompt generation.
         
 - **Developer Experience:** Built-in CLI and interactive REPL with state persistence.
+
+- **MCP Tooling:** Functions marked with `mcp: { type: tool }` can be exposed to MCP clients, with embedded FastMCP hosting in REPL when enabled via config or CLI.
     
 - **Strict Validation:** Inputs and outputs are validated against defined schemas before execution.
     
@@ -100,6 +102,7 @@ Detailed architectural designs and technical specifications are located in the [
 - [Project Structure](docs/brimley-project-structure.md): Layout and module responsibilities.
 - [Discovery & Loader](docs/brimley-discovery-and-loader-specification.md): How files are scanned and registered.
 - [Brimley Context](docs/brimley-context.md): Service injection and state management.
+- [MCP Integration](docs/brimley-model-context-protocol-integration.md): Exposing functions as MCP tools and embedded server behavior.
 
 ### 🧩 Function Types
 - [Python Functions](docs/brimley-python-functions.md): Native code with schema inference.

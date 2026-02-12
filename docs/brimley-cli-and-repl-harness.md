@@ -51,7 +51,7 @@ Used for an interactive, stateful session.
 
 - **Admin Commands:**
     - The REPL supports meta-commands prefixed with `/` for observability.
-    - See the full [Admin Commands Reference](brimley-repl-admin-commands.md) for details on `/settings`, `/config`, `/state`, etc.
+    - See [Admin Commands Reference](brimley-repl-admin-commands.md) for `/settings`, `/config`, `/state`, `/functions`, `/entities`, `/databases`, and `/help`.
     
 - **Interactive Parsing Logic:**
     
@@ -168,3 +168,23 @@ Your current score is 1500.
 brimley > quit
 [SYSTEM] Goodbye.
 ```
+
+## Embedded FastMCP Server
+
+If your Brimley project contains any functions tagged with `mcp: type: tool`, starting the REPL can spin up an embedded FastMCP server when MCP embedding is enabled via configuration or CLI flags.
+
+Because the interactive REPL requires control of your terminal input and output, the embedded FastMCP server runs on a background asynchronous task using the **SSE (Server-Sent Events) transport** via HTTP.
+
+**Console Output Example:**
+
+```
+Loading Brimley Configuration from brimley.yaml...
+Discovered 12 functions (3 exposed as MCP tools).
+[MCP] Background FastMCP server running at [http://127.0.0.1:8000/sse](http://127.0.0.1:8000/sse)
+
+brimley>
+```
+
+You can continue to execute functions manually in the `brimley>` prompt while an external LLM connects to port 8000 to execute functions concurrently.
+
+_(Note: MCP server settings like host, port, transport, and embedded mode can be set in the `mcp:` section of `brimley.yaml`, and embedded mode can be overridden by CLI flags.)_
