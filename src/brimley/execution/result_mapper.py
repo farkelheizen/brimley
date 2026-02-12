@@ -4,6 +4,7 @@ from pydantic import TypeAdapter, ValidationError
 from brimley.core.context import BrimleyContext
 from brimley.core.models import BrimleyFunction
 from brimley.core.entity import Entity
+from brimley.utils.diagnostics import BrimleyExecutionError
 
 class ResultMapper:
     """
@@ -30,15 +31,15 @@ class ResultMapper:
             return None
 
         if isinstance(shape, str):
-            return cls._map_by_shorthand(raw_data, shape, context)
+            return cls._map_by_shorthand(raw_data, shape, context, func)
         
         if isinstance(shape, dict):
-            return cls._map_by_structured_shape(raw_data, shape, context)
+            return cls._map_by_structured_shape(raw_data, shape, context, func)
         
         return raw_data
 
     @classmethod
-    def _map_by_shorthand(cls, data: Any, shape_str: str, context: BrimleyContext) -> Any:
+    def _map_by_shorthand(cls, data: Any, shape_str: str, context: BrimleyContext, func: BrimleyFunction) -> Any:
         # Handle complex list[dict] or List[Any] style strings by converting to [] syntax
         if "[" in shape_str and not shape_str.endswith("[]"):
             # Very naive conversion of "list[something]" to "something[]"
@@ -62,10 +63,16 @@ class ResultMapper:
             if len(data) == 0:
                 return None
             if len(data) > 1:
-                raise ValueError(f"Expected single row for return shape '{shape_str}', but got {len(data)} rows.")
+                raise BrimleyExecutionError(
+                    f"Expected single row for return shape '{shape_str}', but got {len(data)} rows.",
+                    func_name=func.name
+                )
             data = data[0]
 
-        target_type = cls._resolve_type(base_type_str, context)
+        try:
+            target_type = cls._resolve_type(base_type_str, context)
+        except ValueError as e:
+            raise BrimleyExecutionError(str(e), func_name=func.name) from e
         
         # Explicit coercion for primitives if Pydantic is too strict
         if not is_list:
@@ -86,30 +93,43 @@ class ResultMapper:
         try:
             return adapter.validate_python(data)
         except ValidationError as e:
-            # We could wrap this in a custom Brimley error later
-            raise e
+            # Format Pydantic errors for a cleaner CLI output
+            errors = []
+            for err in e.errors():
+                loc = ".".join(str(l) for l in err["loc"])
+                msg = err["msg"]
+                errors.append(f"{loc}: {msg}" if loc else msg)
+            
+            error_details = "; ".join(errors)
+            raise BrimleyExecutionError(
+                f"Result validation failed for shape '{shape_str}'. Details: {error_details}",
+                func_name=func.name
+            ) from e
 
     @classmethod
-    def _map_by_structured_shape(cls, data: Any, shape_dict: Dict[str, Any], context: BrimleyContext) -> Any:
+    def _map_by_structured_shape(cls, data: Any, shape: Dict[str, Any], context: BrimleyContext, func: BrimleyFunction) -> Any:
         # Structured shapes can have 'entity_ref' or 'inline'
-        if "entity_ref" in shape_dict:
-            return cls._map_by_shorthand(data, shape_dict["entity_ref"], context)
+        if "entity_ref" in shape:
+            return cls._map_by_shorthand(data, shape["entity_ref"], context, func)
         
-        if "inline" in shape_dict:
-            inline_spec = shape_dict["inline"]
+        if "inline" in shape:
+            inline_spec = shape["inline"]
             # Design doc trigger: if values are strings, it's shorthand
             # If values are dicts, it's complex metadata.
             
             # For simplicity, let's create a dynamic Pydantic model for validation
             fields = {}
             for field_name, field_def in inline_spec.items():
-                if isinstance(field_def, str):
-                    field_type = cls._resolve_type(field_def, context)
-                    fields[field_name] = (field_type, ...)
-                elif isinstance(field_def, dict):
-                    type_str = field_def.get("type", "string")
-                    field_type = cls._resolve_type(type_str, context)
-                    fields[field_name] = (field_type, ...)
+                try:
+                    if isinstance(field_def, str):
+                        field_type = cls._resolve_type(field_def, context)
+                        fields[field_name] = (field_type, ...)
+                    elif isinstance(field_def, dict):
+                        type_str = field_def.get("type", "string")
+                        field_type = cls._resolve_type(type_str, context)
+                        fields[field_name] = (field_type, ...)
+                except ValueError as e:
+                    raise BrimleyExecutionError(str(e), func_name=func.name) from e
             
             DynamicModel = pydantic.create_model("InlineResult", **fields)
             
@@ -121,7 +141,20 @@ class ResultMapper:
                 if len(data) == 0: return None
                 data = data[0]
             
-            return DynamicModel(**data).model_dump()
+            try:
+                return DynamicModel(**data).model_dump()
+            except ValidationError as e:
+                errors = []
+                for err in e.errors():
+                    loc = ".".join(str(l) for l in err["loc"])
+                    msg = err["msg"]
+                    errors.append(f"{loc}: {msg}" if loc else msg)
+                
+                error_details = "; ".join(errors)
+                raise BrimleyExecutionError(
+                    f"Result validation failed for inline shape. Details: {error_details}",
+                    func_name=func.name
+                ) from e
 
         return data
 

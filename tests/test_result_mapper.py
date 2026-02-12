@@ -5,6 +5,7 @@ from brimley.core.context import BrimleyContext
 from brimley.core.entity import Entity
 from brimley.core.models import BrimleyFunction
 from brimley.execution.result_mapper import ResultMapper
+from brimley.utils.diagnostics import BrimleyExecutionError
 
 class MockUser(Entity):
     id: int
@@ -101,11 +102,13 @@ def test_map_structured_entity_ref(context):
 def test_map_strict_single_fails_on_multiple_rows(context):
     func = BrimleyFunction(name="test", type="sql_function", return_shape="MockUser")
     raw = [{"id": 1, "username": "alice"}, {"id": 2, "username": "bob"}]
-    with pytest.raises(ValueError, match="Expected single row"):
+    with pytest.raises(BrimleyExecutionError, match="Expected single row"):
         ResultMapper.map_result(raw, func, context)
 
 def test_map_missing_fields_raises_validation_error(context):
-    func = BrimleyFunction(name="test", type="sql_function", return_shape="MockUser")
+    func = BrimleyFunction(name="test_func", type="sql_function", return_shape="MockUser")
     raw = {"id": 1} # Missing 'username'
-    with pytest.raises(Exception): # Pydantic ValidationError
+    with pytest.raises(BrimleyExecutionError) as excinfo:
         ResultMapper.map_result(raw, func, context)
+    assert "Execution Error in function 'test_func'" in str(excinfo.value)
+    assert "username: Field required" in str(excinfo.value)
