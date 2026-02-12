@@ -57,6 +57,7 @@ WHERE customer_id = :customer_id
 name: update_user_status
 type: sql_function
 description: "Updates a user's status in the system."
+connection: default  # Maps to a key in brimley.yaml
 args:
   inline:
     user_id: int
@@ -88,11 +89,11 @@ SELECT * FROM orders WHERE user_id = :user_id
 
 ## 4. Named Parameters
 
-Brimley uses **colon-prefixed** named parameters (e.g., `:parameter_name`).
+Brimley uses **colon-prefixed** named parameters (e.g., `:parameter_name`) supported by SQLAlchemy.
 
 1. **Mapping:** The keys defined in the `args.inline` or `args.entity_ref` block must match the parameter names used in the SQL body.
     
-2. **Injection Security:** Brimley utilizes parameterized queries (prepared statements) to prevent SQL injection. Values are passed as bound variables rather than string concatenation.
+2. **Injection Security:** Brimley utilizes parameterized queries (prepared statements) to prevent SQL injection. Values are passed as bound variables rather than string concatenation.  **Do not** use string formatting or f-strings in your SQL, as this leads to SQL injection vulnerabilities.
     
 
 ## 5. Connection Management
@@ -107,7 +108,16 @@ The `connection` property determines which database resource the query execute
 
 SQL functions typically return an array of objects (rows).
 
-- **Entity Mapping:** If a `return_shape` uses an `entity_ref` with the `[]` suffix (e.g., `Order[]`), Brimley automatically maps the column names from the `SELECT` statement to the Entity properties.
+### Entity Auto-Mapping
+
+If a `return_shape` uses an `entity_ref` (e.g., `Order` or `Order[]`), Brimley automatically maps the raw database rows to that Entity.
+
+1. **Column Matching:** The columns returned by your SQL `SELECT` statement must match the fields defined in the Entity.
+    
+2. **Aliasing:** Use SQL `AS` aliases to match Pydantic field names if the database schema differs (e.g., `SELECT user_id AS id`).
+    
+3. **Validation:** The framework will raise a runtime error if the database result cannot be coerced into the defined Entity (e.g., missing required fields).
+    
     
 
 > [!TIP]

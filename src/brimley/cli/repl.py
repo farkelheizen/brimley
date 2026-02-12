@@ -9,6 +9,7 @@ from prompt_toolkit import PromptSession
 
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
+from brimley.infrastructure.database import initialize_databases
 from brimley.discovery.scanner import Scanner, BrimleyScanResult
 from brimley.core.registry import Registry
 from brimley.execution.dispatcher import Dispatcher
@@ -26,6 +27,10 @@ class BrimleyREPL:
             
         config_data = load_config(config_path)
         self.context = BrimleyContext(config_dict=config_data)
+        
+        # Hydrate databases
+        if self.context.databases:
+            self.context.databases = initialize_databases(self.context.databases)
         
         self.dispatcher = Dispatcher()
         self.prompt_session = PromptSession()
@@ -87,6 +92,11 @@ class BrimleyREPL:
                     config_path = Path.cwd() / "brimley.yaml"
                     config_data = load_config(config_path)
                     self.context = BrimleyContext(config_dict=config_data)
+                    
+                    # Hydrate databases
+                    if self.context.databases:
+                        self.context.databases = initialize_databases(self.context.databases)
+                        
                     self.load()
                     OutputFormatter.log("Rescan complete.", severity="success")
                     continue

@@ -17,3 +17,14 @@ class BrimleyDiagnostic(BaseModel):
         if self.line_number:
             loc += f":{self.line_number}"
         return f"[{self.error_code}] {self.message} (at {loc})"
+
+class BrimleyExecutionError(Exception):
+    """
+    Exception raised during function execution, providing context about 
+    validation failures or runtime issues.
+    """
+    def __init__(self, message: str, func_name: str = None):
+        self.message = message
+        self.func_name = func_name
+        ctx = f" in function '{func_name}'" if func_name else ""
+        super().__init__(f"Execution Error{ctx}: {message}")

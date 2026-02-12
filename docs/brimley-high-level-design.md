@@ -15,7 +15,7 @@ Brimley operates as a **Monolithic Engine** with a distinct lifecycle:
     
 3. **Context Injection:** Every execution is injected with a `BrimleyContext`, providing access to configuration, databases, and shared application state.
     
-4. **Invocation:** The `CLI` or `REPL` invokes functions by name, passing arguments that are validated and merged against the function's schema. The REPL also supports [Admin Commands](brimley-repl-admin-commands.md) for inspecting engine state.
+4. **Invocation:** The `CLI` or `REPL` invokes functions by name, passing arguments that are validated and merged against the function's schema. The REPL also supports [Admin Commands](brimley-repl-admin-commands.md) for inspecting engine state.
     
 
 ## 3. Key Components
@@ -75,14 +75,16 @@ Defined in [CLI & REPL Harness](brimley-cli-and-repl-harness.md):
 3. **Validator** (Checks types against `arguments` spec) ⬇
     
 4. **Runner** (Python/SQL/Jinja Execution) ⬇
+
+5. **Result Mapper** (Marshals raw output into Typed Entities) ⬇
     
-5. **Output Formatter** (Raw string or JSON) ⬇
+6. **Output Formatter** (Raw string or JSON) ⬇
     
-6. **STDOUT**
+7. **STDOUT**
 
 ## 5. Reference Documentation Map
 
-- [Project Structure](brimley-project-structure.md)
+- [Project Structure](brimley-application-structure.md)
 - [Function Arguments](brimley-function-arguments.md)
 - [Return Shapes](brimley-function-return-shape.md)
 - [Entities](brimley-entities.md)
