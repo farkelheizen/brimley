@@ -3,6 +3,14 @@ from brimley.core.models import TemplateFunction
 from brimley.mcp.adapter import BrimleyMCPAdapter
 
 
+class _FakeMCPServer:
+    def __init__(self):
+        self.tools = []
+
+    def add_tool(self, tool):
+        self.tools.append(tool)
+
+
 def test_mcp_adapter_stores_registry_and_context():
     context = BrimleyContext()
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
@@ -177,3 +185,92 @@ def test_require_fastmcp_returns_class_when_available(monkeypatch):
 
     resolved = adapter.require_fastmcp()
     assert resolved is FakeFastMCP
+
+
+def test_register_tools_uses_supplied_external_server():
+    context = BrimleyContext()
+    context.functions.register(
+        TemplateFunction(
+            name="hello_tool",
+            type="template_function",
+            return_shape="string",
+            template_body="Hello",
+            mcp={"type": "tool"},
+        )
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    server = _FakeMCPServer()
+
+    returned = adapter.register_tools(server)
+
+    assert returned is server
+    assert len(server.tools) == 1
+    assert server.tools[0].__name__ == "hello_tool"
+
+
+def test_register_tools_noop_when_no_mcp_tools():
+    context = BrimleyContext()
+    context.functions.register(
+        TemplateFunction(
+            name="hello_internal",
+            type="template_function",
+            return_shape="string",
+            template_body="Hello",
+        )
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    server = _FakeMCPServer()
+
+    returned = adapter.register_tools(server)
+
+    assert returned is server
+    assert server.tools == []
+
+
+def test_register_tools_raises_value_error_on_tool_registration_failure():
+    class FailingServer:
+        def add_tool(self, tool):
+            raise ValueError("duplicate tool")
+
+    context = BrimleyContext()
+    context.functions.register(
+        TemplateFunction(
+            name="hello_tool",
+            type="template_function",
+            return_shape="string",
+            template_body="Hello",
+            mcp={"type": "tool"},
+        )
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+
+    try:
+        adapter.register_tools(FailingServer())
+        assert False, "Expected ValueError when MCP tool registration fails"
+    except ValueError as exc:
+        assert "hello_tool" in str(exc)
+        assert "duplicate tool" in str(exc)
+
+
+def test_register_tools_raises_value_error_for_invalid_server_shape():
+    context = BrimleyContext()
+    context.functions.register(
+        TemplateFunction(
+            name="hello_tool",
+            type="template_function",
+            return_shape="string",
+            template_body="Hello",
+            mcp={"type": "tool"},
+        )
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+
+    try:
+        adapter.register_tools(object())
+        assert False, "Expected ValueError for invalid MCP server"
+    except ValueError as exc:
+        assert "MCP server" in str(exc)

@@ -127,8 +127,24 @@ class BrimleyMCPAdapter:
 
     def register_tools(self, mcp_server: Any = None) -> Any:
         """
-        Register MCP-compatible tools on a server instance.
-
-        This is a scaffold for M2.2+ and intentionally no-ops for now.
+        Register discovered MCP tools on the provided (or newly created) MCP server.
         """
+        tools = self.discover_tools()
+        if not tools:
+            return mcp_server
+
+        if mcp_server is None:
+            FastMCP = self.require_fastmcp()
+            mcp_server = FastMCP(name="BrimleyTools")
+
+        if not hasattr(mcp_server, "add_tool"):
+            raise ValueError("Invalid MCP server: missing required 'add_tool' method")
+
+        for func in tools:
+            wrapper = self.create_tool_wrapper(func)
+            try:
+                mcp_server.add_tool(wrapper)
+            except Exception as exc:
+                raise ValueError(f"Failed to register MCP tool '{func.name}': {exc}") from exc
+
         return mcp_server
