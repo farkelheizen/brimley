@@ -19,6 +19,16 @@ class AppConfig(BaseModel):
     """
     model_config = ConfigDict(extra='allow')
 
+
+class MCPConfig(BaseModel):
+    """
+    MCP metadata for exposing a Brimley function as an MCP tool.
+    """
+    model_config = ConfigDict(extra='forbid')
+
+    type: Literal["tool"]
+    description: Optional[str] = None
+
 class BrimleyFunction(Entity):
     """
     Abstract base class for all function types in Brimley.
@@ -27,6 +37,7 @@ class BrimleyFunction(Entity):
     type: str
     description: Optional[str] = None
     arguments: Optional[Dict[str, Any]] = None
+    mcp: Optional[MCPConfig] = None
     return_shape: Union[str, Dict[str, Any]]
 
 class PythonFunction(BrimleyFunction):

@@ -33,6 +33,39 @@ def test_return_shape_polymorphism():
     f2 = BrimleyFunction(name="f2", type="t", return_shape={"type": "object"})
     assert f2.return_shape == {"type": "object"}
 
+def test_function_accepts_mcp_tool_config():
+    """Verify mcp metadata accepts type=tool and optional description."""
+    func = BrimleyFunction(
+        name="mcp_ready",
+        type="template_function",
+        return_shape="string",
+        mcp={"type": "tool", "description": "Tool-specific summary"},
+    )
+
+    assert func.mcp is not None
+    assert func.mcp.type == "tool"
+    assert func.mcp.description == "Tool-specific summary"
+
+def test_function_rejects_invalid_mcp_type():
+    """Verify mcp.type only allows 'tool'."""
+    with pytest.raises(ValidationError):
+        BrimleyFunction(
+            name="bad_mcp_type",
+            type="template_function",
+            return_shape="string",
+            mcp={"type": "resource"},
+        )
+
+def test_function_rejects_invalid_mcp_shape():
+    """Verify unsupported keys in mcp metadata are rejected."""
+    with pytest.raises(ValidationError):
+        BrimleyFunction(
+            name="bad_mcp_shape",
+            type="template_function",
+            return_shape="string",
+            mcp={"type": "tool", "x": "unsupported"},
+        )
+
 # -----------------------------------------------------------------------------
 # Python Function Tests
 # -----------------------------------------------------------------------------
