@@ -2,6 +2,7 @@ import pytest
 from brimley.discovery.utils import parse_frontmatter
 from brimley.discovery.sql_parser import parse_sql_file
 from brimley.discovery.template_parser import parse_template_file
+from brimley.discovery.python_parser import parse_python_file
 from brimley.core.models import SqlFunction, TemplateFunction
 
 # -----------------------------------------------------------------------------
@@ -99,3 +100,48 @@ Hello {{ args.name }}
     assert isinstance(func, TemplateFunction)
     assert func.name == "greet_user"
     assert "Hello {{ args.name }}" in func.template_body
+
+# -----------------------------------------------------------------------------
+# Python Parser
+# -----------------------------------------------------------------------------
+
+def test_parse_python_file_infers_module_handler(tmp_path, monkeypatch):
+    root = tmp_path / "project"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+
+    f = pkg / "logic.py"
+    f.write_text('''"""
+---
+name: calculate_tax
+type: python_function
+handler: calculate_tax
+return_shape: float
+---
+"""
+def calculate_tax(amount: float, rate: float) -> float:
+    return amount * rate
+''')
+
+    monkeypatch.syspath_prepend(str(root))
+    func = parse_python_file(f)
+
+    assert func.handler == "pkg.logic.calculate_tax"
+
+def test_parse_python_file_preserves_dotted_handler(tmp_path):
+    f = tmp_path / "logic.py"
+    f.write_text('''"""
+---
+name: calculate_tax
+type: python_function
+handler: custom.module.calculate_tax
+return_shape: float
+---
+"""
+def calculate_tax(amount: float, rate: float) -> float:
+    return amount * rate
+''')
+
+    func = parse_python_file(f)
+    assert func.handler == "custom.module.calculate_tax"
