@@ -128,3 +128,52 @@ def test_create_tool_wrapper_applies_default_arguments():
     result = wrapper()
 
     assert result == "Hello World"
+
+
+def test_is_fastmcp_available_true_when_spec_exists(monkeypatch):
+    context = BrimleyContext()
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
+
+    assert adapter.is_fastmcp_available() is True
+
+
+def test_is_fastmcp_available_false_when_spec_missing(monkeypatch):
+    context = BrimleyContext()
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: None)
+
+    assert adapter.is_fastmcp_available() is False
+
+
+def test_require_fastmcp_raises_clear_error_when_missing(monkeypatch):
+    context = BrimleyContext()
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: None)
+
+    try:
+        adapter.require_fastmcp()
+        assert False, "Expected RuntimeError when fastmcp is unavailable"
+    except RuntimeError as exc:
+        assert "fastmcp" in str(exc)
+        assert "pip install" in str(exc)
+
+
+def test_require_fastmcp_returns_class_when_available(monkeypatch):
+    class FakeFastMCP:
+        pass
+
+    class FakeModule:
+        FastMCP = FakeFastMCP
+
+    context = BrimleyContext()
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.import_module", lambda _: FakeModule())
+
+    resolved = adapter.require_fastmcp()
+    assert resolved is FakeFastMCP

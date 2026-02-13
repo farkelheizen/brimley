@@ -1,3 +1,5 @@
+import importlib
+import importlib.util
 from typing import Any, Dict, Tuple, Type
 
 from pydantic import BaseModel, Field, create_model
@@ -106,6 +108,22 @@ class BrimleyMCPAdapter:
         """
         resolved_args = ArgumentResolver.resolve(func, tool_args, self.context)
         return self.dispatcher.run(func, resolved_args, self.context)
+
+    def is_fastmcp_available(self) -> bool:
+        """
+        Check whether the optional fastmcp package is installed.
+        """
+        return importlib.util.find_spec("fastmcp") is not None
+
+    def require_fastmcp(self) -> Any:
+        """
+        Resolve and return the FastMCP class, raising a clear error if unavailable.
+        """
+        if not self.is_fastmcp_available():
+            raise RuntimeError("MCP tools found but 'fastmcp' is not installed. Install with: pip install fastmcp")
+
+        module = importlib.import_module("fastmcp")
+        return module.FastMCP
 
     def register_tools(self, mcp_server: Any = None) -> Any:
         """
