@@ -1,3 +1,5 @@
+import importlib
+import importlib.util
 from typing import Any, Dict, Tuple, Type
 
 from pydantic import BaseModel, Field, create_model
@@ -107,10 +109,42 @@ class BrimleyMCPAdapter:
         resolved_args = ArgumentResolver.resolve(func, tool_args, self.context)
         return self.dispatcher.run(func, resolved_args, self.context)
 
+    def is_fastmcp_available(self) -> bool:
+        """
+        Check whether the optional fastmcp package is installed.
+        """
+        return importlib.util.find_spec("fastmcp") is not None
+
+    def require_fastmcp(self) -> Any:
+        """
+        Resolve and return the FastMCP class, raising a clear error if unavailable.
+        """
+        if not self.is_fastmcp_available():
+            raise RuntimeError("MCP tools found but 'fastmcp' is not installed. Install with: pip install fastmcp")
+
+        module = importlib.import_module("fastmcp")
+        return module.FastMCP
+
     def register_tools(self, mcp_server: Any = None) -> Any:
         """
-        Register MCP-compatible tools on a server instance.
-
-        This is a scaffold for M2.2+ and intentionally no-ops for now.
+        Register discovered MCP tools on the provided (or newly created) MCP server.
         """
+        tools = self.discover_tools()
+        if not tools:
+            return mcp_server
+
+        if mcp_server is None:
+            FastMCP = self.require_fastmcp()
+            mcp_server = FastMCP(name="BrimleyTools")
+
+        if not hasattr(mcp_server, "add_tool"):
+            raise ValueError("Invalid MCP server: missing required 'add_tool' method")
+
+        for func in tools:
+            wrapper = self.create_tool_wrapper(func)
+            try:
+                mcp_server.add_tool(wrapper)
+            except Exception as exc:
+                raise ValueError(f"Failed to register MCP tool '{func.name}': {exc}") from exc
+
         return mcp_server
