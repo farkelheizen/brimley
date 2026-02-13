@@ -1,7 +1,7 @@
 from pathlib import Path
 import ast
-import yaml
 import sys
+from pydantic import ValidationError
 from brimley.core.models import PythonFunction
 from brimley.discovery.utils import parse_frontmatter
 
@@ -70,5 +70,5 @@ def parse_python_file(file_path: Path) -> PythonFunction:
 
     try:
         return PythonFunction(**meta)
-    except Exception as e:
-        raise ValueError(f"Validation error: {e}")
+    except ValidationError as e:
+        raise ValueError(f"Validation error in {file_path}: {e}")
