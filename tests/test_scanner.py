@@ -120,3 +120,28 @@ def test_scan_ignores_non_function_files(tmp_path):
     result = scanner.scan()
     assert len(result.functions) == 0
     assert len(result.diagnostics) == 0
+
+def test_scan_reports_invalid_mcp_metadata(tmp_path):
+        bad_dir = tmp_path / "bad_mcp"
+        bad_dir.mkdir()
+
+        (bad_dir / "bad.sql").write_text("""/*
+---
+name: bad_mcp
+type: sql_function
+return_shape: void
+mcp:
+    type: resource
+---
+*/
+SELECT 1;
+""")
+
+        scanner = Scanner(root_dir=bad_dir)
+        result = scanner.scan()
+
+        assert len(result.functions) == 0
+        assert len(result.diagnostics) == 1
+        diag = result.diagnostics[0]
+        assert diag.error_code == "ERR_PARSE_FAILURE"
+        assert "Validation error" in diag.message

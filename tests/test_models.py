@@ -66,6 +66,22 @@ def test_function_rejects_invalid_mcp_shape():
             mcp={"type": "tool", "x": "unsupported"},
         )
 
+def test_function_mcp_round_trip_model_dump():
+    """Verify MCP metadata survives model dump/load round-trip."""
+    original = BrimleyFunction(
+        name="round_trip",
+        type="template_function",
+        return_shape="string",
+        mcp={"type": "tool", "description": "Round trip"},
+    )
+
+    dumped = original.model_dump()
+    hydrated = BrimleyFunction(**dumped)
+
+    assert hydrated.mcp is not None
+    assert hydrated.mcp.type == "tool"
+    assert hydrated.mcp.description == "Round trip"
+
 # -----------------------------------------------------------------------------
 # Python Function Tests
 # -----------------------------------------------------------------------------
