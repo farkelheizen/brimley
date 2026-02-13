@@ -17,8 +17,9 @@ from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
 
 class BrimleyREPL:
-    def __init__(self, root_dir: Path):
+    def __init__(self, root_dir: Path, mcp_enabled_override: Optional[bool] = None):
         self.root_dir = root_dir
+        self.mcp_enabled_override = mcp_enabled_override
         
         # Load config: check root_dir first, then CWD
         config_path = self.root_dir / "brimley.yaml"
@@ -27,6 +28,11 @@ class BrimleyREPL:
             
         config_data = load_config(config_path)
         self.context = BrimleyContext(config_dict=config_data)
+
+        # CLI override takes precedence over config/default
+        self.mcp_embedded_enabled = (
+            self.mcp_enabled_override if self.mcp_enabled_override is not None else self.context.mcp.embedded
+        )
         
         # Hydrate databases
         if self.context.databases:
@@ -92,6 +98,13 @@ class BrimleyREPL:
                     config_path = Path.cwd() / "brimley.yaml"
                     config_data = load_config(config_path)
                     self.context = BrimleyContext(config_dict=config_data)
+
+                    # Keep CLI override precedence after reset
+                    self.mcp_embedded_enabled = (
+                        self.mcp_enabled_override
+                        if self.mcp_enabled_override is not None
+                        else self.context.mcp.embedded
+                    )
                     
                     # Hydrate databases
                     if self.context.databases:

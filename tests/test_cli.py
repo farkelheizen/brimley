@@ -110,3 +110,43 @@ SELECT * FROM users WHERE id = :id
     # The output should now be a JSON list of dicts
     assert "CLI User" in result.stdout
     assert "123" in result.stdout
+
+
+def test_repl_flag_mcp_enables_embedded(monkeypatch, tmp_path):
+    captured = {}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None):
+            captured["root_dir"] = root_dir
+            captured["override"] = mcp_enabled_override
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp"])
+
+    assert result.exit_code == 0
+    assert captured["override"] is True
+    assert captured["started"] is True
+
+
+def test_repl_flag_no_mcp_disables_embedded(monkeypatch, tmp_path):
+    captured = {}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None):
+            captured["root_dir"] = root_dir
+            captured["override"] = mcp_enabled_override
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--no-mcp"])
+
+    assert result.exit_code == 0
+    assert captured["override"] is False
+    assert captured["started"] is True
