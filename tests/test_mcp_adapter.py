@@ -80,3 +80,51 @@ def test_build_tool_input_model_excludes_from_context_arguments():
     assert input_model.model_fields["name"].is_required()
     assert not input_model.model_fields["count"].is_required()
     assert input_model.model_fields["count"].default == 1
+
+
+def test_create_tool_wrapper_executes_through_dispatcher_with_context_injection():
+    context = BrimleyContext(config_dict={"config": {"support_email": "support@example.com"}})
+    func = TemplateFunction(
+        name="hello",
+        type="template_function",
+        return_shape="string",
+        template_body="Hello {{ args.name }} - {{ args.support_email }}",
+        mcp={"type": "tool"},
+        arguments={
+            "inline": {
+                "name": {"type": "string"},
+                "support_email": {"type": "string", "from_context": "config.support_email"},
+            }
+        },
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    wrapper = adapter.create_tool_wrapper(func)
+
+    result = wrapper(name="Developer")
+
+    assert "Hello Developer" in result
+    assert "support@example.com" in result
+
+
+def test_create_tool_wrapper_applies_default_arguments():
+    context = BrimleyContext()
+    func = TemplateFunction(
+        name="hello_default",
+        type="template_function",
+        return_shape="string",
+        template_body="Hello {{ args.name }}",
+        mcp={"type": "tool"},
+        arguments={
+            "inline": {
+                "name": {"type": "string", "default": "World"},
+            }
+        },
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    wrapper = adapter.create_tool_wrapper(func)
+
+    result = wrapper()
+
+    assert result == "Hello World"

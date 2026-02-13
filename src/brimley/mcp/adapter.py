@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field, create_model
 from brimley.core.context import BrimleyContext
 from brimley.core.models import BrimleyFunction
 from brimley.core.registry import Registry
+from brimley.execution.arguments import ArgumentResolver
+from brimley.execution.dispatcher import Dispatcher
 
 
 class BrimleyMCPAdapter:
@@ -18,6 +20,7 @@ class BrimleyMCPAdapter:
         """
         self.registry = registry
         self.context = context
+        self.dispatcher = Dispatcher()
 
     def discover_tools(self) -> list[BrimleyFunction]:
         """
@@ -84,6 +87,25 @@ class BrimleyMCPAdapter:
             "any": Any,
         }
         return mapping.get(normalized, Any)
+
+    def create_tool_wrapper(self, func: BrimleyFunction):
+        """
+        Create a callable wrapper that resolves args and dispatches execution.
+        """
+
+        def wrapper(**tool_args: Any) -> Any:
+            return self.execute_tool(func, tool_args)
+
+        wrapper.__name__ = func.name
+        wrapper.__doc__ = (func.mcp.description if getattr(func, "mcp", None) and func.mcp.description else func.description) or ""
+        return wrapper
+
+    def execute_tool(self, func: BrimleyFunction, tool_args: Dict[str, Any]) -> Any:
+        """
+        Execute a function using the existing Brimley argument and dispatch flow.
+        """
+        resolved_args = ArgumentResolver.resolve(func, tool_args, self.context)
+        return self.dispatcher.run(func, resolved_args, self.context)
 
     def register_tools(self, mcp_server: Any = None) -> Any:
         """
