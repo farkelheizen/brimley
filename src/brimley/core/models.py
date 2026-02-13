@@ -20,6 +20,18 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(extra='allow')
 
 
+class MCPSettings(BaseModel):
+    """
+    Runtime MCP settings (the 'mcp' section in brimley.yaml).
+    """
+    model_config = ConfigDict(extra='ignore')
+
+    embedded: bool = True
+    transport: Literal["sse", "stdio"] = "sse"
+    host: str = "127.0.0.1"
+    port: int = 8000
+
+
 class MCPConfig(BaseModel):
     """
     MCP metadata for exposing a Brimley function as an MCP tool.
