@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 from pydantic import Field, ConfigDict
 from brimley.core.entity import Entity, ContentBlock, PromptMessage
 from brimley.core.registry import Registry
-from brimley.core.models import BrimleyFunction, FrameworkSettings, AppConfig
+from brimley.core.models import BrimleyFunction, FrameworkSettings, AppConfig, MCPSettings
 
 class BrimleyContext(Entity):
     """
@@ -15,6 +15,9 @@ class BrimleyContext(Entity):
     
     # Application Config (Maps to 'config' section)
     config: AppConfig = Field(default_factory=AppConfig)
+
+    # MCP Runtime Settings (Maps to 'mcp' section)
+    mcp: MCPSettings = Field(default_factory=MCPSettings)
     
     # Application State: Mutable storage for request/session data
     app: Dict[str, Any] = Field(default_factory=dict)
@@ -38,6 +41,8 @@ class BrimleyContext(Entity):
                 data['settings'] = FrameworkSettings(**config_dict.get('brimley', {}))
             if 'config' not in data:
                 data['config'] = AppConfig(**config_dict.get('config', {}))
+            if 'mcp' not in data:
+                data['mcp'] = MCPSettings(**config_dict.get('mcp', {}))
             if 'app' not in data:
                 data['app'] = config_dict.get('state', {})
             if 'databases' not in data:

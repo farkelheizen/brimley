@@ -63,3 +63,21 @@ brimley:
     config = load_config(config_file)
     assert "unknown_key" not in config
     assert "brimley" in config
+
+def test_load_config_includes_mcp_section(tmp_path):
+    config_file = tmp_path / "brimley.yaml"
+    content = """
+mcp:
+  embedded: false
+  transport: stdio
+  host: 0.0.0.0
+  port: 9000
+"""
+    config_file.write_text(content)
+
+    config = load_config(config_file)
+    assert "mcp" in config
+    assert config["mcp"]["embedded"] is False
+    assert config["mcp"]["transport"] == "stdio"
+    assert config["mcp"]["host"] == "0.0.0.0"
+    assert config["mcp"]["port"] == 9000
