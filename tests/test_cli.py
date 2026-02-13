@@ -150,3 +150,23 @@ def test_repl_flag_no_mcp_disables_embedded(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert captured["override"] is False
     assert captured["started"] is True
+
+
+def test_repl_flag_default_uses_config_or_default(monkeypatch, tmp_path):
+    captured = {}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None):
+            captured["root_dir"] = root_dir
+            captured["override"] = mcp_enabled_override
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert captured["override"] is None
+    assert captured["started"] is True

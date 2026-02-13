@@ -220,6 +220,7 @@ class BrimleyREPL:
             return True
 
     def _cmd_quit(self, args) -> bool:
+        self._shutdown_mcp_server()
         OutputFormatter.log("Exiting Brimley REPL.", severity="info")
         return False
 

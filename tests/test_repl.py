@@ -222,3 +222,71 @@ def test_repl_mcp_noop_when_no_tools(tmp_path, monkeypatch):
 
     assert repl.mcp_server is None
     assert repl.mcp_server_thread is None
+
+
+def test_repl_load_does_not_initialize_mcp_when_disabled(tmp_path, monkeypatch):
+    (tmp_path / "tool.md").write_text("""---
+name: hello_tool
+type: template_function
+return_shape: string
+mcp:
+  type: tool
+---
+Hello
+""")
+
+    class FailingAdapter:
+        def __init__(self, registry, context):
+            raise AssertionError("Adapter should not be constructed when MCP is disabled")
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FailingAdapter)
+
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=False)
+    repl.load()
+
+    assert repl.mcp_server is None
+    assert repl.mcp_server_thread is None
+
+
+def test_repl_startup_warns_when_fastmcp_unavailable_with_tools(tmp_path, monkeypatch):
+    (tmp_path / "tool.md").write_text("""---
+name: hello_tool
+type: template_function
+return_shape: string
+mcp:
+  type: tool
+---
+Hello
+""")
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def is_fastmcp_available(self):
+            return False
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp"], input="/quit\n")
+
+    assert result.exit_code == 0
+    assert "fastmcp" in result.stdout.lower()
+    assert "skipping embedded mcp" in result.stdout.lower()
+
+
+def test_repl_slash_quit_triggers_mcp_shutdown(tmp_path, monkeypatch):
+    shutdown_calls = {"count": 0}
+
+    def fake_shutdown(self):
+        shutdown_calls["count"] += 1
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyREPL._shutdown_mcp_server", fake_shutdown)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="/quit\n")
+
+    assert result.exit_code == 0
+    assert shutdown_calls["count"] == 1
