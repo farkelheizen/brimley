@@ -472,3 +472,38 @@ def test_mcp_serve_watch_mode_handles_keyboard_interrupt_and_stops_runtime(tmp_p
 
     assert result.exit_code == 0
     assert FakeRuntimeController.stopped == 1
+
+
+def test_mcp_serve_watch_mode_exits_when_no_tools_before_starting_watcher(tmp_path, monkeypatch):
+    class FakeRuntimeController:
+        started = 0
+
+        def __init__(self, root_dir):
+            self.root_dir = root_dir
+            self.context = SimpleNamespace()
+            self.mcp_refresh = None
+
+        def load_initial(self):
+            return SimpleNamespace(diagnostics=[])
+
+        def start_auto_reload(self, background=True):
+            FakeRuntimeController.started += 1
+
+        def stop_auto_reload(self):
+            return None
+
+    class FakeRefreshAdapter:
+        def __init__(self, context, get_server, set_server, server_factory=None):
+            pass
+
+        def refresh(self):
+            return None
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyRuntimeController", FakeRuntimeController)
+    monkeypatch.setattr("brimley.cli.main.ExternalMCPRefreshAdapter", FakeRefreshAdapter)
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch"])
+
+    assert result.exit_code == 0
+    assert "No MCP tools discovered" in result.stdout
+    assert FakeRuntimeController.started == 0
