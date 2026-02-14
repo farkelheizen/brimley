@@ -609,6 +609,54 @@ def test_repl_reload_success_warns_when_fastmcp_missing_during_refresh(tmp_path,
     assert any("fastmcp" in message.lower() and severity == "warning" for severity, message in logs)
 
 
+def test_repl_reload_updates_hello_mcp_tool_after_file_change(tmp_path, monkeypatch):
+        hello_file = tmp_path / "hello.md"
+        hello_file.write_text(
+                """
+---
+name: hello
+type: template_function
+return_shape: string
+mcp:
+    type: tool
+---
+Hello V1 {{ args.name }}
+"""
+        )
+
+        repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+        repl.mcp_server = object()
+
+        refresh_calls = {"shutdown": 0, "initialize": 0}
+        monkeypatch.setattr(repl, "_shutdown_mcp_server", lambda: refresh_calls.__setitem__("shutdown", refresh_calls["shutdown"] + 1))
+        monkeypatch.setattr(repl, "_initialize_mcp_server", lambda: refresh_calls.__setitem__("initialize", refresh_calls["initialize"] + 1))
+
+        first_result = repl._run_reload_cycle()
+        assert first_result.status == ReloadCommandStatus.SUCCESS
+        assert "hello" in repl.context.functions
+        assert "V1" in (repl.context.functions.get("hello").template_body or "")
+
+        hello_file.write_text(
+                """
+---
+name: hello
+type: template_function
+return_shape: string
+mcp:
+    type: tool
+---
+Hello V2 {{ args.name }}
+"""
+        )
+
+        second_result = repl._run_reload_cycle()
+
+        assert second_result.status == ReloadCommandStatus.SUCCESS
+        assert "V2" in (repl.context.functions.get("hello").template_body or "")
+        assert refresh_calls["shutdown"] == 2
+        assert refresh_calls["initialize"] == 2
+
+
 def test_repl_run_reload_cycle_failure_preserves_existing_registries(tmp_path):
     repl = BrimleyREPL(tmp_path)
     repl.context.functions.register(
