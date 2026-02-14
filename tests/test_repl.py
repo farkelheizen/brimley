@@ -4,6 +4,8 @@ from brimley.cli.main import app
 from brimley.cli.repl import BrimleyREPL
 from brimley.core.models import TemplateFunction
 from brimley.runtime.reload_contracts import ReloadCommandResult, ReloadCommandStatus, ReloadSummary
+from brimley.runtime.reload_contracts import ReloadDomain
+from brimley.runtime.reload_engine import ReloadApplicationResult
 from brimley.utils.diagnostics import BrimleyDiagnostic
 from pathlib import Path
 
@@ -513,6 +515,55 @@ def test_repl_reload_dispatch_uses_shared_entrypoint_by_default(tmp_path, monkey
     assert should_continue is True
     assert called["count"] == 1
     assert any("reload success" in message.lower() for _, message in logs)
+
+
+def test_repl_reload_success_refreshes_embedded_mcp_server(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+    repl.mcp_server = object()
+
+    calls = {"shutdown": 0, "initialize": 0}
+
+    monkeypatch.setattr(repl, "_shutdown_mcp_server", lambda: calls.__setitem__("shutdown", calls["shutdown"] + 1))
+    monkeypatch.setattr(repl, "_initialize_mcp_server", lambda: calls.__setitem__("initialize", calls["initialize"] + 1))
+    monkeypatch.setattr(
+        repl.reload_engine,
+        "apply_reload_with_policy",
+        lambda _context, _scan: ReloadApplicationResult(
+            summary=ReloadSummary(functions=0, entities=len(repl.context.entities), tools=0),
+            blocked_domains=[],
+            diagnostics=[],
+        ),
+    )
+
+    result = repl._run_reload_cycle()
+
+    assert result.status == ReloadCommandStatus.SUCCESS
+    assert calls["shutdown"] == 1
+    assert calls["initialize"] == 1
+
+
+def test_repl_reload_failure_does_not_refresh_embedded_mcp_server(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+
+    calls = {"shutdown": 0, "initialize": 0}
+
+    monkeypatch.setattr(repl, "_shutdown_mcp_server", lambda: calls.__setitem__("shutdown", calls["shutdown"] + 1))
+    monkeypatch.setattr(repl, "_initialize_mcp_server", lambda: calls.__setitem__("initialize", calls["initialize"] + 1))
+    monkeypatch.setattr(
+        repl.reload_engine,
+        "apply_reload_with_policy",
+        lambda _context, _scan: ReloadApplicationResult(
+            summary=ReloadSummary(functions=0, entities=len(repl.context.entities), tools=0),
+            blocked_domains=[ReloadDomain.FUNCTIONS],
+            diagnostics=[],
+        ),
+    )
+
+    result = repl._run_reload_cycle()
+
+    assert result.status == ReloadCommandStatus.FAILURE
+    assert calls["shutdown"] == 0
+    assert calls["initialize"] == 0
 
 
 def test_repl_run_reload_cycle_failure_preserves_existing_registries(tmp_path):

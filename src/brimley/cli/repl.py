@@ -370,11 +370,25 @@ class BrimleyREPL:
             else ReloadCommandStatus.SUCCESS
         )
 
+        if status == ReloadCommandStatus.SUCCESS:
+            self._refresh_embedded_mcp_server_after_reload()
+
         return ReloadCommandResult(
             status=status,
             summary=application_result.summary,
             diagnostics=application_result.diagnostics,
         )
+
+    def _refresh_embedded_mcp_server_after_reload(self) -> None:
+        """Safely restart embedded MCP server after a successful reload cycle."""
+        if not self.mcp_embedded_enabled:
+            return
+
+        if self.mcp_server is None and self.mcp_server_thread is None:
+            return
+
+        self._shutdown_mcp_server()
+        self._initialize_mcp_server()
 
     def _cmd_settings(self, args) -> bool:
         typer.echo(self.context.settings.model_dump_json(indent=2))
