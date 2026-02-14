@@ -19,6 +19,8 @@ my-brimley-app/
 ## Configuration
 
 - **`brimley.yaml`**: The single source of truth for configuration. It defines database connections, application constants, and framework settings.
+
+- **`auto_reload` in `brimley.yaml`**: Controls optional watch-mode behavior (`enabled`, polling interval, debounce, include/exclude filters).
     
 - **`.env`**: Secrets and local overrides. Variables defined here can be referenced in `brimley.yaml` using `${VAR_NAME}` syntax.
     
@@ -37,3 +39,12 @@ src/
     ├── welcome_email.md      # Template Function
     └── campaign.yaml         # Entity Definition
 ```
+
+## Runtime Orchestration
+
+Brimley supports two runtime orchestration modes:
+
+- **REPL-managed:** use `brimley repl --watch` (or config `auto_reload.enabled: true`) for interactive dynamic reload.
+- **Host-managed:** use `BrimleyRuntimeController` in external apps to start/stop auto-reload and run policy-based reload cycles.
+
+In both modes, reload applies partitioned domain policy so unaffected domains remain available if downstream domains fail validation.

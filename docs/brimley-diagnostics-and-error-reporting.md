@@ -49,7 +49,24 @@ Brimley should accumulate all errors during a scan and present them in a unified
 [SYSTEM] Critical failure: Registry could not be initialized. Fix the errors above and restart.
 ```
 
-## 4. Validating "Intent" vs "Content"
+## 4. Reload-Time Diagnostics (Watch Mode and `/reload`)
+
+When auto-reload is active (or `/reload` is invoked), diagnostics are emitted for the attempted reload cycle and annotated with domain context.
+
+- Domain labels: `entities`, `functions`, `mcp_tools`.
+- Critical/error diagnostics in an upstream domain block dependent downstream swaps.
+- Warning-only diagnostics do not block swap for that domain.
+- Failed reload keeps unaffected runtime domains available.
+
+### Example Reload Summary
+
+```
+[SYSTEM] Reload failed: functions=12 entities=2 tools=3 diagnostics=1 blocked=functions,mcp_tools
+```
+
+Use this summary to quickly identify which domains remained active and which were rolled back.
+
+## 5. Validating "Intent" vs "Content"
 
 To avoid noise (like Brimley trying to parse a random `.md` file that isn't a function), the scanner should use a **Strict Filter**:
 

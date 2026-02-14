@@ -37,7 +37,7 @@ Used for single-shot execution.
     4. **Output:** Print _only_ the function result to `STDOUT`. All system logs or errors must go to `STDERR`.
         
 
-### `brimley [ROOT_DIR] repl [--mcp|--no-mcp]`
+### `brimley [ROOT_DIR] repl [--mcp|--no-mcp] [--watch|--no-watch]`
 
 Used for an interactive, stateful session.
 
@@ -45,6 +45,11 @@ Used for an interactive, stateful session.
     - `--mcp`: force embedded MCP startup if tool functions are present.
     - `--no-mcp`: force embedded MCP off.
     - No flag: use configuration/default (`mcp.embedded` from `brimley.yaml`).
+
+- **Watch Flags:**
+    - `--watch`: force auto-reload watcher on.
+    - `--no-watch`: force auto-reload watcher off.
+    - No flag: use configuration/default (`auto_reload.enabled` from `brimley.yaml`).
 
 - **Startup:**
     
@@ -56,7 +61,7 @@ Used for an interactive, stateful session.
 
 - **Admin Commands:**
     - The REPL supports meta-commands prefixed with `/` for observability.
-    - See [Admin Commands Reference](brimley-repl-admin-commands.md) for `/settings`, `/config`, `/state`, `/functions`, `/entities`, `/databases`, and `/help`.
+    - See [Admin Commands Reference](brimley-repl-admin-commands.md) for `/settings`, `/config`, `/state`, `/functions`, `/entities`, `/databases`, `/reload`, and `/help`.
     
 - **Interactive Parsing Logic:**
     
@@ -195,3 +200,14 @@ You can continue to execute functions manually in the `brimley>` prompt while 
 If MCP tools are discoverable but FastMCP is not installed, REPL stays interactive and logs a warning instead of failing startup.
 
 _(Note: MCP server settings like host, port, transport, and embedded mode can be set in the `mcp:` section of `brimley.yaml`, and embedded mode can be overridden by CLI flags.)_
+
+## Auto-Reload Watch Mode
+
+When watch mode is enabled, the REPL starts a background polling watcher and triggers the same reload contract used by `/reload` when tracked files change.
+
+- Uses include/exclude pattern filters from `auto_reload` config.
+- Uses debounce to collapse burst updates into one reload cycle.
+- Applies partitioned reload policy (entities → functions → MCP tools).
+- Preserves currently active runtime domains when reload fails in downstream domains.
+
+`/reload` remains available even when watch mode is disabled.

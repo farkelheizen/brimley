@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 from pydantic import Field, ConfigDict
 from brimley.core.entity import Entity, ContentBlock, PromptMessage
 from brimley.core.registry import Registry
-from brimley.core.models import BrimleyFunction, FrameworkSettings, AppConfig, MCPSettings
+from brimley.core.models import BrimleyFunction, FrameworkSettings, AppConfig, MCPSettings, AutoReloadSettings
 
 class BrimleyContext(Entity):
     """
@@ -18,6 +18,9 @@ class BrimleyContext(Entity):
 
     # MCP Runtime Settings (Maps to 'mcp' section)
     mcp: MCPSettings = Field(default_factory=MCPSettings)
+
+    # Auto Reload Runtime Settings (Maps to top-level 'auto_reload' section)
+    auto_reload: AutoReloadSettings = Field(default_factory=AutoReloadSettings)
     
     # Application State: Mutable storage for request/session data
     app: Dict[str, Any] = Field(default_factory=dict)
@@ -43,6 +46,8 @@ class BrimleyContext(Entity):
                 data['config'] = AppConfig(**config_dict.get('config', {}))
             if 'mcp' not in data:
                 data['mcp'] = MCPSettings(**config_dict.get('mcp', {}))
+            if 'auto_reload' not in data:
+                data['auto_reload'] = AutoReloadSettings(**config_dict.get('auto_reload', {}))
             if 'app' not in data:
                 data['app'] = config_dict.get('state', {})
             if 'databases' not in data:

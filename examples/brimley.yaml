@@ -24,3 +24,6 @@ databases:
   default:
     connector: sqlite
     url: "sqlite:///./data.db"
+
+auto_reload:
+  enabled: true   

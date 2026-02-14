@@ -50,6 +50,14 @@ For a more interactive experience where you can run multiple functions in a sing
 PYTHONPATH=../src poetry run brimley repl --root .
 ```
 
+Enable watch mode to auto-reload on file changes:
+
+```bash
+PYTHONPATH=../src poetry run brimley repl --root . --watch
+```
+
+You can still trigger an on-demand reload with `/reload` in the REPL.
+
 **Inside the REPL:**
 
 ```text
@@ -81,6 +89,7 @@ The script demonstrates:
 
 - `build_mcp_server(root_dir)`: create a new FastMCP server and register Brimley tools.
 - `register_on_existing_server(root_dir, server)`: attach Brimley tools to an existing FastMCP server.
+- `run_host_auto_reload_demo(root_dir)`: host-managed auto-reload with `BrimleyRuntimeController` + external MCP refresh callback.
 
 If FastMCP is not installed, the script prints a friendly message and exits.
 

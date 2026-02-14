@@ -3,8 +3,9 @@ import yaml
 import shlex
 import json
 import threading
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 import sys
 from prompt_toolkit import PromptSession
 
@@ -12,16 +13,31 @@ from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
 from brimley.discovery.scanner import Scanner, BrimleyScanResult
-from brimley.core.registry import Registry
 from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
 from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.runtime.reload_contracts import (
+    ReloadCommandResult,
+    ReloadCommandStatus,
+    ReloadSummary,
+    format_reload_command_message,
+)
+from brimley.runtime.polling_watcher import PollingWatcher
+from brimley.runtime.reload_engine import PartitionedReloadEngine
 
 class BrimleyREPL:
-    def __init__(self, root_dir: Path, mcp_enabled_override: Optional[bool] = None):
+    def __init__(
+        self,
+        root_dir: Path,
+        mcp_enabled_override: Optional[bool] = None,
+        auto_reload_enabled_override: Optional[bool] = None,
+        reload_handler: Optional[Callable[[], ReloadCommandResult]] = None,
+    ):
         self.root_dir = root_dir
         self.mcp_enabled_override = mcp_enabled_override
+        self.auto_reload_enabled_override = auto_reload_enabled_override
+        self.reload_handler = reload_handler
         
         # Load config: check root_dir first, then CWD
         config_path = self.root_dir / "brimley.yaml"
@@ -35,6 +51,13 @@ class BrimleyREPL:
         self.mcp_embedded_enabled = (
             self.mcp_enabled_override if self.mcp_enabled_override is not None else self.context.mcp.embedded
         )
+
+        # CLI override takes precedence over config/default
+        self.auto_reload_enabled = (
+            self.auto_reload_enabled_override
+            if self.auto_reload_enabled_override is not None
+            else self.context.auto_reload.enabled
+        )
         
         # Hydrate databases
         if self.context.databases:
@@ -44,6 +67,13 @@ class BrimleyREPL:
         self.prompt_session = PromptSession()
         self.mcp_server = None
         self.mcp_server_thread = None
+        self.auto_reload_watcher: Optional[PollingWatcher] = None
+        self.auto_reload_thread: Optional[threading.Thread] = None
+        self._auto_reload_stop_event = threading.Event()
+        self.reload_engine = PartitionedReloadEngine()
+
+        if self.reload_handler is None:
+            self.reload_handler = self._run_reload_cycle
 
     def load(self):
         """
@@ -130,6 +160,7 @@ class BrimleyREPL:
     def start(self):
         OutputFormatter.log("Brimley REPL. Type '/help' for admin commands or '/quit' to exit.", severity="info")
         self.load()
+        self.start_auto_reload()
 
         while True:
             try:
@@ -152,12 +183,14 @@ class BrimleyREPL:
 
                 # Legacy/Direct exit
                 if command_line in ("exit", "quit"):
+                    self.stop_auto_reload()
                     self._shutdown_mcp_server()
                     OutputFormatter.log("Exiting Brimley REPL.", severity="info")
                     break
                     
                 if command_line == "reset":
                     OutputFormatter.log("Reloading...", severity="info")
+                    self.stop_auto_reload()
                     self._shutdown_mcp_server()
                     # Reload config when resetting
                     config_path = Path.cwd() / "brimley.yaml"
@@ -170,18 +203,25 @@ class BrimleyREPL:
                         if self.mcp_enabled_override is not None
                         else self.context.mcp.embedded
                     )
+                    self.auto_reload_enabled = (
+                        self.auto_reload_enabled_override
+                        if self.auto_reload_enabled_override is not None
+                        else self.context.auto_reload.enabled
+                    )
                     
                     # Hydrate databases
                     if self.context.databases:
                         self.context.databases = initialize_databases(self.context.databases)
                         
                     self.load()
+                    self.start_auto_reload()
                     OutputFormatter.log("Rescan complete.", severity="success")
                     continue
 
                 self.handle_command(command_line)
 
             except (KeyboardInterrupt, EOFError):
+                self.stop_auto_reload()
                 self._shutdown_mcp_server()
                 OutputFormatter.log("\nExiting...", severity="info")
                 break
@@ -204,6 +244,7 @@ class BrimleyREPL:
             "quit": self._cmd_quit,
             "exit": self._cmd_quit,
             "help": self._cmd_help,
+            "reload": self._cmd_reload,
             "settings": self._cmd_settings,
             "config": self._cmd_config,
             "state": self._cmd_state,
@@ -220,9 +261,78 @@ class BrimleyREPL:
             return True
 
     def _cmd_quit(self, args) -> bool:
+        self.stop_auto_reload()
         self._shutdown_mcp_server()
         OutputFormatter.log("Exiting Brimley REPL.", severity="info")
         return False
+
+    def start_auto_reload(self) -> None:
+        """Start background polling watcher when auto-reload mode is enabled."""
+        if not self.auto_reload_enabled:
+            return
+
+        if self.auto_reload_thread and self.auto_reload_thread.is_alive():
+            return
+
+        self.auto_reload_watcher = PollingWatcher(
+            root_dir=self.root_dir,
+            interval_ms=self.context.auto_reload.interval_ms,
+            debounce_ms=self.context.auto_reload.debounce_ms,
+            include_patterns=self.context.auto_reload.include_patterns,
+            exclude_patterns=self.context.auto_reload.exclude_patterns,
+        )
+        self.auto_reload_watcher.start()
+        self._auto_reload_stop_event.clear()
+
+        self.auto_reload_thread = threading.Thread(target=self._auto_reload_loop, daemon=True)
+        self.auto_reload_thread.start()
+        OutputFormatter.log("Auto-reload watcher started.", severity="info")
+
+    def stop_auto_reload(self) -> None:
+        """Stop background polling watcher if active."""
+        was_running = self.auto_reload_thread is not None and self.auto_reload_thread.is_alive()
+
+        self._auto_reload_stop_event.set()
+        if self.auto_reload_thread and self.auto_reload_thread.is_alive():
+            self.auto_reload_thread.join(timeout=1)
+
+        if self.auto_reload_watcher is not None:
+            self.auto_reload_watcher.stop()
+
+        self.auto_reload_thread = None
+        self.auto_reload_watcher = None
+
+        if was_running:
+            OutputFormatter.log("Auto-reload watcher stopped.", severity="info")
+
+    def _auto_reload_loop(self) -> None:
+        """Background loop that polls watched files and triggers reload cycles."""
+        if self.auto_reload_watcher is None:
+            return
+
+        interval_seconds = max(self.context.auto_reload.interval_ms / 1000.0, 0.05)
+        while not self._auto_reload_stop_event.is_set():
+            self._auto_reload_poll_once(now=time.monotonic())
+            self._auto_reload_stop_event.wait(interval_seconds)
+
+    def _auto_reload_poll_once(self, now: float) -> ReloadCommandResult | None:
+        """Run one watcher poll cycle and execute reload when debounce is satisfied."""
+        if self.auto_reload_watcher is None:
+            return None
+
+        poll_result = self.auto_reload_watcher.poll(now=now)
+        if not poll_result.should_reload:
+            return None
+
+        result = self.reload_handler()
+        self.auto_reload_watcher.complete_reload(success=result.status == ReloadCommandStatus.SUCCESS)
+        message = format_reload_command_message(result)
+        severity = "success" if result.status == ReloadCommandStatus.SUCCESS else "error"
+        OutputFormatter.log(message, severity=severity)
+        if result.diagnostics:
+            OutputFormatter.print_diagnostics(result.diagnostics)
+
+        return result
 
     def _cmd_help(self, args) -> bool:
         commands = [
@@ -232,6 +342,7 @@ class BrimleyREPL:
             ("/functions", "Lists all registered functions and their types."),
             ("/entities", "Lists all registered entities."),
             ("/databases", "Lists configured database connections."),
+            ("/reload", "Triggers one immediate reload cycle."),
             ("/help", "Lists available admin commands."),
             ("/quit", "Exits the REPL."),
         ]
@@ -240,6 +351,54 @@ class BrimleyREPL:
             typer.echo(f"  {cmd:<12} {desc}")
         typer.echo("")
         return True
+
+    def _cmd_reload(self, args) -> bool:
+        OutputFormatter.log("Reload requested.", severity="info")
+        result = self.reload_handler()
+
+        message = format_reload_command_message(result)
+        severity = "success" if result.status == ReloadCommandStatus.SUCCESS else "error"
+        OutputFormatter.log(message, severity=severity)
+
+        if result.diagnostics:
+            OutputFormatter.print_diagnostics(result.diagnostics)
+
+        return True
+
+    def _run_reload_cycle(self) -> ReloadCommandResult:
+        """Execute one reload cycle and return standardized reload command result."""
+        if self.root_dir.exists():
+            scanner = Scanner(self.root_dir)
+            scan_result = scanner.scan()
+        else:
+            scan_result = BrimleyScanResult()
+
+        application_result = self.reload_engine.apply_reload_with_policy(self.context, scan_result)
+        status = (
+            ReloadCommandStatus.FAILURE
+            if application_result.blocked_domains
+            else ReloadCommandStatus.SUCCESS
+        )
+
+        if status == ReloadCommandStatus.SUCCESS:
+            self._refresh_embedded_mcp_server_after_reload()
+
+        return ReloadCommandResult(
+            status=status,
+            summary=application_result.summary,
+            diagnostics=application_result.diagnostics,
+        )
+
+    def _refresh_embedded_mcp_server_after_reload(self) -> None:
+        """Safely restart embedded MCP server after a successful reload cycle."""
+        if not self.mcp_embedded_enabled:
+            return
+
+        if self.mcp_server is None and self.mcp_server_thread is None:
+            return
+
+        self._shutdown_mcp_server()
+        self._initialize_mcp_server()
 
     def _cmd_settings(self, args) -> bool:
         typer.echo(self.context.settings.model_dump_json(indent=2))
