@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from brimley.core.context import BrimleyContext
 
 def test_context_init_with_config():
@@ -58,3 +61,18 @@ def test_context_default_init():
     assert ctx.auto_reload.include_patterns == ["*.py", "*.sql", "*.md", "*.yaml"]
     assert ctx.auto_reload.exclude_patterns == []
     assert ctx.app == {}
+
+
+def test_context_auto_reload_partial_config_applies_defaults():
+    ctx = BrimleyContext(config_dict={"auto_reload": {"enabled": True}})
+
+    assert ctx.auto_reload.enabled is True
+    assert ctx.auto_reload.interval_ms == 1000
+    assert ctx.auto_reload.debounce_ms == 300
+    assert ctx.auto_reload.include_patterns == ["*.py", "*.sql", "*.md", "*.yaml"]
+    assert ctx.auto_reload.exclude_patterns == []
+
+
+def test_context_auto_reload_invalid_interval_raises_validation_error():
+    with pytest.raises(ValidationError):
+        BrimleyContext(config_dict={"auto_reload": {"interval_ms": 99}})
