@@ -23,12 +23,19 @@ def repl(
     root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
     mcp: Annotated[bool, typer.Option("--mcp", help="Enable embedded MCP server for REPL")] = False,
     no_mcp: Annotated[bool, typer.Option("--no-mcp", help="Disable embedded MCP server for REPL")] = False,
+    watch: Annotated[bool, typer.Option("--watch", help="Enable auto-reload watch mode for REPL")] = False,
+    no_watch: Annotated[bool, typer.Option("--no-watch", help="Disable auto-reload watch mode for REPL")] = False,
 ):
     """
     Start an interactive REPL session.
     """
     mcp_enabled_override = True if mcp else False if no_mcp else None
-    repl_session = BrimleyREPL(root_dir, mcp_enabled_override=mcp_enabled_override)
+    auto_reload_enabled_override = True if watch else False if no_watch else None
+    repl_session = BrimleyREPL(
+        root_dir,
+        mcp_enabled_override=mcp_enabled_override,
+        auto_reload_enabled_override=auto_reload_enabled_override,
+    )
     repl_session.start()
 
 @app.command()

@@ -290,3 +290,63 @@ def test_repl_slash_quit_triggers_mcp_shutdown(tmp_path, monkeypatch):
 
     assert result.exit_code == 0
     assert shutdown_calls["count"] == 1
+
+
+def test_repl_auto_reload_enabled_uses_config_when_no_override(tmp_path):
+        (tmp_path / "brimley.yaml").write_text(
+                """
+auto_reload:
+    enabled: true
+"""
+        )
+
+        repl = BrimleyREPL(tmp_path)
+
+        assert repl.auto_reload_enabled is True
+
+
+def test_repl_auto_reload_enabled_cli_override_true(tmp_path):
+        (tmp_path / "brimley.yaml").write_text(
+                """
+auto_reload:
+    enabled: false
+"""
+        )
+
+        repl = BrimleyREPL(tmp_path, auto_reload_enabled_override=True)
+
+        assert repl.auto_reload_enabled is True
+
+
+def test_repl_auto_reload_enabled_cli_override_false(tmp_path):
+        (tmp_path / "brimley.yaml").write_text(
+                """
+auto_reload:
+    enabled: true
+"""
+        )
+
+        repl = BrimleyREPL(tmp_path, auto_reload_enabled_override=False)
+
+        assert repl.auto_reload_enabled is False
+
+
+def test_repl_reset_preserves_auto_reload_override_precedence(tmp_path, monkeypatch):
+        (tmp_path / "brimley.yaml").write_text(
+                """
+auto_reload:
+    enabled: true
+"""
+        )
+
+        repl = BrimleyREPL(tmp_path, auto_reload_enabled_override=False)
+
+        monkeypatch.setattr("brimley.cli.repl.sys.stdin.isatty", lambda: True)
+        inputs = iter(["reset", "/quit"])
+        monkeypatch.setattr(repl.prompt_session, "prompt", lambda *_args, **_kwargs: next(inputs))
+        monkeypatch.setattr(repl, "load", lambda: None)
+        monkeypatch.setattr(repl, "_shutdown_mcp_server", lambda: None)
+
+        repl.start()
+
+        assert repl.auto_reload_enabled is False

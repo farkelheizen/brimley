@@ -19,9 +19,15 @@ from brimley.cli.formatter import OutputFormatter
 from brimley.mcp.adapter import BrimleyMCPAdapter
 
 class BrimleyREPL:
-    def __init__(self, root_dir: Path, mcp_enabled_override: Optional[bool] = None):
+    def __init__(
+        self,
+        root_dir: Path,
+        mcp_enabled_override: Optional[bool] = None,
+        auto_reload_enabled_override: Optional[bool] = None,
+    ):
         self.root_dir = root_dir
         self.mcp_enabled_override = mcp_enabled_override
+        self.auto_reload_enabled_override = auto_reload_enabled_override
         
         # Load config: check root_dir first, then CWD
         config_path = self.root_dir / "brimley.yaml"
@@ -34,6 +40,13 @@ class BrimleyREPL:
         # CLI override takes precedence over config/default
         self.mcp_embedded_enabled = (
             self.mcp_enabled_override if self.mcp_enabled_override is not None else self.context.mcp.embedded
+        )
+
+        # CLI override takes precedence over config/default
+        self.auto_reload_enabled = (
+            self.auto_reload_enabled_override
+            if self.auto_reload_enabled_override is not None
+            else self.context.auto_reload.enabled
         )
         
         # Hydrate databases
@@ -169,6 +182,11 @@ class BrimleyREPL:
                         self.mcp_enabled_override
                         if self.mcp_enabled_override is not None
                         else self.context.mcp.embedded
+                    )
+                    self.auto_reload_enabled = (
+                        self.auto_reload_enabled_override
+                        if self.auto_reload_enabled_override is not None
+                        else self.context.auto_reload.enabled
                     )
                     
                     # Hydrate databases
