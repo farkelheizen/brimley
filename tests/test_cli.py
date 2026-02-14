@@ -233,3 +233,17 @@ def test_repl_flag_watch_default_uses_config_or_default(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert captured["auto_reload_override"] is None
     assert captured["started"] is True
+
+
+def test_repl_rejects_conflicting_mcp_flags(tmp_path):
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp", "--no-mcp"])
+
+    assert result.exit_code != 0
+    assert "Cannot use --mcp and --no-mcp together" in result.stdout
+
+
+def test_repl_rejects_conflicting_watch_flags(tmp_path):
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--watch", "--no-watch"])
+
+    assert result.exit_code != 0
+    assert "Cannot use --watch and --no-watch together" in result.stdout
