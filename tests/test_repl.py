@@ -1,6 +1,8 @@
 import pytest
 from typer.testing import CliRunner
 from brimley.cli.main import app
+from brimley.cli.repl import BrimleyREPL
+from brimley.core.models import TemplateFunction
 from pathlib import Path
 
 runner = CliRunner()
@@ -122,3 +124,169 @@ def test_repl_admin_invalid(tmp_path):
     (tmp_path / "funcs").mkdir()
     result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input="/unknown_cmd\n/quit\n")
     assert "Unknown admin command: /unknown_cmd" in result.stdout
+
+
+def test_repl_mcp_warns_when_tools_exist_but_fastmcp_missing(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="hello_tool",
+            type="template_function",
+            return_shape="string",
+            template_body="Hello",
+            mcp={"type": "tool"},
+        )
+    )
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def is_fastmcp_available(self):
+            return False
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    repl._initialize_mcp_server()
+
+    assert any("fastmcp" in message.lower() and severity == "warning" for severity, message in logs)
+
+
+def test_repl_mcp_starts_background_server_when_available(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+    repl.context.mcp.host = "127.0.0.1"
+    repl.context.mcp.port = 8123
+
+    class FakeServer:
+        def __init__(self):
+            self.run_called = False
+
+        def run(self, transport, host, port):
+            self.run_called = True
+            self.transport = transport
+            self.host = host
+            self.port = port
+
+    fake_server = FakeServer()
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def is_fastmcp_available(self):
+            return True
+
+        def register_tools(self):
+            return fake_server
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    repl._initialize_mcp_server()
+
+    assert repl.mcp_server is fake_server
+    assert repl.mcp_server_thread is not None
+    repl.mcp_server_thread.join(timeout=1)
+    assert fake_server.run_called is True
+    assert fake_server.transport == "sse"
+    assert fake_server.host == "127.0.0.1"
+    assert fake_server.port == 8123
+    assert any("/sse" in message for _, message in logs)
+
+
+def test_repl_mcp_noop_when_no_tools(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return []
+
+        def is_fastmcp_available(self):
+            raise AssertionError("Should not check fastmcp when there are no tools")
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
+
+    repl._initialize_mcp_server()
+
+    assert repl.mcp_server is None
+    assert repl.mcp_server_thread is None
+
+
+def test_repl_load_does_not_initialize_mcp_when_disabled(tmp_path, monkeypatch):
+    (tmp_path / "tool.md").write_text("""---
+name: hello_tool
+type: template_function
+return_shape: string
+mcp:
+  type: tool
+---
+Hello
+""")
+
+    class FailingAdapter:
+        def __init__(self, registry, context):
+            raise AssertionError("Adapter should not be constructed when MCP is disabled")
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FailingAdapter)
+
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=False)
+    repl.load()
+
+    assert repl.mcp_server is None
+    assert repl.mcp_server_thread is None
+
+
+def test_repl_startup_warns_when_fastmcp_unavailable_with_tools(tmp_path, monkeypatch):
+    (tmp_path / "tool.md").write_text("""---
+name: hello_tool
+type: template_function
+return_shape: string
+mcp:
+  type: tool
+---
+Hello
+""")
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def is_fastmcp_available(self):
+            return False
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp"], input="/quit\n")
+
+    assert result.exit_code == 0
+    assert "fastmcp" in result.stdout.lower()
+    assert "skipping embedded mcp" in result.stdout.lower()
+
+
+def test_repl_slash_quit_triggers_mcp_shutdown(tmp_path, monkeypatch):
+    shutdown_calls = {"count": 0}
+
+    def fake_shutdown(self):
+        shutdown_calls["count"] += 1
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyREPL._shutdown_mcp_server", fake_shutdown)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="/quit\n")
+
+    assert result.exit_code == 0
+    assert shutdown_calls["count"] == 1

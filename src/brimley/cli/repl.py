@@ -2,6 +2,7 @@ import typer
 import yaml
 import shlex
 import json
+import threading
 from pathlib import Path
 from typing import Optional
 import sys
@@ -15,10 +16,12 @@ from brimley.core.registry import Registry
 from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
+from brimley.mcp.adapter import BrimleyMCPAdapter
 
 class BrimleyREPL:
-    def __init__(self, root_dir: Path):
+    def __init__(self, root_dir: Path, mcp_enabled_override: Optional[bool] = None):
         self.root_dir = root_dir
+        self.mcp_enabled_override = mcp_enabled_override
         
         # Load config: check root_dir first, then CWD
         config_path = self.root_dir / "brimley.yaml"
@@ -27,6 +30,11 @@ class BrimleyREPL:
             
         config_data = load_config(config_path)
         self.context = BrimleyContext(config_dict=config_data)
+
+        # CLI override takes precedence over config/default
+        self.mcp_embedded_enabled = (
+            self.mcp_enabled_override if self.mcp_enabled_override is not None else self.context.mcp.embedded
+        )
         
         # Hydrate databases
         if self.context.databases:
@@ -34,6 +42,8 @@ class BrimleyREPL:
         
         self.dispatcher = Dispatcher()
         self.prompt_session = PromptSession()
+        self.mcp_server = None
+        self.mcp_server_thread = None
 
     def load(self):
         """
@@ -57,6 +67,65 @@ class BrimleyREPL:
         func_names = [f.name for f in self.context.functions]
         OutputFormatter.log(f"Loaded {len(self.context.functions)} functions: {', '.join(func_names)}", severity="success")
         OutputFormatter.log(f"Loaded {len(scan_result.entities)} entities.", severity="success")
+
+        self._initialize_mcp_server()
+
+    def _initialize_mcp_server(self) -> None:
+        """
+        Start embedded MCP server in background when enabled and tools are present.
+        """
+        if not self.mcp_embedded_enabled:
+            return
+
+        adapter = BrimleyMCPAdapter(registry=self.context.functions, context=self.context)
+        tools = adapter.discover_tools()
+        if not tools:
+            return
+
+        if not adapter.is_fastmcp_available():
+            OutputFormatter.log(
+                "MCP tools found, but 'fastmcp' is not installed. Skipping embedded MCP startup.",
+                severity="warning",
+            )
+            return
+
+        try:
+            server = adapter.register_tools()
+        except Exception as exc:
+            OutputFormatter.log(f"Unable to initialize embedded MCP server: {exc}", severity="warning")
+            return
+
+        self.mcp_server = server
+
+        if hasattr(server, "run"):
+            host = self.context.mcp.host
+            port = self.context.mcp.port
+
+            def run_server() -> None:
+                server.run(transport="sse", host=host, port=port)
+
+            self.mcp_server_thread = threading.Thread(target=run_server, daemon=True)
+            self.mcp_server_thread.start()
+            OutputFormatter.log(
+                f"Embedded FastMCP server running at http://{host}:{port}/sse",
+                severity="success",
+            )
+
+    def _shutdown_mcp_server(self) -> None:
+        """
+        Attempt graceful shutdown for embedded MCP server if supported.
+        """
+        if self.mcp_server and hasattr(self.mcp_server, "stop"):
+            try:
+                self.mcp_server.stop()
+            except Exception:
+                pass
+
+        if self.mcp_server_thread and self.mcp_server_thread.is_alive():
+            self.mcp_server_thread.join(timeout=1)
+
+        self.mcp_server = None
+        self.mcp_server_thread = None
 
     def start(self):
         OutputFormatter.log("Brimley REPL. Type '/help' for admin commands or '/quit' to exit.", severity="info")
@@ -83,15 +152,24 @@ class BrimleyREPL:
 
                 # Legacy/Direct exit
                 if command_line in ("exit", "quit"):
+                    self._shutdown_mcp_server()
                     OutputFormatter.log("Exiting Brimley REPL.", severity="info")
                     break
                     
                 if command_line == "reset":
                     OutputFormatter.log("Reloading...", severity="info")
+                    self._shutdown_mcp_server()
                     # Reload config when resetting
                     config_path = Path.cwd() / "brimley.yaml"
                     config_data = load_config(config_path)
                     self.context = BrimleyContext(config_dict=config_data)
+
+                    # Keep CLI override precedence after reset
+                    self.mcp_embedded_enabled = (
+                        self.mcp_enabled_override
+                        if self.mcp_enabled_override is not None
+                        else self.context.mcp.embedded
+                    )
                     
                     # Hydrate databases
                     if self.context.databases:
@@ -104,8 +182,9 @@ class BrimleyREPL:
                 self.handle_command(command_line)
 
             except (KeyboardInterrupt, EOFError):
-                 OutputFormatter.log("\nExiting...", severity="info")
-                 break
+                self._shutdown_mcp_server()
+                OutputFormatter.log("\nExiting...", severity="info")
+                break
             except Exception as e:
                 OutputFormatter.log(f"System Error: {e}", severity="critical")
 
@@ -141,6 +220,7 @@ class BrimleyREPL:
             return True
 
     def _cmd_quit(self, args) -> bool:
+        self._shutdown_mcp_server()
         OutputFormatter.log("Exiting Brimley REPL.", severity="info")
         return False
 
