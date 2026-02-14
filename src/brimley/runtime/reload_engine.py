@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List
 
 from brimley.core.context import BrimleyContext
@@ -8,7 +9,14 @@ from brimley.core.entity import Entity
 from brimley.core.models import BrimleyFunction
 from brimley.core.registry import Registry
 from brimley.discovery.scanner import BrimleyScanResult
-from brimley.runtime.reload_contracts import RELOAD_DOMAIN_ORDER, ReloadDomain, ReloadSummary
+from brimley.runtime.reload_contracts import (
+    RELOAD_DOMAIN_ORDER,
+    DomainReloadInput,
+    ReloadDomain,
+    ReloadSummary,
+    evaluate_domain_swap_policy,
+)
+from brimley.utils.diagnostics import BrimleyDiagnostic
 
 
 @dataclass(frozen=True)
@@ -18,6 +26,15 @@ class ReloadPartitions:
     entities: List[Entity]
     functions: List[BrimleyFunction]
     mcp_tools: List[BrimleyFunction]
+
+
+@dataclass(frozen=True)
+class ReloadApplicationResult:
+    """Outcome of a policy-driven reload application."""
+
+    summary: ReloadSummary
+    blocked_domains: List[ReloadDomain]
+    diagnostics: List[BrimleyDiagnostic]
 
 
 class PartitionedReloadEngine:
@@ -67,6 +84,59 @@ class PartitionedReloadEngine:
             tools=len(partitions.mcp_tools),
         )
 
+    def apply_reload_with_policy(self, context: BrimleyContext, scan_result: BrimleyScanResult) -> ReloadApplicationResult:
+        """Apply partitioned reload with domain-specific swap/rollback decisions."""
+
+        partitions = self.partition_scan_result(scan_result)
+        diagnostics_by_domain = self._classify_diagnostics(scan_result.diagnostics)
+
+        decisions = evaluate_domain_swap_policy(
+            {
+                ReloadDomain.ENTITIES: DomainReloadInput(diagnostics=diagnostics_by_domain[ReloadDomain.ENTITIES]),
+                ReloadDomain.FUNCTIONS: DomainReloadInput(diagnostics=diagnostics_by_domain[ReloadDomain.FUNCTIONS]),
+                ReloadDomain.MCP_TOOLS: DomainReloadInput(diagnostics=diagnostics_by_domain[ReloadDomain.MCP_TOOLS]),
+            }
+        )
+
+        if decisions[ReloadDomain.ENTITIES].can_swap:
+            context.entities = self._build_entities_registry(context, partitions.entities)
+
+        if decisions[ReloadDomain.FUNCTIONS].can_swap:
+            context.functions = self._build_functions_registry(partitions.functions)
+
+        tools_count = (
+            len(partitions.mcp_tools)
+            if decisions[ReloadDomain.MCP_TOOLS].can_swap
+            else self._count_current_tools(context)
+        )
+
+        blocked_domains = [domain for domain, decision in decisions.items() if not decision.can_swap]
+
+        labeled_diagnostics: List[BrimleyDiagnostic] = []
+        for domain in RELOAD_DOMAIN_ORDER:
+            labeled_diagnostics.extend(self._label_domain_diagnostics(domain, diagnostics_by_domain[domain]))
+            if not decisions[domain].can_swap and not diagnostics_by_domain[domain]:
+                labeled_diagnostics.append(
+                    BrimleyDiagnostic(
+                        file_path="<runtime>",
+                        error_code="ERR_RELOAD_DOMAIN_BLOCKED",
+                        severity="warning",
+                        message=f"[{domain.value}] {decisions[domain].blocked_reason}",
+                    )
+                )
+
+        summary = ReloadSummary(
+            entities=len(context.entities),
+            functions=len(context.functions),
+            tools=tools_count,
+        )
+
+        return ReloadApplicationResult(
+            summary=summary,
+            blocked_domains=blocked_domains,
+            diagnostics=labeled_diagnostics,
+        )
+
     def _build_entities_registry(self, context: BrimleyContext, entities: List[Entity]) -> Registry[Entity]:
         next_entities: Registry[Entity] = Registry()
 
@@ -81,3 +151,42 @@ class PartitionedReloadEngine:
         next_functions: Registry[BrimleyFunction] = Registry()
         next_functions.register_all(functions)
         return next_functions
+
+    def _count_current_tools(self, context: BrimleyContext) -> int:
+        return sum(1 for func in context.functions if getattr(getattr(func, "mcp", None), "type", None) == "tool")
+
+    def _classify_diagnostics(
+        self, diagnostics: List[BrimleyDiagnostic]
+    ) -> Dict[ReloadDomain, List[BrimleyDiagnostic]]:
+        by_domain: Dict[ReloadDomain, List[BrimleyDiagnostic]] = {
+            ReloadDomain.ENTITIES: [],
+            ReloadDomain.FUNCTIONS: [],
+            ReloadDomain.MCP_TOOLS: [],
+        }
+
+        for diag in diagnostics:
+            domain = self._domain_for_path(diag.file_path)
+            by_domain[domain].append(diag)
+
+        return by_domain
+
+    def _domain_for_path(self, file_path: str) -> ReloadDomain:
+        suffix = Path(file_path).suffix.lower()
+        if suffix in {".yaml", ".yml"}:
+            return ReloadDomain.ENTITIES
+        return ReloadDomain.FUNCTIONS
+
+    def _label_domain_diagnostics(
+        self, domain: ReloadDomain, diagnostics: List[BrimleyDiagnostic]
+    ) -> List[BrimleyDiagnostic]:
+        return [
+            BrimleyDiagnostic(
+                file_path=diag.file_path,
+                error_code=diag.error_code,
+                severity=diag.severity,
+                message=f"[{domain.value}] {diag.message}",
+                suggestion=diag.suggestion,
+                line_number=diag.line_number,
+            )
+            for diag in diagnostics
+        ]

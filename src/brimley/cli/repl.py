@@ -363,26 +363,17 @@ class BrimleyREPL:
         else:
             scan_result = BrimleyScanResult()
 
-        has_blocking_errors = any(d.severity in ("critical", "error") for d in scan_result.diagnostics)
-
-        if has_blocking_errors:
-            return ReloadCommandResult(
-                status=ReloadCommandStatus.FAILURE,
-                summary=ReloadSummary(
-                    functions=len(self.context.functions),
-                    entities=len(self.context.entities),
-                    tools=0,
-                ),
-                diagnostics=scan_result.diagnostics,
-            )
-
-        partitions = self.reload_engine.partition_scan_result(scan_result)
-        summary = self.reload_engine.apply_successful_reload(self.context, partitions)
+        application_result = self.reload_engine.apply_reload_with_policy(self.context, scan_result)
+        status = (
+            ReloadCommandStatus.FAILURE
+            if application_result.blocked_domains
+            else ReloadCommandStatus.SUCCESS
+        )
 
         return ReloadCommandResult(
-            status=ReloadCommandStatus.SUCCESS,
-            summary=summary,
-            diagnostics=scan_result.diagnostics,
+            status=status,
+            summary=application_result.summary,
+            diagnostics=application_result.diagnostics,
         )
 
     def _cmd_settings(self, args) -> bool:

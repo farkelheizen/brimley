@@ -4,6 +4,7 @@ from brimley.core.models import TemplateFunction
 from brimley.discovery.scanner import BrimleyScanResult
 from brimley.runtime.reload_contracts import ReloadDomain
 from brimley.runtime.reload_engine import PartitionedReloadEngine
+from brimley.utils.diagnostics import BrimleyDiagnostic
 
 
 def test_reload_engine_partitions_mcp_tools_from_functions():
@@ -78,3 +79,89 @@ def test_reload_engine_apply_successful_reload_swaps_domains_in_order():
     assert summary.functions == 1
     assert summary.tools == 1
     assert summary.entities == len(context.entities)
+
+
+def test_reload_engine_policy_keeps_functions_when_function_domain_has_errors():
+    context = BrimleyContext()
+    context.functions.register(
+        TemplateFunction(
+            name="existing",
+            type="template_function",
+            return_shape="string",
+            template_body="existing",
+        )
+    )
+
+    engine = PartitionedReloadEngine()
+    scan_result = BrimleyScanResult(
+        functions=[
+            TemplateFunction(
+                name="broken_candidate",
+                type="template_function",
+                return_shape="string",
+                template_body="new",
+            )
+        ],
+        entities=[Entity(name="Invoice")],
+        diagnostics=[
+            BrimleyDiagnostic(
+                file_path="broken.md",
+                error_code="ERR_PARSE_FAILURE",
+                severity="error",
+                message="invalid frontmatter",
+            )
+        ],
+    )
+
+    result = engine.apply_reload_with_policy(context, scan_result)
+
+    assert ReloadDomain.FUNCTIONS in result.blocked_domains
+    assert ReloadDomain.MCP_TOOLS in result.blocked_domains
+    assert "existing" in context.functions
+    assert "broken_candidate" not in context.functions
+    assert "Invoice" in context.entities
+    assert any(diag.message.startswith("[functions]") for diag in result.diagnostics)
+
+
+def test_reload_engine_policy_blocks_everything_when_entity_domain_has_errors():
+    context = BrimleyContext()
+    context.entities.register(Entity(name="KeepMe"))
+    context.functions.register(
+        TemplateFunction(
+            name="keep_func",
+            type="template_function",
+            return_shape="string",
+            template_body="old",
+        )
+    )
+
+    engine = PartitionedReloadEngine()
+    scan_result = BrimleyScanResult(
+        functions=[
+            TemplateFunction(
+                name="new_func",
+                type="template_function",
+                return_shape="string",
+                template_body="new",
+            )
+        ],
+        entities=[Entity(name="NewEntity")],
+        diagnostics=[
+            BrimleyDiagnostic(
+                file_path="entity.yaml",
+                error_code="ERR_PARSE_FAILURE",
+                severity="critical",
+                message="entity parse failure",
+            )
+        ],
+    )
+
+    result = engine.apply_reload_with_policy(context, scan_result)
+
+    assert ReloadDomain.ENTITIES in result.blocked_domains
+    assert ReloadDomain.FUNCTIONS in result.blocked_domains
+    assert ReloadDomain.MCP_TOOLS in result.blocked_domains
+    assert "keep_func" in context.functions
+    assert "KeepMe" in context.entities
+    assert any(diag.message.startswith("[entities]") for diag in result.diagnostics)
+    assert any(diag.error_code == "ERR_RELOAD_DOMAIN_BLOCKED" for diag in result.diagnostics)
