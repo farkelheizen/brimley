@@ -9,6 +9,8 @@ arguments:
     limit:
       type: int
       default: 10
+mcp:
+  type: tool
 ---
 */
 SELECT id, username, email 
