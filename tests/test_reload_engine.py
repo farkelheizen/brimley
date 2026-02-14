@@ -165,3 +165,90 @@ def test_reload_engine_policy_blocks_everything_when_entity_domain_has_errors():
     assert "KeepMe" in context.entities
     assert any(diag.message.startswith("[entities]") for diag in result.diagnostics)
     assert any(diag.error_code == "ERR_RELOAD_DOMAIN_BLOCKED" for diag in result.diagnostics)
+
+
+def test_reload_engine_policy_allows_full_swap_on_warning_only_diagnostics():
+    context = BrimleyContext()
+    context.functions.register(
+        TemplateFunction(
+            name="legacy",
+            type="template_function",
+            return_shape="string",
+            template_body="old",
+        )
+    )
+
+    engine = PartitionedReloadEngine()
+    scan_result = BrimleyScanResult(
+        functions=[
+            TemplateFunction(
+                name="fresh",
+                type="template_function",
+                return_shape="string",
+                template_body="new",
+            )
+        ],
+        entities=[Entity(name="Customer")],
+        diagnostics=[
+            BrimleyDiagnostic(
+                file_path="fresh.md",
+                error_code="WARN_STYLE",
+                severity="warning",
+                message="non-blocking warning",
+            )
+        ],
+    )
+
+    result = engine.apply_reload_with_policy(context, scan_result)
+
+    assert result.blocked_domains == []
+    assert "legacy" not in context.functions
+    assert "fresh" in context.functions
+    assert "Customer" in context.entities
+    assert any(diag.message.startswith("[functions]") for diag in result.diagnostics)
+
+
+def test_reload_engine_policy_rolls_back_downstream_domains_only():
+    context = BrimleyContext()
+    context.functions.register(
+        TemplateFunction(
+            name="existing_tool",
+            type="template_function",
+            return_shape="string",
+            template_body="old",
+            mcp={"type": "tool"},
+        )
+    )
+
+    engine = PartitionedReloadEngine()
+    scan_result = BrimleyScanResult(
+        functions=[
+            TemplateFunction(
+                name="new_tool",
+                type="template_function",
+                return_shape="string",
+                template_body="new",
+                mcp={"type": "tool"},
+            )
+        ],
+        entities=[Entity(name="Address")],
+        diagnostics=[
+            BrimleyDiagnostic(
+                file_path="new_tool.md",
+                error_code="ERR_PARSE_FAILURE",
+                severity="error",
+                message="template parse failure",
+            )
+        ],
+    )
+
+    result = engine.apply_reload_with_policy(context, scan_result)
+
+    assert ReloadDomain.ENTITIES not in result.blocked_domains
+    assert ReloadDomain.FUNCTIONS in result.blocked_domains
+    assert ReloadDomain.MCP_TOOLS in result.blocked_domains
+    assert "Address" in context.entities
+    assert "existing_tool" in context.functions
+    assert "new_tool" not in context.functions
+    assert result.summary.tools == 1
+    assert any(diag.message.startswith("[functions]") for diag in result.diagnostics)
