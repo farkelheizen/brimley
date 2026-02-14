@@ -3,6 +3,7 @@ import yaml
 import shlex
 import json
 import threading
+import time
 from pathlib import Path
 from typing import Callable, Optional
 import sys
@@ -25,6 +26,7 @@ from brimley.runtime.reload_contracts import (
     ReloadSummary,
     format_reload_command_message,
 )
+from brimley.runtime.polling_watcher import PollingWatcher
 
 class BrimleyREPL:
     def __init__(
@@ -67,6 +69,9 @@ class BrimleyREPL:
         self.prompt_session = PromptSession()
         self.mcp_server = None
         self.mcp_server_thread = None
+        self.auto_reload_watcher: Optional[PollingWatcher] = None
+        self.auto_reload_thread: Optional[threading.Thread] = None
+        self._auto_reload_stop_event = threading.Event()
 
         if self.reload_handler is None:
             self.reload_handler = self._run_reload_cycle
@@ -156,6 +161,7 @@ class BrimleyREPL:
     def start(self):
         OutputFormatter.log("Brimley REPL. Type '/help' for admin commands or '/quit' to exit.", severity="info")
         self.load()
+        self.start_auto_reload()
 
         while True:
             try:
@@ -178,12 +184,14 @@ class BrimleyREPL:
 
                 # Legacy/Direct exit
                 if command_line in ("exit", "quit"):
+                    self.stop_auto_reload()
                     self._shutdown_mcp_server()
                     OutputFormatter.log("Exiting Brimley REPL.", severity="info")
                     break
                     
                 if command_line == "reset":
                     OutputFormatter.log("Reloading...", severity="info")
+                    self.stop_auto_reload()
                     self._shutdown_mcp_server()
                     # Reload config when resetting
                     config_path = Path.cwd() / "brimley.yaml"
@@ -207,12 +215,14 @@ class BrimleyREPL:
                         self.context.databases = initialize_databases(self.context.databases)
                         
                     self.load()
+                    self.start_auto_reload()
                     OutputFormatter.log("Rescan complete.", severity="success")
                     continue
 
                 self.handle_command(command_line)
 
             except (KeyboardInterrupt, EOFError):
+                self.stop_auto_reload()
                 self._shutdown_mcp_server()
                 OutputFormatter.log("\nExiting...", severity="info")
                 break
@@ -252,9 +262,68 @@ class BrimleyREPL:
             return True
 
     def _cmd_quit(self, args) -> bool:
+        self.stop_auto_reload()
         self._shutdown_mcp_server()
         OutputFormatter.log("Exiting Brimley REPL.", severity="info")
         return False
+
+    def start_auto_reload(self) -> None:
+        """Start background polling watcher when auto-reload mode is enabled."""
+        if not self.auto_reload_enabled:
+            return
+
+        if self.auto_reload_thread and self.auto_reload_thread.is_alive():
+            return
+
+        self.auto_reload_watcher = PollingWatcher(
+            root_dir=self.root_dir,
+            interval_ms=self.context.auto_reload.interval_ms,
+            debounce_ms=self.context.auto_reload.debounce_ms,
+            include_patterns=self.context.auto_reload.include_patterns,
+            exclude_patterns=self.context.auto_reload.exclude_patterns,
+        )
+        self.auto_reload_watcher.start()
+        self._auto_reload_stop_event.clear()
+
+        self.auto_reload_thread = threading.Thread(target=self._auto_reload_loop, daemon=True)
+        self.auto_reload_thread.start()
+        OutputFormatter.log("Auto-reload watcher started.", severity="info")
+
+    def stop_auto_reload(self) -> None:
+        """Stop background polling watcher if active."""
+        was_running = self.auto_reload_thread is not None and self.auto_reload_thread.is_alive()
+
+        self._auto_reload_stop_event.set()
+        if self.auto_reload_thread and self.auto_reload_thread.is_alive():
+            self.auto_reload_thread.join(timeout=1)
+
+        if self.auto_reload_watcher is not None:
+            self.auto_reload_watcher.stop()
+
+        self.auto_reload_thread = None
+        self.auto_reload_watcher = None
+
+        if was_running:
+            OutputFormatter.log("Auto-reload watcher stopped.", severity="info")
+
+    def _auto_reload_loop(self) -> None:
+        """Background loop that polls watched files and triggers reload cycles."""
+        if self.auto_reload_watcher is None:
+            return
+
+        interval_seconds = max(self.context.auto_reload.interval_ms / 1000.0, 0.05)
+        while not self._auto_reload_stop_event.is_set():
+            poll_result = self.auto_reload_watcher.poll(now=time.monotonic())
+            if poll_result.should_reload:
+                result = self.reload_handler()
+                self.auto_reload_watcher.complete_reload(success=result.status == ReloadCommandStatus.SUCCESS)
+                message = format_reload_command_message(result)
+                severity = "success" if result.status == ReloadCommandStatus.SUCCESS else "error"
+                OutputFormatter.log(message, severity=severity)
+                if result.diagnostics:
+                    OutputFormatter.print_diagnostics(result.diagnostics)
+
+            self._auto_reload_stop_event.wait(interval_seconds)
 
     def _cmd_help(self, args) -> bool:
         commands = [

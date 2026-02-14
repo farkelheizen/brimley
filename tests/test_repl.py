@@ -58,6 +58,70 @@ def test_repl_reset(tmp_path):
     assert "Reloading..." in result.stdout
     assert "Rescan complete" in result.stdout
 
+
+def test_repl_starts_auto_reload_watcher_when_enabled(tmp_path):
+    (tmp_path / "brimley.yaml").write_text(
+        """
+auto_reload:
+  enabled: true
+  interval_ms: 100
+  debounce_ms: 50
+"""
+    )
+
+    repl = BrimleyREPL(tmp_path)
+    repl.reload_handler = lambda: ReloadCommandResult(status=ReloadCommandStatus.SUCCESS)
+
+    repl.start_auto_reload()
+
+    assert repl.auto_reload_watcher is not None
+    assert repl.auto_reload_thread is not None
+    assert repl.auto_reload_thread.is_alive() is True
+
+    repl.stop_auto_reload()
+    assert repl.auto_reload_watcher is None
+    assert repl.auto_reload_thread is None
+
+
+def test_repl_quit_stops_auto_reload_watcher(tmp_path, monkeypatch):
+    calls = {"count": 0}
+
+    def fake_stop(self):
+        calls["count"] += 1
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyREPL.stop_auto_reload", fake_stop)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="/quit\n")
+
+    assert result.exit_code == 0
+    assert calls["count"] == 1
+
+
+def test_repl_reset_restarts_auto_reload_watcher(tmp_path, monkeypatch):
+    (tmp_path / "brimley.yaml").write_text(
+        """
+auto_reload:
+  enabled: true
+"""
+    )
+
+    calls = {"start": 0, "stop": 0}
+
+    def fake_start(self):
+        calls["start"] += 1
+
+    def fake_stop(self):
+        calls["stop"] += 1
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyREPL.start_auto_reload", fake_start)
+    monkeypatch.setattr("brimley.cli.repl.BrimleyREPL.stop_auto_reload", fake_stop)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="reset\n/quit\n")
+
+    assert result.exit_code == 0
+    assert calls["start"] == 2
+    assert calls["stop"] == 2
+
 def test_repl_file_input(tmp_path):
     (tmp_path / "funcs").mkdir()
     f = tmp_path / "funcs" / "hello.md"
