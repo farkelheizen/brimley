@@ -48,6 +48,39 @@ def repl(
     )
     repl_session.start()
 
+
+@app.command("mcp-serve")
+def mcp_serve(
+    root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
+    watch: Annotated[bool, typer.Option("--watch", help="Enable auto-reload watch mode for MCP server")] = False,
+    no_watch: Annotated[bool, typer.Option("--no-watch", help="Disable auto-reload watch mode for MCP server")] = False,
+    host: Annotated[Optional[str], typer.Option("--host", help="Override MCP host bind address")] = None,
+    port: Annotated[Optional[int], typer.Option("--port", min=1, max=65535, help="Override MCP port")] = None,
+):
+    """
+    Start a non-REPL MCP server (contract surface for AR-P8-S2 implementation).
+    """
+    watch_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
+
+    config_path = root_dir / "brimley.yaml"
+    if not config_path.exists():
+        config_path = Path.cwd() / "brimley.yaml"
+
+    context = BrimleyContext(config_dict=load_config(config_path))
+
+    effective_watch = watch_override if watch_override is not None else context.auto_reload.enabled
+    effective_host = host if host is not None else context.mcp.host
+    effective_port = port if port is not None else context.mcp.port
+
+    OutputFormatter.log(
+        f"mcp-serve contract resolved: root={root_dir} watch={effective_watch} host={effective_host} port={effective_port}",
+        severity="info",
+    )
+    OutputFormatter.log(
+        "mcp-serve runtime implementation is scheduled for AR-P8-S2.",
+        severity="warning",
+    )
+
 @app.command()
 def invoke(
     names: Annotated[list[str], typer.Argument(help="Name of the function to execute")],
