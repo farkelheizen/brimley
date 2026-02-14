@@ -4,6 +4,8 @@ Brimley acts as a powerful single source of truth for your organizational functi
 
 Under the hood, Brimley uses [FastMCP](https://github.com/jlowin/fastmcp) to create and host these tools.
 
+FastMCP is optional at install time. Brimley only requires it when you actually register or run MCP tools.
+
 ## Exposing a Function as an MCP Tool
 
 To expose a Brimley function as an MCP tool, simply add the `mcp` block to the function's YAML frontmatter and set its `type` to `tool`.
@@ -53,9 +55,10 @@ Because the interactive REPL requires your terminal's standard input/output, the
 You will see a startup message like:
 
 ```
-[Brimley] Discovered 3 MCP tools.
-[Brimley] Embedded FastMCP server running at [http://127.0.0.1:8000/sse](http://127.0.0.1:8000/sse)
+[SYSTEM] Embedded FastMCP server running at http://127.0.0.1:8000/sse
 ```
+
+If MCP tools exist but FastMCP is not installed, Brimley continues running REPL and logs a non-fatal warning.
 
 You can now point your MCP-compatible LLM client to `http://127.0.0.1:8000/sse` to allow the LLM to call your Brimley functions in real-time while you monitor or interact with the REPL.
 
@@ -76,23 +79,32 @@ Long-term, you may not want to run the Brimley REPL, but rather embed Brimley's 
 Brimley provides an adapter for this exact use case:
 
 ```
-from brimley.config.loader import ConfigLoader
-from brimley.core.registry import EntityRegistry
+from pathlib import Path
+
+from brimley.config.loader import load_config
 from brimley.core.context import BrimleyContext
+from brimley.discovery.scanner import Scanner
 from brimley.mcp.adapter import BrimleyMCPAdapter
 
 # 1. Load your Brimley environment
-config = ConfigLoader.load("brimley.yaml")
-registry = EntityRegistry(config.project.functions_dir)
-registry.discover()
-context = BrimleyContext(config)
+root_dir = Path(".")
+config = load_config(root_dir / "brimley.yaml")
+context = BrimleyContext(config_dict=config)
+
+scan_result = Scanner(root_dir).scan()
+context.functions.register_all(scan_result.functions)
 
 # 2. Initialize the Adapter
-adapter = BrimleyMCPAdapter(registry, context)
+adapter = BrimleyMCPAdapter(context.functions, context)
 
-# 3. Get FastMCP instance
-mcp_server = adapter.get_server(name="MyBrimleyTools")
+# 3. Create a FastMCP instance and register tools
+mcp_server = adapter.register_tools()
 
-# 4. Run it standalone or extract the tools for LangGraph!
-# mcp_server.run(transport='stdio') 
+# 4. Run it standalone
+mcp_server.run(transport="sse", host="127.0.0.1", port=8000)
+
+# Optional: register on an existing FastMCP server
+# adapter.register_tools(mcp_server=existing_server)
 ```
+
+For a runnable script version, see `examples/mcp_external_embedding.py`.
