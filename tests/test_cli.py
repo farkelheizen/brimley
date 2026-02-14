@@ -116,7 +116,7 @@ def test_repl_flag_mcp_enables_embedded(monkeypatch, tmp_path):
     captured = {}
 
     class DummyREPL:
-        def __init__(self, root_dir, mcp_enabled_override=None):
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
             captured["root_dir"] = root_dir
             captured["override"] = mcp_enabled_override
 
@@ -136,7 +136,7 @@ def test_repl_flag_no_mcp_disables_embedded(monkeypatch, tmp_path):
     captured = {}
 
     class DummyREPL:
-        def __init__(self, root_dir, mcp_enabled_override=None):
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
             captured["root_dir"] = root_dir
             captured["override"] = mcp_enabled_override
 
@@ -156,7 +156,7 @@ def test_repl_flag_default_uses_config_or_default(monkeypatch, tmp_path):
     captured = {}
 
     class DummyREPL:
-        def __init__(self, root_dir, mcp_enabled_override=None):
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
             captured["root_dir"] = root_dir
             captured["override"] = mcp_enabled_override
 
@@ -170,3 +170,80 @@ def test_repl_flag_default_uses_config_or_default(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert captured["override"] is None
     assert captured["started"] is True
+
+
+def test_repl_flag_watch_enables_auto_reload(monkeypatch, tmp_path):
+    captured = {}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
+            captured["root_dir"] = root_dir
+            captured["mcp_override"] = mcp_enabled_override
+            captured["auto_reload_override"] = auto_reload_enabled_override
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--watch"])
+
+    assert result.exit_code == 0
+    assert captured["auto_reload_override"] is True
+    assert captured["started"] is True
+
+
+def test_repl_flag_no_watch_disables_auto_reload(monkeypatch, tmp_path):
+    captured = {}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
+            captured["root_dir"] = root_dir
+            captured["mcp_override"] = mcp_enabled_override
+            captured["auto_reload_override"] = auto_reload_enabled_override
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--no-watch"])
+
+    assert result.exit_code == 0
+    assert captured["auto_reload_override"] is False
+    assert captured["started"] is True
+
+
+def test_repl_flag_watch_default_uses_config_or_default(monkeypatch, tmp_path):
+    captured = {}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
+            captured["root_dir"] = root_dir
+            captured["mcp_override"] = mcp_enabled_override
+            captured["auto_reload_override"] = auto_reload_enabled_override
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert captured["auto_reload_override"] is None
+    assert captured["started"] is True
+
+
+def test_repl_rejects_conflicting_mcp_flags(tmp_path):
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp", "--no-mcp"])
+
+    assert result.exit_code != 0
+    assert "Cannot use --mcp and --no-mcp together" in result.stdout
+
+
+def test_repl_rejects_conflicting_watch_flags(tmp_path):
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--watch", "--no-watch"])
+
+    assert result.exit_code != 0
+    assert "Cannot use --watch and --no-watch together" in result.stdout

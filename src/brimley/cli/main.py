@@ -18,17 +18,34 @@ from brimley.cli.repl import BrimleyREPL
 
 app = typer.Typer(name="brimley", help="Brimley CLI Interface")
 
+
+def _resolve_optional_bool_flag(enabled: bool, disabled: bool, flag_name: str) -> Optional[bool]:
+    if enabled and disabled:
+        raise typer.BadParameter(f"Cannot use --{flag_name} and --no-{flag_name} together.")
+    if enabled:
+        return True
+    if disabled:
+        return False
+    return None
+
 @app.command()
 def repl(
     root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
     mcp: Annotated[bool, typer.Option("--mcp", help="Enable embedded MCP server for REPL")] = False,
     no_mcp: Annotated[bool, typer.Option("--no-mcp", help="Disable embedded MCP server for REPL")] = False,
+    watch: Annotated[bool, typer.Option("--watch", help="Enable auto-reload watch mode for REPL")] = False,
+    no_watch: Annotated[bool, typer.Option("--no-watch", help="Disable auto-reload watch mode for REPL")] = False,
 ):
     """
     Start an interactive REPL session.
     """
-    mcp_enabled_override = True if mcp else False if no_mcp else None
-    repl_session = BrimleyREPL(root_dir, mcp_enabled_override=mcp_enabled_override)
+    mcp_enabled_override = _resolve_optional_bool_flag(mcp, no_mcp, "mcp")
+    auto_reload_enabled_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
+    repl_session = BrimleyREPL(
+        root_dir,
+        mcp_enabled_override=mcp_enabled_override,
+        auto_reload_enabled_override=auto_reload_enabled_override,
+    )
     repl_session.start()
 
 @app.command()
