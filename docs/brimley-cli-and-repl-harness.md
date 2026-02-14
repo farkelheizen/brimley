@@ -37,9 +37,14 @@ Used for single-shot execution.
     4. **Output:** Print _only_ the function result to `STDOUT`. All system logs or errors must go to `STDERR`.
         
 
-### `brimley [ROOT_DIR] repl`
+### `brimley [ROOT_DIR] repl [--mcp|--no-mcp]`
 
 Used for an interactive, stateful session.
+
+- **MCP Flags:**
+    - `--mcp`: force embedded MCP startup if tool functions are present.
+    - `--no-mcp`: force embedded MCP off.
+    - No flag: use configuration/default (`mcp.embedded` from `brimley.yaml`).
 
 - **Startup:**
     
@@ -186,5 +191,7 @@ brimley>
 ```
 
 You can continue to execute functions manually in the `brimley>` prompt while an external LLM connects to port 8000 to execute functions concurrently.
+
+If MCP tools are discoverable but FastMCP is not installed, REPL stays interactive and logs a warning instead of failing startup.
 
 _(Note: MCP server settings like host, port, transport, and embedded mode can be set in the `mcp:` section of `brimley.yaml`, and embedded mode can be overridden by CLI flags.)_
