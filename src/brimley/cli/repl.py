@@ -13,13 +13,10 @@ from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
 from brimley.discovery.scanner import Scanner, BrimleyScanResult
-from brimley.core.registry import Registry
 from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
 from brimley.mcp.adapter import BrimleyMCPAdapter
-from brimley.core.entity import Entity
-from brimley.core.models import BrimleyFunction
 from brimley.runtime.reload_contracts import (
     ReloadCommandResult,
     ReloadCommandStatus,
@@ -27,6 +24,7 @@ from brimley.runtime.reload_contracts import (
     format_reload_command_message,
 )
 from brimley.runtime.polling_watcher import PollingWatcher
+from brimley.runtime.reload_engine import PartitionedReloadEngine
 
 class BrimleyREPL:
     def __init__(
@@ -72,6 +70,7 @@ class BrimleyREPL:
         self.auto_reload_watcher: Optional[PollingWatcher] = None
         self.auto_reload_thread: Optional[threading.Thread] = None
         self._auto_reload_stop_event = threading.Event()
+        self.reload_engine = PartitionedReloadEngine()
 
         if self.reload_handler is None:
             self.reload_handler = self._run_reload_cycle
@@ -377,32 +376,12 @@ class BrimleyREPL:
                 diagnostics=scan_result.diagnostics,
             )
 
-        next_functions: Registry[BrimleyFunction] = Registry()
-        next_entities: Registry[Entity] = Registry()
-
-        for builtin_name in ("ContentBlock", "PromptMessage"):
-            if builtin_name in self.context.entities:
-                next_entities.register(self.context.entities.get(builtin_name))
-
-        next_functions.register_all(scan_result.functions)
-        next_entities.register_all(scan_result.entities)
-
-        self.context.functions = next_functions
-        self.context.entities = next_entities
-
-        tools_count = sum(
-            1
-            for func in self.context.functions
-            if getattr(getattr(func, "mcp", None), "type", None) == "tool"
-        )
+        partitions = self.reload_engine.partition_scan_result(scan_result)
+        summary = self.reload_engine.apply_successful_reload(self.context, partitions)
 
         return ReloadCommandResult(
             status=ReloadCommandStatus.SUCCESS,
-            summary=ReloadSummary(
-                functions=len(self.context.functions),
-                entities=len(self.context.entities),
-                tools=tools_count,
-            ),
+            summary=summary,
             diagnostics=scan_result.diagnostics,
         )
 
