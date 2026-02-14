@@ -3,6 +3,8 @@ from typer.testing import CliRunner
 from brimley.cli.main import app
 from brimley.cli.repl import BrimleyREPL
 from brimley.core.models import TemplateFunction
+from brimley.runtime.reload_contracts import ReloadCommandResult, ReloadCommandStatus, ReloadSummary
+from brimley.utils.diagnostics import BrimleyDiagnostic
 from pathlib import Path
 
 runner = CliRunner()
@@ -106,6 +108,7 @@ def test_repl_admin_help(tmp_path):
     assert "/config" in result.stdout
     assert "/state" in result.stdout
     assert "/functions" in result.stdout
+    assert "/reload" in result.stdout
 
 def test_repl_admin_settings(tmp_path):
     (tmp_path / "funcs").mkdir()
@@ -350,3 +353,68 @@ auto_reload:
         repl.start()
 
         assert repl.auto_reload_enabled is False
+
+
+def test_repl_reload_available_when_watch_disabled(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, auto_reload_enabled_override=False)
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    should_continue = repl.handle_admin_command("/reload")
+
+    assert should_continue is True
+    assert any("reload requested" in message.lower() for _, message in logs)
+    assert any("not configured" in message.lower() and severity == "warning" for severity, message in logs)
+
+
+def test_repl_reload_uses_success_contract_output(tmp_path, monkeypatch):
+    repl = BrimleyREPL(
+        tmp_path,
+        reload_handler=lambda: ReloadCommandResult(
+            status=ReloadCommandStatus.SUCCESS,
+            summary=ReloadSummary(functions=3, entities=2, tools=1),
+        ),
+    )
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    should_continue = repl.handle_admin_command("/reload")
+
+    assert should_continue is True
+    assert any(severity == "success" and "reload success" in message.lower() for severity, message in logs)
+    assert any("functions=3" in message and "entities=2" in message and "tools=1" in message for _, message in logs)
+
+
+def test_repl_reload_uses_failure_contract_output_and_prints_diagnostics(tmp_path, monkeypatch):
+    diagnostics = [
+        BrimleyDiagnostic(
+            file_path="broken.md",
+            error_code="ERR_PARSE_FAILURE",
+            message="frontmatter invalid",
+            severity="error",
+        )
+    ]
+
+    repl = BrimleyREPL(
+        tmp_path,
+        reload_handler=lambda: ReloadCommandResult(
+            status=ReloadCommandStatus.FAILURE,
+            summary=ReloadSummary(functions=1, entities=0, tools=0),
+            diagnostics=diagnostics,
+        ),
+    )
+
+    logs = []
+    printed = []
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_diagnostics", lambda items: printed.extend(items))
+
+    should_continue = repl.handle_admin_command("/reload")
+
+    assert should_continue is True
+    assert any(severity == "error" and "reload failed" in message.lower() for severity, message in logs)
+    assert any("diagnostics=1" in message for _, message in logs)
+    assert len(printed) == 1
+    assert printed[0].error_code == "ERR_PARSE_FAILURE"

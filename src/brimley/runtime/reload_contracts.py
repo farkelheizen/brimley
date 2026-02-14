@@ -62,6 +62,52 @@ class DomainSwapDecision(BaseModel):
     blocked_reason: str | None = None
 
 
+class ReloadCommandStatus(str, Enum):
+    """Status contract for manual `/reload` execution."""
+
+    SUCCESS = "success"
+    FAILURE = "failure"
+
+
+class ReloadSummary(BaseModel):
+    """Summary counts emitted by manual reload output."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    functions: int = 0
+    entities: int = 0
+    tools: int = 0
+
+
+class ReloadCommandResult(BaseModel):
+    """Result contract returned by manual `/reload` command handlers."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: ReloadCommandStatus
+    summary: ReloadSummary = Field(default_factory=ReloadSummary)
+    diagnostics: List[BrimleyDiagnostic] = Field(default_factory=list)
+
+
+def format_reload_command_message(result: ReloadCommandResult) -> str:
+    """Create the standardized `/reload` status line for REPL output."""
+
+    summary = result.summary
+    diagnostic_count = len(result.diagnostics)
+
+    if result.status == ReloadCommandStatus.SUCCESS:
+        return (
+            "Reload success "
+            f"(functions={summary.functions}, entities={summary.entities}, tools={summary.tools})."
+        )
+
+    return (
+        "Reload failed "
+        f"(diagnostics={diagnostic_count}; functions={summary.functions}, "
+        f"entities={summary.entities}, tools={summary.tools})."
+    )
+
+
 def has_critical_diagnostics(diagnostics: List[BrimleyDiagnostic]) -> bool:
     """Returns True when diagnostics include severities that must block domain swap."""
 

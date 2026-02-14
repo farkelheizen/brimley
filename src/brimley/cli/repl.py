@@ -4,7 +4,7 @@ import shlex
 import json
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 import sys
 from prompt_toolkit import PromptSession
 
@@ -17,6 +17,12 @@ from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
 from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.runtime.reload_contracts import (
+    ReloadCommandResult,
+    ReloadCommandStatus,
+    ReloadSummary,
+    format_reload_command_message,
+)
 
 class BrimleyREPL:
     def __init__(
@@ -24,10 +30,12 @@ class BrimleyREPL:
         root_dir: Path,
         mcp_enabled_override: Optional[bool] = None,
         auto_reload_enabled_override: Optional[bool] = None,
+        reload_handler: Optional[Callable[[], ReloadCommandResult]] = None,
     ):
         self.root_dir = root_dir
         self.mcp_enabled_override = mcp_enabled_override
         self.auto_reload_enabled_override = auto_reload_enabled_override
+        self.reload_handler = reload_handler
         
         # Load config: check root_dir first, then CWD
         config_path = self.root_dir / "brimley.yaml"
@@ -222,6 +230,7 @@ class BrimleyREPL:
             "quit": self._cmd_quit,
             "exit": self._cmd_quit,
             "help": self._cmd_help,
+            "reload": self._cmd_reload,
             "settings": self._cmd_settings,
             "config": self._cmd_config,
             "state": self._cmd_state,
@@ -250,6 +259,7 @@ class BrimleyREPL:
             ("/functions", "Lists all registered functions and their types."),
             ("/entities", "Lists all registered entities."),
             ("/databases", "Lists configured database connections."),
+            ("/reload", "Triggers one immediate reload cycle."),
             ("/help", "Lists available admin commands."),
             ("/quit", "Exits the REPL."),
         ]
@@ -257,6 +267,27 @@ class BrimleyREPL:
         for cmd, desc in commands:
             typer.echo(f"  {cmd:<12} {desc}")
         typer.echo("")
+        return True
+
+    def _cmd_reload(self, args) -> bool:
+        OutputFormatter.log("Reload requested.", severity="info")
+
+        if self.reload_handler is None:
+            OutputFormatter.log(
+                "Reload command is available, but reload pipeline is not configured in this runtime.",
+                severity="warning",
+            )
+            return True
+
+        result = self.reload_handler()
+
+        message = format_reload_command_message(result)
+        severity = "success" if result.status == ReloadCommandStatus.SUCCESS else "error"
+        OutputFormatter.log(message, severity=severity)
+
+        if result.diagnostics:
+            OutputFormatter.print_diagnostics(result.diagnostics)
+
         return True
 
     def _cmd_settings(self, args) -> bool:
