@@ -21,11 +21,14 @@ app = typer.Typer(name="brimley", help="Brimley CLI Interface")
 @app.command()
 def repl(
     root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
+    mcp: Annotated[bool, typer.Option("--mcp", help="Enable embedded MCP server for REPL")] = False,
+    no_mcp: Annotated[bool, typer.Option("--no-mcp", help="Disable embedded MCP server for REPL")] = False,
 ):
     """
     Start an interactive REPL session.
     """
-    repl_session = BrimleyREPL(root_dir)
+    mcp_enabled_override = True if mcp else False if no_mcp else None
+    repl_session = BrimleyREPL(root_dir, mcp_enabled_override=mcp_enabled_override)
     repl_session.start()
 
 @app.command()

@@ -65,6 +65,25 @@ brimley > hello {name: "Brimley User"}
 brimley > /quit
 ```
 
+---
+
+## 🧩 External MCP Embedding Example
+
+Brimley MCP tools can be registered in a standalone or pre-existing FastMCP server without running the Brimley REPL.
+
+Example script:
+
+```bash
+PYTHONPATH=../src python3 mcp_external_embedding.py
+```
+
+The script demonstrates:
+
+- `build_mcp_server(root_dir)`: create a new FastMCP server and register Brimley tools.
+- `register_on_existing_server(root_dir, server)`: attach Brimley tools to an existing FastMCP server.
+
+If FastMCP is not installed, the script prints a friendly message and exits.
+
 ## 📂 File Structure
 
 - `brimley.yaml`: Main configuration (Database definitions, app state).
@@ -72,3 +91,4 @@ brimley > /quit
 - `users.sql`: SQL function definition with metadata frontmatter.
 - `calc.py`: Python function definition.
 - `hello.md`: Template function definition using Jinja2.
+- `mcp_external_embedding.py`: Programmatic MCP embedding example with `BrimleyMCPAdapter`.
