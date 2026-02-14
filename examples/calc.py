@@ -8,6 +8,8 @@ arguments:
   inline:
     amount: float
     rate: float
+mcp:
+  type: tool
 ---
 """
 def calculate_tax(amount: float, rate: float) -> float:
