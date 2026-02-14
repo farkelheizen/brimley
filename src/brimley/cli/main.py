@@ -15,6 +15,7 @@ from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
 from brimley.cli.repl import BrimleyREPL
+from brimley.mcp.adapter import BrimleyMCPAdapter
 
 app = typer.Typer(name="brimley", help="Brimley CLI Interface")
 
@@ -58,7 +59,7 @@ def mcp_serve(
     port: Annotated[Optional[int], typer.Option("--port", min=1, max=65535, help="Override MCP port")] = None,
 ):
     """
-    Start a non-REPL MCP server (contract surface for AR-P8-S2 implementation).
+    Start a non-REPL MCP server.
     """
     watch_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
 
@@ -72,14 +73,47 @@ def mcp_serve(
     effective_host = host if host is not None else context.mcp.host
     effective_port = port if port is not None else context.mcp.port
 
+    if root_dir.exists():
+        scanner = Scanner(root_dir)
+        scan_result = scanner.scan()
+    else:
+        OutputFormatter.log(f"Warning: Root directory '{root_dir}' does not exist.", severity="warning")
+        from brimley.discovery.scanner import BrimleyScanResult
+        scan_result = BrimleyScanResult()
+
+    if scan_result.diagnostics:
+        OutputFormatter.print_diagnostics(scan_result.diagnostics)
+
+    context.functions.register_all(scan_result.functions)
+    context.entities.register_all(scan_result.entities)
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    tools = adapter.discover_tools()
+    if not tools:
+        OutputFormatter.log("No MCP tools discovered. Nothing to serve.", severity="warning")
+        raise typer.Exit(code=0)
+
+    if effective_watch:
+        OutputFormatter.log("Watch mode for mcp-serve is planned for AR-P8-S3; running without watcher.", severity="warning")
+
+    try:
+        mcp_server = adapter.register_tools()
+    except RuntimeError as exc:
+        OutputFormatter.log(str(exc), severity="error")
+        raise typer.Exit(code=1)
+    except Exception as exc:
+        OutputFormatter.log(f"Unable to initialize MCP server: {exc}", severity="error")
+        raise typer.Exit(code=1)
+
+    if mcp_server is None or not hasattr(mcp_server, "run"):
+        OutputFormatter.log("Unable to start MCP server: no runnable server instance was created.", severity="error")
+        raise typer.Exit(code=1)
+
     OutputFormatter.log(
-        f"mcp-serve contract resolved: root={root_dir} watch={effective_watch} host={effective_host} port={effective_port}",
-        severity="info",
+        f"Serving Brimley MCP tools at http://{effective_host}:{effective_port}/sse",
+        severity="success",
     )
-    OutputFormatter.log(
-        "mcp-serve runtime implementation is scheduled for AR-P8-S2.",
-        severity="warning",
-    )
+    mcp_server.run(transport="sse", host=effective_host, port=effective_port)
 
 @app.command()
 def invoke(

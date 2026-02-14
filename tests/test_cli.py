@@ -250,65 +250,134 @@ def test_repl_rejects_conflicting_watch_flags(tmp_path):
 
 
 def test_mcp_serve_help():
-        result = runner.invoke(app, ["mcp-serve", "--help"])
+    result = runner.invoke(app, ["mcp-serve", "--help"])
 
-        assert result.exit_code == 0
-        assert "Start a non-REPL MCP server" in result.stdout
+    assert result.exit_code == 0
+    assert "Start a non-REPL MCP server" in result.stdout
 
 
 def test_mcp_serve_rejects_conflicting_watch_flags(tmp_path):
-        result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch", "--no-watch"])
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch", "--no-watch"])
 
-        assert result.exit_code != 0
-        assert "Cannot use --watch and --no-watch together" in result.stdout
+    assert result.exit_code != 0
+    assert "Cannot use --watch and --no-watch together" in result.stdout
 
 
-def test_mcp_serve_uses_config_defaults_when_no_overrides(tmp_path, monkeypatch):
-        (tmp_path / "brimley.yaml").write_text(
-                """
+def test_mcp_serve_starts_server_with_config_defaults(tmp_path, monkeypatch):
+    (tmp_path / "brimley.yaml").write_text(
+        """
 auto_reload:
-    enabled: true
+  enabled: true
 mcp:
-    host: 0.0.0.0
-    port: 9100
+  host: 0.0.0.0
+  port: 9100
 """
-        )
+    )
 
-        logs = []
-        monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+    class FakeServer:
+        def __init__(self):
+            self.run_args = None
 
-        result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
+        def run(self, transport, host, port):
+            self.run_args = {"transport": transport, "host": host, "port": port}
 
-        assert result.exit_code == 0
-        contract_messages = [msg for _, msg in logs if "mcp-serve contract resolved" in msg]
-        assert len(contract_messages) == 1
-        assert "watch=True" in contract_messages[0]
-        assert "host=0.0.0.0" in contract_messages[0]
-        assert "port=9100" in contract_messages[0]
+    fake_server = FakeServer()
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def register_tools(self):
+            return fake_server
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert fake_server.run_args == {"transport": "sse", "host": "0.0.0.0", "port": 9100}
+    assert any("Watch mode for mcp-serve is planned for AR-P8-S3" in message for _, message in logs)
 
 
-def test_mcp_serve_cli_overrides_watch_host_port(tmp_path, monkeypatch):
-        (tmp_path / "brimley.yaml").write_text(
-                """
+def test_mcp_serve_cli_overrides_host_port_and_watch(tmp_path, monkeypatch):
+    (tmp_path / "brimley.yaml").write_text(
+        """
 auto_reload:
-    enabled: false
+  enabled: true
 mcp:
-    host: 127.0.0.1
-    port: 8000
+  host: 127.0.0.1
+  port: 8000
 """
-        )
+    )
 
-        logs = []
-        monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+    class FakeServer:
+        def __init__(self):
+            self.run_args = None
 
-        result = runner.invoke(
-                app,
-                ["mcp-serve", "--root", str(tmp_path), "--watch", "--host", "0.0.0.0", "--port", "9200"],
-        )
+        def run(self, transport, host, port):
+            self.run_args = {"transport": transport, "host": host, "port": port}
 
-        assert result.exit_code == 0
-        contract_messages = [msg for _, msg in logs if "mcp-serve contract resolved" in msg]
-        assert len(contract_messages) == 1
-        assert "watch=True" in contract_messages[0]
-        assert "host=0.0.0.0" in contract_messages[0]
-        assert "port=9200" in contract_messages[0]
+    fake_server = FakeServer()
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def register_tools(self):
+            return fake_server
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    result = runner.invoke(
+        app,
+        ["mcp-serve", "--root", str(tmp_path), "--no-watch", "--host", "0.0.0.0", "--port", "9200"],
+    )
+
+    assert result.exit_code == 0
+    assert fake_server.run_args == {"transport": "sse", "host": "0.0.0.0", "port": 9200}
+    assert not any("Watch mode for mcp-serve is planned for AR-P8-S3" in message for _, message in logs)
+
+
+def test_mcp_serve_exits_success_when_no_tools(tmp_path, monkeypatch):
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return []
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "No MCP tools discovered" in result.stdout
+
+
+def test_mcp_serve_errors_when_fastmcp_missing(tmp_path, monkeypatch):
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def register_tools(self):
+            raise RuntimeError("MCP tools found but 'fastmcp' is not installed.")
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "fastmcp" in result.stdout.lower()
