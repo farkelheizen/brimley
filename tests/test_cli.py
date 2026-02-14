@@ -1,5 +1,6 @@
 import pytest
 import json
+from types import SimpleNamespace
 from typer.testing import CliRunner
 from brimley.cli.main import app
 from pathlib import Path
@@ -250,65 +251,259 @@ def test_repl_rejects_conflicting_watch_flags(tmp_path):
 
 
 def test_mcp_serve_help():
-        result = runner.invoke(app, ["mcp-serve", "--help"])
+    result = runner.invoke(app, ["mcp-serve", "--help"])
 
-        assert result.exit_code == 0
-        assert "Start a non-REPL MCP server" in result.stdout
+    assert result.exit_code == 0
+    assert "Start a non-REPL MCP server" in result.stdout
 
 
 def test_mcp_serve_rejects_conflicting_watch_flags(tmp_path):
-        result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch", "--no-watch"])
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch", "--no-watch"])
 
-        assert result.exit_code != 0
-        assert "Cannot use --watch and --no-watch together" in result.stdout
-
-
-def test_mcp_serve_uses_config_defaults_when_no_overrides(tmp_path, monkeypatch):
-        (tmp_path / "brimley.yaml").write_text(
-                """
-auto_reload:
-    enabled: true
-mcp:
-    host: 0.0.0.0
-    port: 9100
-"""
-        )
-
-        logs = []
-        monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
-
-        result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
-
-        assert result.exit_code == 0
-        contract_messages = [msg for _, msg in logs if "mcp-serve contract resolved" in msg]
-        assert len(contract_messages) == 1
-        assert "watch=True" in contract_messages[0]
-        assert "host=0.0.0.0" in contract_messages[0]
-        assert "port=9100" in contract_messages[0]
+    assert result.exit_code != 0
+    assert "Cannot use --watch and --no-watch together" in result.stdout
 
 
-def test_mcp_serve_cli_overrides_watch_host_port(tmp_path, monkeypatch):
-        (tmp_path / "brimley.yaml").write_text(
-                """
+def test_mcp_serve_starts_server_with_config_defaults(tmp_path, monkeypatch):
+    (tmp_path / "brimley.yaml").write_text(
+        """
 auto_reload:
     enabled: false
 mcp:
-    host: 127.0.0.1
-    port: 8000
+  host: 0.0.0.0
+  port: 9100
 """
-        )
+    )
 
-        logs = []
-        monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+    class FakeServer:
+        def __init__(self):
+            self.run_args = None
 
-        result = runner.invoke(
-                app,
-                ["mcp-serve", "--root", str(tmp_path), "--watch", "--host", "0.0.0.0", "--port", "9200"],
-        )
+        def run(self, transport, host, port):
+            self.run_args = {"transport": transport, "host": host, "port": port}
 
-        assert result.exit_code == 0
-        contract_messages = [msg for _, msg in logs if "mcp-serve contract resolved" in msg]
-        assert len(contract_messages) == 1
-        assert "watch=True" in contract_messages[0]
-        assert "host=0.0.0.0" in contract_messages[0]
-        assert "port=9200" in contract_messages[0]
+    fake_server = FakeServer()
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def register_tools(self):
+            return fake_server
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert fake_server.run_args == {"transport": "sse", "host": "0.0.0.0", "port": 9100}
+
+
+def test_mcp_serve_cli_overrides_host_port_and_watch(tmp_path, monkeypatch):
+    (tmp_path / "brimley.yaml").write_text(
+        """
+auto_reload:
+  enabled: true
+mcp:
+  host: 127.0.0.1
+  port: 8000
+"""
+    )
+
+    class FakeServer:
+        def __init__(self):
+            self.run_args = None
+
+        def run(self, transport, host, port):
+            self.run_args = {"transport": transport, "host": host, "port": port}
+
+    fake_server = FakeServer()
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def register_tools(self):
+            return fake_server
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    result = runner.invoke(
+        app,
+        ["mcp-serve", "--root", str(tmp_path), "--no-watch", "--host", "0.0.0.0", "--port", "9200"],
+    )
+
+    assert result.exit_code == 0
+    assert fake_server.run_args == {"transport": "sse", "host": "0.0.0.0", "port": 9200}
+    assert not any("Watch mode for mcp-serve is planned for AR-P8-S3" in message for _, message in logs)
+
+
+def test_mcp_serve_exits_success_when_no_tools(tmp_path, monkeypatch):
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return []
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "No MCP tools discovered" in result.stdout
+
+
+def test_mcp_serve_errors_when_fastmcp_missing(tmp_path, monkeypatch):
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def register_tools(self):
+            raise RuntimeError("MCP tools found but 'fastmcp' is not installed.")
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "fastmcp" in result.stdout.lower()
+
+
+def test_mcp_serve_watch_mode_starts_and_stops_runtime_controller(tmp_path, monkeypatch):
+    class FakeServer:
+        def __init__(self):
+            self.run_args = None
+
+        def run(self, transport, host, port):
+            self.run_args = {"transport": transport, "host": host, "port": port}
+
+    class FakeRuntimeController:
+        started = 0
+        stopped = 0
+
+        def __init__(self, root_dir):
+            self.root_dir = root_dir
+            self.context = SimpleNamespace()
+            self.mcp_refresh = None
+
+        def load_initial(self):
+            if self.mcp_refresh is not None:
+                self.mcp_refresh()
+            return SimpleNamespace(diagnostics=[])
+
+        def start_auto_reload(self, background=True):
+            assert background is True
+            FakeRuntimeController.started += 1
+
+        def stop_auto_reload(self):
+            FakeRuntimeController.stopped += 1
+
+    class FakeRefreshAdapter:
+        def __init__(self, context, get_server, set_server, server_factory=None):
+            self.get_server = get_server
+            self.set_server = set_server
+
+        def refresh(self):
+            server = FakeServer()
+            self.set_server(server)
+            return server
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyRuntimeController", FakeRuntimeController)
+    monkeypatch.setattr("brimley.cli.main.ExternalMCPRefreshAdapter", FakeRefreshAdapter)
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch"])
+
+    assert result.exit_code == 0
+    assert FakeRuntimeController.started == 1
+    assert FakeRuntimeController.stopped == 1
+
+
+def test_mcp_serve_watch_mode_handles_keyboard_interrupt_and_stops_runtime(tmp_path, monkeypatch):
+    class InterruptServer:
+        def run(self, transport, host, port):
+            raise KeyboardInterrupt
+
+    class FakeRuntimeController:
+        stopped = 0
+
+        def __init__(self, root_dir):
+            self.root_dir = root_dir
+            self.context = SimpleNamespace()
+            self.mcp_refresh = None
+
+        def load_initial(self):
+            if self.mcp_refresh is not None:
+                self.mcp_refresh()
+            return SimpleNamespace(diagnostics=[])
+
+        def start_auto_reload(self, background=True):
+            return None
+
+        def stop_auto_reload(self):
+            FakeRuntimeController.stopped += 1
+
+    class FakeRefreshAdapter:
+        def __init__(self, context, get_server, set_server, server_factory=None):
+            self.set_server = set_server
+
+        def refresh(self):
+            server = InterruptServer()
+            self.set_server(server)
+            return server
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyRuntimeController", FakeRuntimeController)
+    monkeypatch.setattr("brimley.cli.main.ExternalMCPRefreshAdapter", FakeRefreshAdapter)
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch"])
+
+    assert result.exit_code == 0
+    assert FakeRuntimeController.stopped == 1
+
+
+def test_mcp_serve_watch_mode_exits_when_no_tools_before_starting_watcher(tmp_path, monkeypatch):
+    class FakeRuntimeController:
+        started = 0
+
+        def __init__(self, root_dir):
+            self.root_dir = root_dir
+            self.context = SimpleNamespace()
+            self.mcp_refresh = None
+
+        def load_initial(self):
+            return SimpleNamespace(diagnostics=[])
+
+        def start_auto_reload(self, background=True):
+            FakeRuntimeController.started += 1
+
+        def stop_auto_reload(self):
+            return None
+
+    class FakeRefreshAdapter:
+        def __init__(self, context, get_server, set_server, server_factory=None):
+            pass
+
+        def refresh(self):
+            return None
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyRuntimeController", FakeRuntimeController)
+    monkeypatch.setattr("brimley.cli.main.ExternalMCPRefreshAdapter", FakeRefreshAdapter)
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch"])
+
+    assert result.exit_code == 0
+    assert "No MCP tools discovered" in result.stdout
+    assert FakeRuntimeController.started == 0

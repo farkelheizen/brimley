@@ -13,7 +13,7 @@ brimley [ROOT_DIR] [COMMAND] [ARGS]
 
 - **`ROOT_DIR`**: (Optional) The directory to scan for Brimley functions. Defaults to the current working directory (`.`).
     
-- **`COMMAND`**: Either `invoke` or `repl`.
+- **`COMMAND`**: One of `invoke`, `repl`, or `mcp-serve`.
     
 
 ## 2. Commands
@@ -80,6 +80,25 @@ Used for an interactive, stateful session.
         - Read lines until an **empty line** or **EOF marker** is encountered.
             
         - Parse the accumulated lines as YAML.
+
+### `brimley [ROOT_DIR] mcp-serve [--watch|--no-watch] [--host HOST] [--port PORT]`
+
+Runs Brimley as a non-REPL MCP server using FastMCP over SSE.
+
+- **Watch Flags:**
+    - `--watch`: enable host-managed auto-reload watcher lifecycle.
+    - `--no-watch`: disable watcher lifecycle.
+    - No flag: use configuration/default (`auto_reload.enabled` from `brimley.yaml`).
+
+- **Network Overrides:**
+    - `--host`: override `mcp.host`
+    - `--port`: override `mcp.port`
+
+- **Behavior:**
+    - scans and registers Brimley functions/entities
+    - serves only functions exposed as MCP tools (`mcp: { type: tool }`)
+    - exits successfully with warning if no MCP tools are discovered
+    - exits with error if FastMCP is required but unavailable
             
 
 ## 3. Argument Merging Logic

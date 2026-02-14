@@ -517,12 +517,37 @@ def test_repl_reload_dispatch_uses_shared_entrypoint_by_default(tmp_path, monkey
 
 def test_repl_reload_success_refreshes_embedded_mcp_server(tmp_path, monkeypatch):
     repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
-    repl.mcp_server = object()
 
-    calls = {"shutdown": 0, "initialize": 0}
+    class FakeServer:
+        def __init__(self):
+            self.clear_calls = 0
+
+        def clear_tools(self):
+            self.clear_calls += 1
+
+    fake_server = FakeServer()
+    repl.mcp_server = fake_server
+
+    calls = {"shutdown": 0, "initialize": 0, "register": 0}
 
     monkeypatch.setattr(repl, "_shutdown_mcp_server", lambda: calls.__setitem__("shutdown", calls["shutdown"] + 1))
     monkeypatch.setattr(repl, "_initialize_mcp_server", lambda: calls.__setitem__("initialize", calls["initialize"] + 1))
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def is_fastmcp_available(self):
+            return True
+
+        def register_tools(self, mcp_server=None):
+            calls["register"] += 1
+            return mcp_server
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
     monkeypatch.setattr(
         repl.reload_engine,
         "apply_reload_with_policy",
@@ -536,8 +561,10 @@ def test_repl_reload_success_refreshes_embedded_mcp_server(tmp_path, monkeypatch
     result = repl._run_reload_cycle()
 
     assert result.status == ReloadCommandStatus.SUCCESS
-    assert calls["shutdown"] == 1
-    assert calls["initialize"] == 1
+    assert fake_server.clear_calls == 1
+    assert calls["register"] == 1
+    assert calls["shutdown"] == 0
+    assert calls["initialize"] == 0
 
 
 def test_repl_reload_failure_does_not_refresh_embedded_mcp_server(tmp_path, monkeypatch):
@@ -623,11 +650,38 @@ Hello V1 {{ args.name }}
         )
 
         repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
-        repl.mcp_server = object()
+
+        class FakeServer:
+            def __init__(self):
+                self.clear_calls = 0
+
+            def clear_tools(self):
+                self.clear_calls += 1
+
+            def add_tool(self, _tool):
+                return None
+
+        fake_server = FakeServer()
+        repl.mcp_server = fake_server
 
         refresh_calls = {"shutdown": 0, "initialize": 0}
         monkeypatch.setattr(repl, "_shutdown_mcp_server", lambda: refresh_calls.__setitem__("shutdown", refresh_calls["shutdown"] + 1))
         monkeypatch.setattr(repl, "_initialize_mcp_server", lambda: refresh_calls.__setitem__("initialize", refresh_calls["initialize"] + 1))
+
+        class FakeAdapter:
+            def __init__(self, registry, context):
+                self.registry = registry
+
+            def discover_tools(self):
+                return [func for func in self.registry if getattr(func, "mcp", None) is not None and func.mcp.type == "tool"]
+
+            def is_fastmcp_available(self):
+                return True
+
+            def register_tools(self, mcp_server=None):
+                return mcp_server
+
+        monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
 
         first_result = repl._run_reload_cycle()
         assert first_result.status == ReloadCommandStatus.SUCCESS
@@ -651,8 +705,9 @@ Hello V2 {{ args.name }}
 
         assert second_result.status == ReloadCommandStatus.SUCCESS
         assert "V2" in (repl.context.functions.get("hello").template_body or "")
-        assert refresh_calls["shutdown"] == 2
-        assert refresh_calls["initialize"] == 2
+        assert fake_server.clear_calls == 2
+        assert refresh_calls["shutdown"] == 0
+        assert refresh_calls["initialize"] == 0
 
 
 def test_repl_run_reload_cycle_failure_preserves_existing_registries(tmp_path):
