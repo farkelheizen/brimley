@@ -390,15 +390,60 @@ class BrimleyREPL:
         )
 
     def _refresh_embedded_mcp_server_after_reload(self) -> None:
-        """Safely restart embedded MCP server after a successful reload cycle."""
+        """Refresh embedded MCP tools after successful reload with in-place preference."""
         if not self.mcp_embedded_enabled:
             return
 
-        if self.mcp_server is None and self.mcp_server_thread is None:
+        adapter = BrimleyMCPAdapter(registry=self.context.functions, context=self.context)
+        tools = adapter.discover_tools()
+
+        if not tools:
+            if self.mcp_server is not None or self.mcp_server_thread is not None:
+                self._shutdown_mcp_server()
             return
 
-        self._shutdown_mcp_server()
-        self._initialize_mcp_server()
+        if not adapter.is_fastmcp_available():
+            OutputFormatter.log(
+                "MCP tools found, but 'fastmcp' is not installed. Skipping embedded MCP refresh.",
+                severity="warning",
+            )
+            return
+
+        if self.mcp_server is None and self.mcp_server_thread is None:
+            self._initialize_mcp_server()
+            return
+
+        if self.mcp_server is not None and self._supports_tool_reset(self.mcp_server):
+            try:
+                self._clear_server_tools(self.mcp_server)
+                adapter.register_tools(mcp_server=self.mcp_server)
+                OutputFormatter.log("Embedded MCP tools refreshed.", severity="success")
+            except Exception as exc:
+                OutputFormatter.log(f"Unable to refresh embedded MCP tools in place: {exc}", severity="warning")
+            return
+
+        if self.mcp_server is not None and hasattr(self.mcp_server, "stop"):
+            self._shutdown_mcp_server()
+            self._initialize_mcp_server()
+            return
+
+        OutputFormatter.log(
+            "Embedded MCP server does not support in-place tool reset; keeping existing MCP server running.",
+            severity="warning",
+        )
+
+    def _supports_tool_reset(self, server: object) -> bool:
+        return callable(getattr(server, "clear_tools", None)) or callable(getattr(server, "reset_tools", None))
+
+    def _clear_server_tools(self, server: object) -> None:
+        clear_tools = getattr(server, "clear_tools", None)
+        if callable(clear_tools):
+            clear_tools()
+            return
+
+        reset_tools = getattr(server, "reset_tools", None)
+        if callable(reset_tools):
+            reset_tools()
 
     def _cmd_settings(self, args) -> bool:
         typer.echo(self.context.settings.model_dump_json(indent=2))
