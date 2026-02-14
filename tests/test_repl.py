@@ -365,7 +365,82 @@ def test_repl_reload_available_when_watch_disabled(tmp_path, monkeypatch):
 
     assert should_continue is True
     assert any("reload requested" in message.lower() for _, message in logs)
-    assert any("not configured" in message.lower() and severity == "warning" for severity, message in logs)
+    assert any("reload success" in message.lower() and severity == "success" for severity, message in logs)
+
+
+def test_repl_reload_dispatch_uses_shared_entrypoint_by_default(tmp_path, monkeypatch):
+    called = {"count": 0}
+
+    def fake_reload_cycle(self):
+        called["count"] += 1
+        return ReloadCommandResult(
+            status=ReloadCommandStatus.SUCCESS,
+            summary=ReloadSummary(functions=0, entities=2, tools=0),
+        )
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyREPL._run_reload_cycle", fake_reload_cycle)
+
+    repl = BrimleyREPL(tmp_path)
+    logs = []
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    should_continue = repl.handle_admin_command("/reload")
+
+    assert should_continue is True
+    assert called["count"] == 1
+    assert any("reload success" in message.lower() for _, message in logs)
+
+
+def test_repl_run_reload_cycle_failure_preserves_existing_registries(tmp_path):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="existing_tool",
+            type="template_function",
+            return_shape="string",
+            template_body="hello",
+        )
+    )
+
+    (tmp_path / "broken.md").write_text(
+        """
+---
+name: broken
+type: template_function
+---
+"""
+    )
+
+    result = repl._run_reload_cycle()
+
+    assert result.status == ReloadCommandStatus.FAILURE
+    assert len(result.diagnostics) > 0
+    assert "existing_tool" in repl.context.functions
+
+
+def test_repl_run_reload_cycle_success_swaps_registries(tmp_path):
+    repl = BrimleyREPL(tmp_path)
+
+    (tmp_path / "fresh.md").write_text(
+        """
+---
+name: fresh
+type: template_function
+return_shape: string
+mcp:
+  type: tool
+---
+Hello
+"""
+    )
+
+    result = repl._run_reload_cycle()
+
+    assert result.status == ReloadCommandStatus.SUCCESS
+    assert "fresh" in repl.context.functions
+    assert result.summary.functions == len(repl.context.functions)
+    assert result.summary.entities == len(repl.context.entities)
+    assert result.summary.tools == 1
 
 
 def test_repl_reload_uses_success_contract_output(tmp_path, monkeypatch):

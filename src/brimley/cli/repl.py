@@ -17,6 +17,8 @@ from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
 from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.core.entity import Entity
+from brimley.core.models import BrimleyFunction
 from brimley.runtime.reload_contracts import (
     ReloadCommandResult,
     ReloadCommandStatus,
@@ -65,6 +67,9 @@ class BrimleyREPL:
         self.prompt_session = PromptSession()
         self.mcp_server = None
         self.mcp_server_thread = None
+
+        if self.reload_handler is None:
+            self.reload_handler = self._run_reload_cycle
 
     def load(self):
         """
@@ -271,14 +276,6 @@ class BrimleyREPL:
 
     def _cmd_reload(self, args) -> bool:
         OutputFormatter.log("Reload requested.", severity="info")
-
-        if self.reload_handler is None:
-            OutputFormatter.log(
-                "Reload command is available, but reload pipeline is not configured in this runtime.",
-                severity="warning",
-            )
-            return True
-
         result = self.reload_handler()
 
         message = format_reload_command_message(result)
@@ -289,6 +286,56 @@ class BrimleyREPL:
             OutputFormatter.print_diagnostics(result.diagnostics)
 
         return True
+
+    def _run_reload_cycle(self) -> ReloadCommandResult:
+        """Execute one reload cycle and return standardized reload command result."""
+        if self.root_dir.exists():
+            scanner = Scanner(self.root_dir)
+            scan_result = scanner.scan()
+        else:
+            scan_result = BrimleyScanResult()
+
+        has_blocking_errors = any(d.severity in ("critical", "error") for d in scan_result.diagnostics)
+
+        if has_blocking_errors:
+            return ReloadCommandResult(
+                status=ReloadCommandStatus.FAILURE,
+                summary=ReloadSummary(
+                    functions=len(self.context.functions),
+                    entities=len(self.context.entities),
+                    tools=0,
+                ),
+                diagnostics=scan_result.diagnostics,
+            )
+
+        next_functions: Registry[BrimleyFunction] = Registry()
+        next_entities: Registry[Entity] = Registry()
+
+        for builtin_name in ("ContentBlock", "PromptMessage"):
+            if builtin_name in self.context.entities:
+                next_entities.register(self.context.entities.get(builtin_name))
+
+        next_functions.register_all(scan_result.functions)
+        next_entities.register_all(scan_result.entities)
+
+        self.context.functions = next_functions
+        self.context.entities = next_entities
+
+        tools_count = sum(
+            1
+            for func in self.context.functions
+            if getattr(getattr(func, "mcp", None), "type", None) == "tool"
+        )
+
+        return ReloadCommandResult(
+            status=ReloadCommandStatus.SUCCESS,
+            summary=ReloadSummary(
+                functions=len(self.context.functions),
+                entities=len(self.context.entities),
+                tools=tools_count,
+            ),
+            diagnostics=scan_result.diagnostics,
+        )
 
     def _cmd_settings(self, args) -> bool:
         typer.echo(self.context.settings.model_dump_json(indent=2))
