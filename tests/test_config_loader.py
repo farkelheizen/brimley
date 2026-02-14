@@ -81,3 +81,23 @@ mcp:
     assert config["mcp"]["transport"] == "stdio"
     assert config["mcp"]["host"] == "0.0.0.0"
     assert config["mcp"]["port"] == 9000
+
+def test_load_config_includes_auto_reload_section(tmp_path):
+    config_file = tmp_path / "brimley.yaml"
+    content = """
+auto_reload:
+  enabled: true
+  interval_ms: 1200
+  debounce_ms: 400
+  include_patterns: ["*.py", "*.sql"]
+  exclude_patterns: [".venv/*"]
+"""
+    config_file.write_text(content)
+
+    config = load_config(config_file)
+    assert "auto_reload" in config
+    assert config["auto_reload"]["enabled"] is True
+    assert config["auto_reload"]["interval_ms"] == 1200
+    assert config["auto_reload"]["debounce_ms"] == 400
+    assert config["auto_reload"]["include_patterns"] == ["*.py", "*.sql"]
+    assert config["auto_reload"]["exclude_patterns"] == [".venv/*"]

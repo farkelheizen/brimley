@@ -4,7 +4,8 @@ from brimley.core.models import (
     BrimleyFunction, 
     PythonFunction, 
     SqlFunction, 
-    TemplateFunction
+    TemplateFunction,
+    AutoReloadSettings,
 )
 from brimley.core.entity import PromptMessage
 
@@ -154,3 +155,19 @@ def test_template_function_inline_messages():
     )
     assert len(tf.messages) == 1
     assert tf.messages[0].role == "user"
+
+
+def test_auto_reload_settings_defaults():
+    """Verify auto-reload defaults align with the configuration contract."""
+    settings = AutoReloadSettings()
+    assert settings.enabled is False
+    assert settings.interval_ms == 1000
+    assert settings.debounce_ms == 300
+    assert settings.include_patterns == ["*.py", "*.sql", "*.md", "*.yaml"]
+    assert settings.exclude_patterns == []
+
+
+def test_auto_reload_settings_interval_minimum_enforced():
+    """Verify interval lower bound is validated."""
+    with pytest.raises(ValidationError):
+        AutoReloadSettings(interval_ms=99)

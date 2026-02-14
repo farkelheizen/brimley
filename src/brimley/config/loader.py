@@ -19,7 +19,7 @@ def load_config(path: Path) -> Dict[str, Any]:
     """
     Load brimley.yaml with environment variable interpolation.
     
-    Validates structure for keys: brimley, config, mcp, state, databases.
+    Validates structure for keys: brimley, config, mcp, auto_reload, state, databases.
     """
     if not path.exists():
         return {}
@@ -34,7 +34,7 @@ def load_config(path: Path) -> Dict[str, Any]:
         # But this is core config loader.
         return {}
 
-    allowed_keys = {"brimley", "config", "mcp", "state", "databases"}
+    allowed_keys = {"brimley", "config", "mcp", "auto_reload", "state", "databases"}
     filtered_config = {k: v for k, v in full_config.items() if k in allowed_keys}
 
     return filtered_config

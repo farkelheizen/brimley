@@ -32,6 +32,19 @@ class MCPSettings(BaseModel):
     port: int = 8000
 
 
+class AutoReloadSettings(BaseModel):
+    """
+    Runtime auto-reload settings (the top-level 'auto_reload' section in brimley.yaml).
+    """
+    model_config = ConfigDict(extra='ignore')
+
+    enabled: bool = False
+    interval_ms: int = Field(default=1000, ge=100)
+    debounce_ms: int = Field(default=300, ge=0)
+    include_patterns: List[str] = Field(default_factory=lambda: ["*.py", "*.sql", "*.md", "*.yaml"])
+    exclude_patterns: List[str] = Field(default_factory=list)
+
+
 class MCPConfig(BaseModel):
     """
     MCP metadata for exposing a Brimley function as an MCP tool.

@@ -16,6 +16,13 @@ def test_context_init_with_config():
             "host": "0.0.0.0",
             "port": 9001,
         },
+        "auto_reload": {
+            "enabled": True,
+            "interval_ms": 1500,
+            "debounce_ms": 500,
+            "include_patterns": ["*.py", "*.sql"],
+            "exclude_patterns": [".venv/*"],
+        },
         "state": {
             "user": "admin"
         }
@@ -31,6 +38,11 @@ def test_context_init_with_config():
     assert ctx.mcp.transport == "stdio"
     assert ctx.mcp.host == "0.0.0.0"
     assert ctx.mcp.port == 9001
+    assert ctx.auto_reload.enabled is True
+    assert ctx.auto_reload.interval_ms == 1500
+    assert ctx.auto_reload.debounce_ms == 500
+    assert ctx.auto_reload.include_patterns == ["*.py", "*.sql"]
+    assert ctx.auto_reload.exclude_patterns == [".venv/*"]
     assert ctx.app["user"] == "admin"
 
 def test_context_default_init():
@@ -40,4 +52,9 @@ def test_context_default_init():
     assert ctx.mcp.transport == "sse"
     assert ctx.mcp.host == "127.0.0.1"
     assert ctx.mcp.port == 8000
+    assert ctx.auto_reload.enabled is False
+    assert ctx.auto_reload.interval_ms == 1000
+    assert ctx.auto_reload.debounce_ms == 300
+    assert ctx.auto_reload.include_patterns == ["*.py", "*.sql", "*.md", "*.yaml"]
+    assert ctx.auto_reload.exclude_patterns == []
     assert ctx.app == {}
