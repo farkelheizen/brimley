@@ -83,6 +83,29 @@ auto_reload:
     assert repl.auto_reload_thread is None
 
 
+def test_repl_stop_auto_reload_cleans_up_thread_and_stop_event(tmp_path):
+        (tmp_path / "brimley.yaml").write_text(
+                """
+auto_reload:
+    enabled: true
+    interval_ms: 100
+    debounce_ms: 20
+"""
+        )
+
+        repl = BrimleyREPL(tmp_path)
+        repl.reload_handler = lambda: ReloadCommandResult(status=ReloadCommandStatus.SUCCESS)
+
+        repl.start_auto_reload()
+        assert repl.auto_reload_thread is not None
+
+        repl.stop_auto_reload()
+
+        assert repl.auto_reload_thread is None
+        assert repl.auto_reload_watcher is None
+        assert repl._auto_reload_stop_event.is_set() is True
+
+
 def test_repl_quit_stops_auto_reload_watcher(tmp_path, monkeypatch):
     calls = {"count": 0}
 
