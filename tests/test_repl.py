@@ -265,11 +265,9 @@ def test_repl_mcp_starts_background_server_when_available(tmp_path, monkeypatch)
             self.port = port
 
     fake_server = FakeServer()
-
     class FakeAdapter:
         def __init__(self, registry, context):
             pass
-
         def discover_tools(self):
             return [object()]
 
@@ -759,3 +757,93 @@ def test_repl_reload_uses_failure_contract_output_and_prints_diagnostics(tmp_pat
     assert any("diagnostics=1" in message for _, message in logs)
     assert len(printed) == 1
     assert printed[0].error_code == "ERR_PARSE_FAILURE"
+
+
+def test_repl_watch_mode_adds_function_after_file_change(tmp_path, monkeypatch):
+    (tmp_path / "brimley.yaml").write_text(
+        """
+auto_reload:
+  enabled: true
+  interval_ms: 100
+  debounce_ms: 50
+"""
+    )
+
+    repl = BrimleyREPL(tmp_path)
+    repl.load()
+    monkeypatch.setattr("threading.Thread.start", lambda self: None)
+    repl.start_auto_reload()
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    added_file = tmp_path / "hello.md"
+    added_file.write_text(
+        """
+---
+name: hello
+type: template_function
+return_shape: string
+---
+Hello
+"""
+    )
+
+    assert "hello" not in repl.context.functions
+
+    no_reload_result = repl._auto_reload_poll_once(now=0.00)
+    assert no_reload_result is None
+    assert "hello" not in repl.context.functions
+
+    reload_result = repl._auto_reload_poll_once(now=1.00)
+    assert reload_result is not None
+    assert reload_result.status == ReloadCommandStatus.SUCCESS
+    assert "hello" in repl.context.functions
+    assert any("reload success" in message.lower() for _, message in logs)
+
+    repl.stop_auto_reload()
+
+
+def test_repl_watch_mode_removes_function_after_file_delete(tmp_path, monkeypatch):
+    (tmp_path / "brimley.yaml").write_text(
+        """
+auto_reload:
+  enabled: true
+  interval_ms: 100
+  debounce_ms: 50
+"""
+    )
+    existing_file = tmp_path / "hello.md"
+    existing_file.write_text(
+        """
+---
+name: hello
+type: template_function
+return_shape: string
+---
+Hello
+"""
+    )
+
+    repl = BrimleyREPL(tmp_path)
+    repl.load()
+    assert "hello" in repl.context.functions
+    monkeypatch.setattr("threading.Thread.start", lambda self: None)
+    repl.start_auto_reload()
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    existing_file.unlink()
+
+    no_reload_result = repl._auto_reload_poll_once(now=0.00)
+    assert no_reload_result is None
+    assert "hello" in repl.context.functions
+
+    reload_result = repl._auto_reload_poll_once(now=1.00)
+    assert reload_result is not None
+    assert reload_result.status == ReloadCommandStatus.SUCCESS
+    assert "hello" not in repl.context.functions
+    assert any("reload success" in message.lower() for _, message in logs)
+
+    repl.stop_auto_reload()

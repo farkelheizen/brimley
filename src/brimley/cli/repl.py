@@ -312,17 +312,27 @@ class BrimleyREPL:
 
         interval_seconds = max(self.context.auto_reload.interval_ms / 1000.0, 0.05)
         while not self._auto_reload_stop_event.is_set():
-            poll_result = self.auto_reload_watcher.poll(now=time.monotonic())
-            if poll_result.should_reload:
-                result = self.reload_handler()
-                self.auto_reload_watcher.complete_reload(success=result.status == ReloadCommandStatus.SUCCESS)
-                message = format_reload_command_message(result)
-                severity = "success" if result.status == ReloadCommandStatus.SUCCESS else "error"
-                OutputFormatter.log(message, severity=severity)
-                if result.diagnostics:
-                    OutputFormatter.print_diagnostics(result.diagnostics)
-
+            self._auto_reload_poll_once(now=time.monotonic())
             self._auto_reload_stop_event.wait(interval_seconds)
+
+    def _auto_reload_poll_once(self, now: float) -> ReloadCommandResult | None:
+        """Run one watcher poll cycle and execute reload when debounce is satisfied."""
+        if self.auto_reload_watcher is None:
+            return None
+
+        poll_result = self.auto_reload_watcher.poll(now=now)
+        if not poll_result.should_reload:
+            return None
+
+        result = self.reload_handler()
+        self.auto_reload_watcher.complete_reload(success=result.status == ReloadCommandStatus.SUCCESS)
+        message = format_reload_command_message(result)
+        severity = "success" if result.status == ReloadCommandStatus.SUCCESS else "error"
+        OutputFormatter.log(message, severity=severity)
+        if result.diagnostics:
+            OutputFormatter.print_diagnostics(result.diagnostics)
+
+        return result
 
     def _cmd_help(self, args) -> bool:
         commands = [
