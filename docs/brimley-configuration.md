@@ -103,9 +103,17 @@ class BrimleyContext(Entity):
     settings: FrameworkSettings     # from 'brimley'
     config: AppConfig               # from 'config'
     mcp: MCPSettings                # from 'mcp'
-  auto_reload: AutoReloadSettings # from 'auto_reload'
+    auto_reload: AutoReloadSettings # from 'auto_reload'
     app: Dict[str, Any]             # from 'state'
     databases: Dict[str, Any]       # from 'databases'
     
     # ... registries ...
 ```
+
+  ## 4. CLI Override Notes
+
+  - `brimley repl --watch|--no-watch` overrides `auto_reload.enabled`.
+  - `brimley mcp-serve --watch|--no-watch` overrides `auto_reload.enabled`.
+  - `brimley mcp-serve --host/--port` overrides `mcp.host` and `mcp.port`.
+
+  Precedence: CLI override > config > model default.
