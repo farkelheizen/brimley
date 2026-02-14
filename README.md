@@ -21,6 +21,8 @@ It emphasizes a **"Configuration over Code"** approach for discovery and a str
         
 - **Developer Experience:** Built-in CLI and interactive REPL with state persistence.
 
+- **Auto Reload:** Optional watch mode with debounce for dynamic function/entity/tool refresh in REPL and host-managed runtimes.
+
 - **MCP Tooling:** Functions marked with `mcp: { type: tool }` can be exposed to MCP clients, with embedded FastMCP hosting in REPL when enabled via config or CLI.
     
 - **Strict Validation:** Inputs and outputs are validated against defined schemas before execution.
@@ -84,6 +86,14 @@ Start the interactive loop to test stateful workflows:
 
 ```
 poetry run brimley ./tools repl
+```
+
+Enable watch mode (or disable it explicitly) with:
+
+```
+poetry run brimley ./tools repl --watch
+# or
+poetry run brimley ./tools repl --no-watch
 ```
 
 ```

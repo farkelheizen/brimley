@@ -39,6 +39,13 @@ brimley2/
 │       ├── mcp/            # MCP adapter and FastMCP integration
 │       │   ├── __init__.py
 │       │   └── adapter.py
+│       ├── runtime/        # Auto-reload contracts, watcher, and host controller
+│       │   ├── __init__.py
+│       │   ├── controller.py
+│       │   ├── mcp_refresh_adapter.py
+│       │   ├── polling_watcher.py
+│       │   ├── reload_contracts.py
+│       │   └── reload_engine.py
 │       └── utils/          # Diagnostics & Helpers
 │           ├── __init__.py
 │           └── diagnostics.py
@@ -75,10 +82,15 @@ brimley2/
 │   ├── test_execution_jinja.py
 │   ├── test_execution_python.py
 │   ├── test_execution_sql.py
+│   ├── test_mcp_refresh_adapter.py
 │   ├── test_models.py
 │   ├── test_parsers.py
+│   ├── test_polling_watcher.py
 │   ├── test_registry.py
+│   ├── test_reload_engine.py
 │   ├── test_repl.py
+│   ├── test_runtime_autoreload.py
+│   ├── test_runtime_reload_contracts.py
 │   ├── test_scanner.py
 │   └── mock_functions/     # Test cases for scanner
 ├── pyproject.toml          # Poetry configuration

@@ -6,7 +6,7 @@ Brimley applications are configured via a single YAML file (`brimley.yaml`) loca
 
 ## 1. The Configuration File: `brimley.yaml`
 
-The configuration file is divided into five sections, mapping directly to the Context:
+The configuration file is divided into six sections, mapping directly to the Context:
 
 1. **`brimley`**: Framework-level settings (maps to `ctx.settings`).
     
@@ -17,6 +17,8 @@ The configuration file is divided into five sections, mapping directly to the Co
 4. **`databases`**: Definitions for SQL connections (hydrates `ctx.databases`).
 
 5. **`mcp`**: MCP runtime settings (mapped to MCP runtime configuration in the application context/runtime).
+
+6. **`auto_reload`**: Watch-mode settings for polling interval, debounce, and file filters.
     
 
 ### Example
@@ -58,6 +60,18 @@ mcp:
   transport: "sse"          # 'sse' (HTTP) or 'stdio'. The REPL forces 'sse' to prevent conflicts.
   host: "127.0.0.1"         # Bind address for the SSE server
   port: 8000                # Port for the SSE server
+
+# 6. Auto Reload (Watch Mode)
+auto_reload:
+  enabled: false            # Enable watcher in REPL/host runtime when true
+  interval_ms: 1000         # Polling interval (min 100)
+  debounce_ms: 300          # Debounce window to collapse rapid changes
+  include_patterns:         # Tracked files (glob patterns)
+    - "*.py"
+    - "*.sql"
+    - "*.md"
+    - "*.yaml"
+  exclude_patterns: []      # Optional ignored paths/patterns
 ```
 
 ## 2. Environment Variable Substitution
@@ -80,6 +94,7 @@ Brimley parses the raw YAML file _as a string_ first to interpolate environmen
 |`state`|`ctx.app`|Mutable|Initial values for the shared state dictionary.|
 |`databases`|`ctx.databases`|Managed|Connection definitions.|
 |`mcp`|`ctx.mcp` (or runtime MCP settings)|Read-Only|Embedded MCP server behavior and transport settings.|
+|`auto_reload`|`ctx.auto_reload`|Read-Only|Watch-mode interval/debounce/filter settings used by REPL and runtime controller.|
 
 ### Updated Context Structure
 
@@ -88,6 +103,7 @@ class BrimleyContext(Entity):
     settings: FrameworkSettings     # from 'brimley'
     config: AppConfig               # from 'config'
     mcp: MCPSettings                # from 'mcp'
+  auto_reload: AutoReloadSettings # from 'auto_reload'
     app: Dict[str, Any]             # from 'state'
     databases: Dict[str, Any]       # from 'databases'
     

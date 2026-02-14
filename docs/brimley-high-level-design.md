@@ -16,6 +16,8 @@ Brimley operates as a **Monolithic Engine** with a distinct lifecycle:
 3. **Context Injection:** Every execution is injected with a `BrimleyContext`, providing access to configuration, databases, and shared application state.
     
 4. **Invocation:** The `CLI` or `REPL` invokes functions by name, passing arguments that are validated and merged against the function's schema. The REPL also supports [Admin Commands](brimley-repl-admin-commands.md) for inspecting engine state and can run an embedded MCP server over SSE when configured.
+
+5. **Runtime Refresh (Optional):** When `auto_reload.enabled` is active, Brimley uses a polling watcher with debounce and partitioned reload policy to refresh entities/functions/MCP tools without tearing down unaffected runtime domains.
     
 
 ## 3. Key Components
@@ -64,6 +66,8 @@ Defined in [CLI & REPL Harness](brimley-cli-and-repl-harness.md):
 - **`invoke`**: Single-shot execution for scripts/pipes.
     
 - **`repl`**: Interactive loop with state persistence and multi-line input support.
+
+- **`auto_reload`**: Optional watch-mode orchestration for dynamic updates, available in REPL and via host-managed runtime controller.
 
 ### E. The MCP Integration Layer
 

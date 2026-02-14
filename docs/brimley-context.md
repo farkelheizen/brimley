@@ -11,6 +11,7 @@ class BrimleyContext(Entity):
     settings: FrameworkSettings     # Internal Framework Config
     config: AppConfig               # User Application Config
     mcp: MCPSettings                # MCP Runtime Settings
+    auto_reload: AutoReloadSettings # Watcher Runtime Settings
     app: Dict[str, Any]             # Mutable Application State
     
     functions: Registry[BrimleyFunction]
@@ -23,6 +24,7 @@ class BrimleyContext(Entity):
 |`settings`|`brimley:`|**Read-Only**|Framework settings (env, logging, app name).|
 |`config`|`config:`|**Read-Only**|User-defined configuration (API keys, constants).|
 |`mcp`|`mcp:`|**Read-Only**|MCP runtime settings (embedded mode, transport, host, port).|
+|`auto_reload`|`auto_reload:`|**Read-Only**|Polling watcher settings (enabled, interval/debounce, include/exclude patterns).|
 |`app`|`state:`|**Mutable**|Global shared state. Seeded from YAML, modified at runtime.|
 |`functions`|N/A|**Resolved**|Registry of internal Brimley functions.|
 |`entities`|N/A|**Resolved**|Registry of domain models.|
@@ -62,7 +64,15 @@ class BrimleyContext(Entity):
         
     - **Access**: `ctx.app["maintenance_mode"]`
         
-5. **`functions`**:
+5. **`auto_reload`**:
+
+    - **Type**: `AutoReloadSettings`
+
+    - **Purpose**: Runtime watch-mode configuration loaded from the `auto_reload` section of `brimley.yaml`.
+
+    - **Access**: `ctx.auto_reload.enabled`
+
+6. **`functions`**:
     
     - **Type**: `Registry[BrimleyFunction]`
         
@@ -70,7 +80,7 @@ class BrimleyContext(Entity):
         
     - **Access**: `ctx.functions.get("calculate_tax")`
         
-6. **`entities`**:
+7. **`entities`**:
     
     - **Type**: `Registry[Entity]`
         
@@ -84,7 +94,7 @@ class BrimleyContext(Entity):
             
     - **Access**: `ctx.entities.get("UserProfile")`
         
-7. **`databases`**:
+8. **`databases`**:
     
     - **Type**: `Dict[str, Engine]`
         
@@ -99,7 +109,7 @@ class BrimleyContext(Entity):
         
     - `brimley.yaml` is loaded and interpolated.
         
-    - `settings`, `config`, `mcp`, and `app` (initial state) are populated.
+    - `settings`, `config`, `mcp`, `auto_reload`, and `app` (initial state) are populated.
         
     - **Built-in Entities** (`ContentBlock`, `PromptMessage`) are automatically registered in `entities`.
         
@@ -121,3 +131,9 @@ class BrimleyContext(Entity):
     - When a request comes in (or a CLI command is run), the `context` is passed to the dispatcher.
         
     - Functions receive the `context` as their first argument (or via dependency injection), allowing them to access settings, config, state, or look up entity definitions.
+
+4. **Optional Runtime Reload**:
+
+    - REPL watch mode and host runtime controller read `ctx.auto_reload` to configure polling/debounce behavior.
+
+    - Successful reload cycles may refresh MCP tools; failed cycles keep unaffected runtime domains available.
