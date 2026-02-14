@@ -41,7 +41,14 @@ class ExternalMCPRefreshAdapter:
         """
 
         adapter = BrimleyMCPAdapter(registry=self.context.functions, context=self.context)
+        tools = adapter.discover_tools()
         current_server = self.get_server()
+
+        if not tools:
+            return current_server
+
+        if not adapter.is_fastmcp_available():
+            raise RuntimeError("MCP tools found but 'fastmcp' is not installed. Install with: pip install fastmcp")
 
         if current_server is None:
             next_server = adapter.register_tools()

@@ -566,6 +566,49 @@ def test_repl_reload_failure_does_not_refresh_embedded_mcp_server(tmp_path, monk
     assert calls["initialize"] == 0
 
 
+def test_repl_reload_success_warns_when_fastmcp_missing_during_refresh(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+    repl.mcp_server = object()
+    repl.context.functions.register(
+        TemplateFunction(
+            name="refresh_tool",
+            type="template_function",
+            return_shape="string",
+            template_body="hello",
+            mcp={"type": "tool"},
+        )
+    )
+
+    monkeypatch.setattr(
+        repl.reload_engine,
+        "apply_reload_with_policy",
+        lambda _context, _scan: ReloadApplicationResult(
+            summary=ReloadSummary(functions=1, entities=len(repl.context.entities), tools=1),
+            blocked_domains=[],
+            diagnostics=[],
+        ),
+    )
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def is_fastmcp_available(self):
+            return False
+
+    logs = []
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    result = repl._run_reload_cycle()
+
+    assert result.status == ReloadCommandStatus.SUCCESS
+    assert any("fastmcp" in message.lower() and severity == "warning" for severity, message in logs)
+
+
 def test_repl_run_reload_cycle_failure_preserves_existing_registries(tmp_path):
     repl = BrimleyREPL(tmp_path)
     repl.context.functions.register(

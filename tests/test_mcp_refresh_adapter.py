@@ -1,3 +1,5 @@
+import pytest
+
 from brimley.core.context import BrimleyContext
 from brimley.core.models import TemplateFunction
 from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
@@ -154,3 +156,41 @@ def test_external_mcp_refresh_falls_back_to_register_on_existing_server(monkeypa
     assert refreshed is server
     assert state["server"] is server
     assert len(server.tools) == 1
+
+
+def test_external_mcp_refresh_raises_clear_error_when_fastmcp_missing(monkeypatch):
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: None)
+
+    context = BrimleyContext()
+    _register_tool_function(context)
+
+    state = {"server": None}
+    adapter = ExternalMCPRefreshAdapter(
+        context=context,
+        get_server=lambda: state["server"],
+        set_server=lambda next_server: state.__setitem__("server", next_server),
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        adapter.refresh()
+
+    assert "fastmcp" in str(exc_info.value).lower()
+    assert state["server"] is None
+
+
+def test_external_mcp_refresh_noops_without_tools_even_if_fastmcp_missing(monkeypatch):
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: None)
+
+    context = BrimleyContext()
+    state = {"server": _HostServer()}
+
+    adapter = ExternalMCPRefreshAdapter(
+        context=context,
+        get_server=lambda: state["server"],
+        set_server=lambda next_server: state.__setitem__("server", next_server),
+    )
+
+    refreshed = adapter.refresh()
+
+    assert refreshed is state["server"]
+    assert state["server"].tools == []
