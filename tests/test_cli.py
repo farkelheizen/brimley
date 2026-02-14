@@ -247,3 +247,68 @@ def test_repl_rejects_conflicting_watch_flags(tmp_path):
 
     assert result.exit_code != 0
     assert "Cannot use --watch and --no-watch together" in result.stdout
+
+
+def test_mcp_serve_help():
+        result = runner.invoke(app, ["mcp-serve", "--help"])
+
+        assert result.exit_code == 0
+        assert "Start a non-REPL MCP server" in result.stdout
+
+
+def test_mcp_serve_rejects_conflicting_watch_flags(tmp_path):
+        result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch", "--no-watch"])
+
+        assert result.exit_code != 0
+        assert "Cannot use --watch and --no-watch together" in result.stdout
+
+
+def test_mcp_serve_uses_config_defaults_when_no_overrides(tmp_path, monkeypatch):
+        (tmp_path / "brimley.yaml").write_text(
+                """
+auto_reload:
+    enabled: true
+mcp:
+    host: 0.0.0.0
+    port: 9100
+"""
+        )
+
+        logs = []
+        monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+        result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
+
+        assert result.exit_code == 0
+        contract_messages = [msg for _, msg in logs if "mcp-serve contract resolved" in msg]
+        assert len(contract_messages) == 1
+        assert "watch=True" in contract_messages[0]
+        assert "host=0.0.0.0" in contract_messages[0]
+        assert "port=9100" in contract_messages[0]
+
+
+def test_mcp_serve_cli_overrides_watch_host_port(tmp_path, monkeypatch):
+        (tmp_path / "brimley.yaml").write_text(
+                """
+auto_reload:
+    enabled: false
+mcp:
+    host: 127.0.0.1
+    port: 8000
+"""
+        )
+
+        logs = []
+        monkeypatch.setattr("brimley.cli.main.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+        result = runner.invoke(
+                app,
+                ["mcp-serve", "--root", str(tmp_path), "--watch", "--host", "0.0.0.0", "--port", "9200"],
+        )
+
+        assert result.exit_code == 0
+        contract_messages = [msg for _, msg in logs if "mcp-serve contract resolved" in msg]
+        assert len(contract_messages) == 1
+        assert "watch=True" in contract_messages[0]
+        assert "host=0.0.0.0" in contract_messages[0]
+        assert "port=9200" in contract_messages[0]
