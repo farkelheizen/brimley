@@ -10,6 +10,8 @@ arguments:
     support_email:
       type: string
       from_context: "config.support_email"
+mcp:
+  type: tool
 ---
 # Hello {{ args.name }}!
 

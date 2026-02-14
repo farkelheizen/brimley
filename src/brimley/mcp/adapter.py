@@ -3,6 +3,7 @@ import importlib.util
 from typing import Any, Dict, Tuple, Type
 
 from pydantic import BaseModel, Field, create_model
+from pydantic.fields import PydanticUndefined
 
 from brimley.core.context import BrimleyContext
 from brimley.core.models import BrimleyFunction
@@ -94,20 +95,78 @@ class BrimleyMCPAdapter:
         """
         Create a callable wrapper that resolves args and dispatches execution.
         """
-
-        def wrapper(**tool_args: Any) -> Any:
-            return self.execute_tool(func, tool_args)
-
+        input_model = self.build_tool_input_model(func)
+        
+        # Create function signature based on input model fields
+        field_names = list(input_model.model_fields.keys())
+        
+        # Build parameter list with defaults
+        params = []
+        defaults = {}
+        for field_name in field_names:
+            field_info = input_model.model_fields[field_name]
+            annotation = field_info.annotation
+            if field_info.default is not PydanticUndefined:
+                defaults[field_name] = field_info.default
+                params.append(f"{field_name}: {annotation.__name__} = {repr(field_info.default)}")
+            else:
+                params.append(f"{field_name}: {annotation.__name__}")
+        
+        # Create the function code
+        param_list = ", ".join(params)
+        arg_dict_items = [f'"{name}": {name}' for name in field_names]
+        arg_dict = "{" + ", ".join(arg_dict_items) + "}"
+        
+        func_code = f"""
+def wrapper({param_list}):
+    return self.execute_tool(func, {arg_dict})
+"""
+        
+        # Execute the code to create the function
+        local_vars = {"self": self, "func": func, "PydanticUndefined": PydanticUndefined}
+        exec(func_code, {"self": self, "func": func}, local_vars)
+        wrapper = local_vars["wrapper"]
+        
         wrapper.__name__ = func.name
         wrapper.__doc__ = (func.mcp.description if getattr(func, "mcp", None) and func.mcp.description else func.description) or ""
         return wrapper
 
     def execute_tool(self, func: BrimleyFunction, tool_args: Dict[str, Any]) -> Any:
         """
-        Execute a function using the existing Brimley argument and dispatch flow.
+        Execute a tool by resolving arguments and dispatching to the appropriate runner.
         """
         resolved_args = ArgumentResolver.resolve(func, tool_args, self.context)
         return self.dispatcher.run(func, resolved_args, self.context)
+
+    def create_tool_object(self, func: BrimleyFunction) -> Any:
+        """
+        Create a FastMCP Tool object for the given function.
+        """
+        input_model = self.build_tool_input_model(func)
+        wrapper = self.create_tool_wrapper(func)
+        
+        # Import Tool from fastmcp.tools
+        fastmcp_module = importlib.import_module("fastmcp")
+        tools_module = getattr(fastmcp_module, 'tools', None)
+        if tools_module:
+            Tool = getattr(tools_module, 'Tool', None)
+        else:
+            Tool = None
+        
+        if Tool is None:
+            raise RuntimeError("FastMCP Tool class not found")
+        
+        # Use from_function to create the tool, which will auto-generate the parameters schema
+        tool = Tool.from_function(
+            fn=wrapper,
+            name=func.name,
+            description=(func.mcp.description if getattr(func, "mcp", None) and func.mcp.description else func.description) or "",
+        )
+        
+        # Override the parameters schema with our custom one
+        tool.parameters = input_model.model_json_schema()
+        
+        return tool
 
     def is_fastmcp_available(self) -> bool:
         """
@@ -141,9 +200,9 @@ class BrimleyMCPAdapter:
             raise ValueError("Invalid MCP server: missing required 'add_tool' method")
 
         for func in tools:
-            wrapper = self.create_tool_wrapper(func)
+            tool_obj = self.create_tool_object(func)
             try:
-                mcp_server.add_tool(wrapper)
+                mcp_server.add_tool(tool_obj)
             except Exception as exc:
                 raise ValueError(f"Failed to register MCP tool '{func.name}': {exc}") from exc
 

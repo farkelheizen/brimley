@@ -138,6 +138,59 @@ def test_create_tool_wrapper_applies_default_arguments():
     assert result == "Hello World"
 
 
+def test_create_tool_object_for_template_function_like_hello_md(monkeypatch):
+    """Test creating a tool object for a template function similar to examples/hello.md"""
+    context = BrimleyContext(config_dict={"config": {"support_email": "support@example.com"}})
+    func = TemplateFunction(
+        name="hello",
+        type="template_function", 
+        return_shape="string",
+        template_body="Hello {{ args.name }}!\n\nContact us at: {{ args.support_email }}",
+        mcp={"type": "tool"},
+        arguments={
+            "inline": {
+                "name": {"type": "string", "default": "World"},
+                "support_email": {"type": "string", "from_context": "config.support_email"},
+            }
+        },
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+
+    # Mock fastmcp import
+    class FakeToolsModule:
+        class Tool:
+            @classmethod
+            def from_function(cls, fn, name=None, description=None, **kwargs):
+                # Create a fake tool object
+                tool = cls()
+                tool.name = name
+                tool.key = name
+                tool.description = description
+                tool.parameters = {}
+                tool.fn = fn
+                return tool
+
+    class FakeModule:
+        tools = FakeToolsModule
+
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
+
+    tool = adapter.create_tool_object(func)
+
+    # Verify tool properties
+    assert tool.name == "hello"
+    assert tool.key == "hello"
+    assert tool.description == ""  # No custom MCP description provided
+    assert hasattr(tool, 'fn')
+    
+    # Test that the tool function can be called
+    result = tool.fn(name="Developer")
+    assert "Hello Developer!" in result
+    assert "support@example.com" in result
+
+
 def test_is_fastmcp_available_true_when_spec_exists(monkeypatch):
     context = BrimleyContext()
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
@@ -187,7 +240,34 @@ def test_require_fastmcp_returns_class_when_available(monkeypatch):
     assert resolved is FakeFastMCP
 
 
-def test_register_tools_uses_supplied_external_server():
+def test_register_tools_uses_supplied_external_server(monkeypatch):
+    class FakeTool:
+        def __init__(self, key=None, name=None, description=None, input_schema=None, fn=None, parameters=None):
+            # Handle both old constructor and new from_function style
+            if name is not None:
+                self.key = name
+                self.name = name
+                self.description = description
+                self.parameters = parameters or {}
+                self.fn = fn
+            else:
+                # Old style constructor
+                self.key = key
+                self.name = name or key
+                self.description = description
+                self.parameters = input_schema or {}
+                self.fn = fn
+        
+        @classmethod
+        def from_function(cls, fn, name=None, description=None, **kwargs):
+            return cls(name=name, description=description, fn=fn, parameters={})
+
+    class FakeToolsModule:
+        Tool = FakeTool
+
+    class FakeModule:
+        tools = FakeToolsModule
+
     context = BrimleyContext()
     context.functions.register(
         TemplateFunction(
@@ -202,11 +282,15 @@ def test_register_tools_uses_supplied_external_server():
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
     server = _FakeMCPServer()
 
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
+
     returned = adapter.register_tools(server)
 
     assert returned is server
     assert len(server.tools) == 1
-    assert server.tools[0].__name__ == "hello_tool"
+    assert hasattr(server.tools[0], 'key')
+    assert server.tools[0].key == "hello_tool"
 
 
 def test_register_tools_noop_when_no_mcp_tools():
@@ -229,7 +313,34 @@ def test_register_tools_noop_when_no_mcp_tools():
     assert server.tools == []
 
 
-def test_register_tools_raises_value_error_on_tool_registration_failure():
+def test_register_tools_raises_value_error_on_tool_registration_failure(monkeypatch):
+    class FakeTool:
+        def __init__(self, key=None, name=None, description=None, input_schema=None, fn=None, parameters=None):
+            # Handle both old constructor and new from_function style
+            if name is not None:
+                self.key = name
+                self.name = name
+                self.description = description
+                self.parameters = parameters or {}
+                self.fn = fn
+            else:
+                # Old style constructor
+                self.key = key
+                self.name = name or key
+                self.description = description
+                self.parameters = input_schema or {}
+                self.fn = fn
+        
+        @classmethod
+        def from_function(cls, fn, name=None, description=None, **kwargs):
+            return cls(name=name, description=description, fn=fn, parameters={})
+
+    class FakeToolsModule:
+        Tool = FakeTool
+
+    class FakeModule:
+        tools = FakeToolsModule
+
     class FailingServer:
         def add_tool(self, tool):
             raise ValueError("duplicate tool")
@@ -246,6 +357,9 @@ def test_register_tools_raises_value_error_on_tool_registration_failure():
     )
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.adapter.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
 
     try:
         adapter.register_tools(FailingServer())
