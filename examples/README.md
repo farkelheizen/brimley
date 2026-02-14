@@ -75,23 +75,25 @@ brimley > /quit
 
 ---
 
-## 🧩 External MCP Embedding Example
+## 🧩 Non-REPL MCP Server
 
-Brimley MCP tools can be registered in a standalone or pre-existing FastMCP server without running the Brimley REPL.
-
-Example script:
+You can run MCP tools without REPL using the first-class CLI command:
 
 ```bash
-PYTHONPATH=../src python3 mcp_external_embedding.py
+PYTHONPATH=../src poetry run brimley mcp-serve --root .
 ```
 
-The script demonstrates:
+Enable watch mode for automatic tool refresh on file changes:
 
-- `build_mcp_server(root_dir)`: create a new FastMCP server and register Brimley tools.
-- `register_on_existing_server(root_dir, server)`: attach Brimley tools to an existing FastMCP server.
-- `run_host_auto_reload_demo(root_dir)`: host-managed auto-reload with `BrimleyRuntimeController` + external MCP refresh callback.
+```bash
+PYTHONPATH=../src poetry run brimley mcp-serve --root . --watch
+```
 
-If FastMCP is not installed, the script prints a friendly message and exits.
+Optional host/port overrides:
+
+```bash
+PYTHONPATH=../src poetry run brimley mcp-serve --root . --host 127.0.0.1 --port 8000
+```
 
 ## 📂 File Structure
 
@@ -100,4 +102,3 @@ If FastMCP is not installed, the script prints a friendly message and exits.
 - `users.sql`: SQL function definition with metadata frontmatter.
 - `calc.py`: Python function definition.
 - `hello.md`: Template function definition using Jinja2.
-- `mcp_external_embedding.py`: Programmatic MCP embedding example with `BrimleyMCPAdapter`.

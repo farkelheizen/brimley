@@ -175,3 +175,65 @@ First
     runtime.load_initial()
 
     assert refresh_calls["count"] == 1
+
+
+def test_runtime_autoreload_successful_watched_update_invokes_mcp_refresh(tmp_path: Path):
+    _write_config(tmp_path)
+
+    hello_file = tmp_path / "hello.md"
+    _write_tool(hello_file, body="Hello V1", valid=True)
+
+    refresh_calls = {"count": 0}
+    runtime = BrimleyRuntimeController(
+        tmp_path,
+        mcp_refresh=lambda: refresh_calls.__setitem__("count", refresh_calls["count"] + 1),
+    )
+
+    first_result = runtime.load_initial()
+    assert first_result.status == ReloadCommandStatus.SUCCESS
+    assert refresh_calls["count"] == 1
+
+    runtime.start_auto_reload(background=False)
+
+    _write_tool(hello_file, body="Hello V2", valid=True)
+
+    runtime.poll_once(now=0.00)
+    second_result = runtime.poll_once(now=0.20)
+
+    assert second_result is not None
+    assert second_result.status == ReloadCommandStatus.SUCCESS
+    assert "V2" in (runtime.context.functions.get("hello").template_body or "")
+    assert refresh_calls["count"] == 2
+
+    runtime.stop_auto_reload()
+
+
+def test_runtime_autoreload_failed_watched_update_does_not_invoke_mcp_refresh(tmp_path: Path):
+    _write_config(tmp_path)
+
+    hello_file = tmp_path / "hello.md"
+    _write_tool(hello_file, body="Hello V1", valid=True)
+
+    refresh_calls = {"count": 0}
+    runtime = BrimleyRuntimeController(
+        tmp_path,
+        mcp_refresh=lambda: refresh_calls.__setitem__("count", refresh_calls["count"] + 1),
+    )
+
+    first_result = runtime.load_initial()
+    assert first_result.status == ReloadCommandStatus.SUCCESS
+    assert refresh_calls["count"] == 1
+
+    runtime.start_auto_reload(background=False)
+
+    _write_tool(hello_file, body="Broken", valid=False)
+
+    runtime.poll_once(now=0.00)
+    failure_result = runtime.poll_once(now=0.20)
+
+    assert failure_result is not None
+    assert failure_result.status == ReloadCommandStatus.FAILURE
+    assert refresh_calls["count"] == 1
+    assert "hello" in runtime.context.functions
+
+    runtime.stop_auto_reload()

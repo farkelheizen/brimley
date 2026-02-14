@@ -106,6 +106,20 @@ Hello, Arthur! Welcome to Brimley.
 brimley > quit
 ```
 
+### 4. Run MCP Server (Non-REPL)
+
+Serve MCP tools without REPL:
+
+```
+poetry run brimley mcp-serve --root ./tools
+```
+
+Enable watch mode:
+
+```
+poetry run brimley mcp-serve --root ./tools --watch
+```
+
 ## 📚 Documentation
 
 Detailed architectural designs and technical specifications are located in the [docs/](docs/) directory:

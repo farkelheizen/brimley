@@ -74,6 +74,26 @@ mcp:
 
 When watch mode or `/reload` applies a successful registry update, Brimley refreshes embedded MCP tool registrations. If FastMCP is missing, Brimley emits a warning and continues running without failing the REPL session.
 
+## Running MCP Without REPL (CLI)
+
+Use the first-class MCP server command:
+
+```
+brimley mcp-serve --root .
+```
+
+Enable watch mode:
+
+```
+brimley mcp-serve --root . --watch
+```
+
+Optional bind overrides:
+
+```
+brimley mcp-serve --root . --host 127.0.0.1 --port 8000
+```
+
 ## Embedding Brimley MCP in External Apps (LangGraph, etc.)
 
 Long-term, you may not want to run the Brimley REPL, but rather embed Brimley's functions directly into an existing AI framework (like LangGraph) or an existing FastMCP server.
@@ -109,7 +129,26 @@ mcp_server.run(transport="sse", host="127.0.0.1", port=8000)
 # adapter.register_tools(mcp_server=existing_server)
 ```
 
-For a runnable script version, see `examples/mcp_external_embedding.py`.
+Minimal embedding snippet:
+
+```python
+from pathlib import Path
+
+from brimley.runtime import BrimleyRuntimeController
+from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
+
+runtime = BrimleyRuntimeController(root_dir=Path("."))
+runtime.load_initial()
+
+refresh_adapter = ExternalMCPRefreshAdapter(
+  context=runtime.context,
+  get_server=lambda: current_server,
+  set_server=lambda server: set_current_server(server),
+)
+
+runtime.mcp_refresh = refresh_adapter.refresh
+runtime.start_auto_reload(background=True)
+```
 
 ## Host-Managed Auto Reload for External Servers
 
