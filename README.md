@@ -46,6 +46,9 @@ cd brimley
 
 # Install dependencies
 poetry install
+
+# Optional: install FastMCP if you want MCP tool hosting
+poetry run pip install fastmcp
 ```
 
 ## ⚡ Quick Start
