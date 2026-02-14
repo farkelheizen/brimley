@@ -368,6 +368,43 @@ def test_repl_reload_available_when_watch_disabled(tmp_path, monkeypatch):
     assert any("reload success" in message.lower() and severity == "success" for severity, message in logs)
 
 
+def test_repl_reload_command_via_cli_loop_success(tmp_path):
+    (tmp_path / "hello.md").write_text(
+        """
+---
+name: hello
+type: template_function
+return_shape: string
+---
+Hello
+"""
+    )
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="/reload\n/functions\n/quit\n")
+
+    assert result.exit_code == 0
+    assert "Reload success" in result.stdout
+    assert "[template_function] hello" in result.stdout
+
+
+def test_repl_reload_command_via_cli_loop_failure(tmp_path):
+    (tmp_path / "broken.md").write_text(
+        """
+---
+name: broken
+type: template_function
+---
+Broken
+"""
+    )
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="/reload\n/quit\n")
+
+    assert result.exit_code == 0
+    assert "Reload failed" in result.stdout
+    assert "ERR_PARSE_FAILURE" in result.stdout
+
+
 def test_repl_reload_dispatch_uses_shared_entrypoint_by_default(tmp_path, monkeypatch):
     called = {"count": 0}
 
