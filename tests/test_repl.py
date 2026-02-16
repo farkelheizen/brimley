@@ -3,6 +3,7 @@ from typer.testing import CliRunner
 from brimley.cli.main import app
 from brimley.cli.repl import BrimleyREPL
 from brimley.core.models import TemplateFunction
+from brimley.mcp.mock import MockMCPContext
 from brimley.runtime.reload_contracts import ReloadCommandResult, ReloadCommandStatus, ReloadSummary
 from brimley.runtime.reload_contracts import ReloadDomain
 from brimley.runtime.reload_engine import ReloadApplicationResult
@@ -216,6 +217,45 @@ def test_repl_admin_invalid(tmp_path):
     (tmp_path / "funcs").mkdir()
     result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input="/unknown_cmd\n/quit\n")
     assert "Unknown admin command: /unknown_cmd" in result.stdout
+
+
+def test_repl_initializes_mock_mcp_context_on_startup(tmp_path):
+    repl = BrimleyREPL(tmp_path)
+
+    assert isinstance(repl.mock_mcp_context, MockMCPContext)
+    assert hasattr(repl.mock_mcp_context, "session")
+
+
+def test_repl_handle_command_passes_mock_mcp_context_runtime_injection(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="hello",
+            type="template_function",
+            return_shape="string",
+            template_body="Hello {{ args.name }}",
+            arguments={"inline": {"name": "string"}},
+        )
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_run(func, args, context, runtime_injections=None):
+        captured["func"] = func
+        captured["args"] = args
+        captured["context"] = context
+        captured["runtime_injections"] = runtime_injections
+        return "ok"
+
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda *_args, **_kwargs: None)
+
+    repl.handle_command("hello {name: REPL}")
+
+    assert captured["args"] == {"name": "REPL"}
+    assert captured["context"] is repl.context
+    assert captured["runtime_injections"] == {"mcp_context": repl.mock_mcp_context}
 
 
 def test_repl_mcp_warns_when_tools_exist_but_fastmcp_missing(tmp_path, monkeypatch):
