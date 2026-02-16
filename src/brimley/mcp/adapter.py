@@ -103,6 +103,7 @@ class BrimleyMCPAdapter:
         # Build parameter list with defaults
         params = []
         defaults = {}
+        context_type = self._resolve_fastmcp_context_type()
         for field_name in field_names:
             field_info = input_model.model_fields[field_name]
             annotation = field_info.annotation
@@ -118,9 +119,9 @@ class BrimleyMCPAdapter:
         arg_dict = "{" + ", ".join(arg_dict_items) + "}"
 
         if param_list:
-            wrapper_params = f"{param_list}, *, ctx=None"
+            wrapper_params = f"{param_list}, *, ctx: ContextType = None"
         else:
-            wrapper_params = "*, ctx=None"
+            wrapper_params = "*, ctx: ContextType = None"
         
         func_code = f"""
 def wrapper({wrapper_params}):
@@ -129,12 +130,26 @@ def wrapper({wrapper_params}):
         
         # Execute the code to create the function
         local_vars = {"self": self, "func": func, "PydanticUndefined": PydanticUndefined}
-        exec(func_code, {"self": self, "func": func}, local_vars)
+        exec(func_code, {"self": self, "func": func, "ContextType": context_type}, local_vars)
         wrapper = local_vars["wrapper"]
         
         wrapper.__name__ = func.name
         wrapper.__doc__ = (func.mcp.description if getattr(func, "mcp", None) and func.mcp.description else func.description) or ""
         return wrapper
+
+    def _resolve_fastmcp_context_type(self) -> type[Any]:
+        """
+        Resolve FastMCP Context type when available; fall back to Any for local/non-MCP execution.
+        """
+        try:
+            context_module = importlib.import_module("fastmcp.server.context")
+            context_type = getattr(context_module, "Context", None)
+            if isinstance(context_type, type):
+                return context_type
+        except Exception:
+            pass
+
+        return Any
 
     def execute_tool(
         self,

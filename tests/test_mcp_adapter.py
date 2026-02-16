@@ -1,6 +1,7 @@
 from brimley.core.context import BrimleyContext
 from brimley.core.models import TemplateFunction
 from brimley.mcp.adapter import BrimleyMCPAdapter
+import inspect
 
 
 class _FakeMCPServer:
@@ -175,6 +176,33 @@ def test_create_tool_wrapper_accepts_ctx_kwarg_and_forwards_runtime_injections()
     assert captured["args"] == {"name": "Alice"}
     assert captured["ctx"] is context
     assert captured["runtime_injections"] == {"mcp_context": mcp_ctx}
+
+
+def test_create_tool_wrapper_ctx_parameter_uses_resolved_context_annotation(monkeypatch):
+    context = BrimleyContext()
+    func = TemplateFunction(
+        name="hello_default",
+        type="template_function",
+        return_shape="string",
+        template_body="Hello {{ args.name }}",
+        mcp={"type": "tool"},
+        arguments={
+            "inline": {
+                "name": {"type": "string", "default": "World"},
+            }
+        },
+    )
+
+    class FakeContextType:
+        pass
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    monkeypatch.setattr(adapter, "_resolve_fastmcp_context_type", lambda: FakeContextType)
+
+    wrapper = adapter.create_tool_wrapper(func)
+    ctx_annotation = inspect.signature(wrapper).parameters["ctx"].annotation
+
+    assert ctx_annotation is FakeContextType
 
 
 def test_create_tool_object_for_template_function_like_hello_md(monkeypatch):

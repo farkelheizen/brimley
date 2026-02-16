@@ -169,3 +169,76 @@ def test_python_missing_fastmcp_runtime_injection_raises_type_error(context):
 
     with pytest.raises(TypeError):
         runner.run(func, {}, context)
+
+
+def test_python_injects_fastmcp_server_context_module_annotation(context):
+    FastMCPServerContext = type("Context", (), {"__module__": "fastmcp.server.context"})
+    runtime_mcp_ctx = FastMCPServerContext()
+
+    def mcp_func(mcp_ctx: FastMCPServerContext):
+        return {"mcp_ctx_id": id(mcp_ctx)}
+
+    runner = MockPythonRunner({"test.fastmcp_server_ctx": mcp_func})
+
+    func = PythonFunction(
+        name="mcp_server_ctx_test",
+        type="python_function",
+        return_shape="dict",
+        handler="test.fastmcp_server_ctx",
+    )
+
+    result = runner.run(
+        func,
+        {},
+        context,
+        runtime_injections={"mcp_context": runtime_mcp_ctx},
+    )
+
+    assert result["mcp_ctx_id"] == id(runtime_mcp_ctx)
+
+
+def test_python_runner_supports_async_handlers(context):
+    async def async_handler(name: str):
+        return {"name": name, "mode": "async"}
+
+    runner = MockPythonRunner({"test.async": async_handler})
+
+    func = PythonFunction(
+        name="async_test",
+        type="python_function",
+        return_shape="dict",
+        handler="test.async",
+    )
+
+    result = runner.run(func, {"name": "Alice"}, context)
+
+    assert result == {"name": "Alice", "mode": "async"}
+
+
+@pytest.mark.anyio
+async def test_python_runner_returns_awaitable_when_loop_active(context):
+    FastMCPServerContext = type("Context", (), {"__module__": "fastmcp.server.context"})
+    runtime_mcp_ctx = FastMCPServerContext()
+
+    async def mcp_async_handler(prompt: str, mcp_ctx: FastMCPServerContext):
+        return {"prompt": prompt, "mcp_ctx_id": id(mcp_ctx)}
+
+    runner = MockPythonRunner({"test.mcp_async": mcp_async_handler})
+
+    func = PythonFunction(
+        name="mcp_async_test",
+        type="python_function",
+        return_shape="dict",
+        handler="test.mcp_async",
+    )
+
+    maybe_awaitable = runner.run(
+        func,
+        {"prompt": "hello"},
+        context,
+        runtime_injections={"mcp_context": runtime_mcp_ctx},
+    )
+
+    assert hasattr(maybe_awaitable, "__await__")
+    result = await maybe_awaitable
+    assert result == {"prompt": "hello", "mcp_ctx_id": id(runtime_mcp_ctx)}

@@ -1,5 +1,6 @@
 import importlib
 import inspect
+import asyncio
 from typing import Any, Dict, Optional, get_args, get_origin, Annotated
 from brimley.core.models import PythonFunction
 from brimley.core.context import BrimleyContext
@@ -31,6 +32,18 @@ class PythonRunner:
         final_args = self._resolve_dependencies(handler, args, context, runtime_injections=runtime_injections)
         
         raw_result = handler(**final_args)
+
+        if inspect.isawaitable(raw_result):
+            async def _await_and_map() -> Any:
+                awaited_result = await raw_result
+                return ResultMapper.map_result(awaited_result, func, context)
+
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                return asyncio.run(_await_and_map())
+
+            return _await_and_map()
         
         # Validate result against return_shape if specified
         return ResultMapper.map_result(raw_result, func, context)
@@ -186,8 +199,16 @@ class PythonRunner:
         """
         if isinstance(annotation, str):
             normalized = annotation.replace(" ", "")
-            return normalized in {"Context", "mcp.server.fastmcp.Context", "fastmcp.Context"}
+            return normalized in {
+                "Context",
+                "mcp.server.fastmcp.Context",
+                "fastmcp.Context",
+                "fastmcp.server.context.Context",
+            }
 
         annotation_name = getattr(annotation, "__name__", None)
         annotation_module = getattr(annotation, "__module__", None)
-        return annotation_name == "Context" and annotation_module == "mcp.server.fastmcp"
+        return annotation_name == "Context" and annotation_module in {
+            "mcp.server.fastmcp",
+            "fastmcp.server.context",
+        }
