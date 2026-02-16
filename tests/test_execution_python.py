@@ -98,3 +98,74 @@ def test_python_missing_di(context):
     # Config/AppState access might raise KeyError or AttributeError
     with pytest.raises((KeyError, AttributeError)):
         runner.run(func, {}, context)
+
+
+def test_python_injects_brimley_context_by_type(context):
+    def context_func(name: str, ctx: BrimleyContext):
+        return {
+            "name": name,
+            "ctx_id": id(ctx),
+        }
+
+    runner = MockPythonRunner({"test.context": context_func})
+
+    func = PythonFunction(
+        name="context_test",
+        type="python_function",
+        return_shape="dict",
+        handler="test.context",
+    )
+
+    result = runner.run(func, {"name": "Alice"}, context)
+
+    assert result["name"] == "Alice"
+    assert result["ctx_id"] == id(context)
+
+
+def test_python_injects_fastmcp_context_from_runtime_injections(context):
+    FastMCPContext = type("Context", (), {"__module__": "mcp.server.fastmcp"})
+    runtime_mcp_ctx = FastMCPContext()
+
+    def mcp_func(name: str, mcp_ctx: FastMCPContext):
+        return {
+            "name": name,
+            "mcp_ctx_id": id(mcp_ctx),
+        }
+
+    runner = MockPythonRunner({"test.mcp": mcp_func})
+
+    func = PythonFunction(
+        name="mcp_test",
+        type="python_function",
+        return_shape="dict",
+        handler="test.mcp",
+    )
+
+    result = runner.run(
+        func,
+        {"name": "Alice"},
+        context,
+        runtime_injections={"mcp_context": runtime_mcp_ctx},
+    )
+
+    assert result["name"] == "Alice"
+    assert result["mcp_ctx_id"] == id(runtime_mcp_ctx)
+
+
+def test_python_missing_fastmcp_runtime_injection_raises_type_error(context):
+    FastMCPContext = type("Context", (), {"__module__": "mcp.server.fastmcp"})
+
+    def mcp_func(mcp_ctx: FastMCPContext):
+        return id(mcp_ctx)
+
+    runner = MockPythonRunner({"test.mcp_missing": mcp_func})
+
+    func = PythonFunction(
+        name="mcp_missing_test",
+        type="python_function",
+        return_shape="int",
+        handler="test.mcp_missing",
+    )
+
+    with pytest.raises(TypeError):
+        runner.run(func, {}, context)
