@@ -116,10 +116,15 @@ class BrimleyMCPAdapter:
         param_list = ", ".join(params)
         arg_dict_items = [f'"{name}": {name}' for name in field_names]
         arg_dict = "{" + ", ".join(arg_dict_items) + "}"
+
+        if param_list:
+            wrapper_params = f"{param_list}, *, ctx=None"
+        else:
+            wrapper_params = "*, ctx=None"
         
         func_code = f"""
-def wrapper({param_list}):
-    return self.execute_tool(func, {arg_dict})
+def wrapper({wrapper_params}):
+    return self.execute_tool(func, {arg_dict}, runtime_injections={{"mcp_context": ctx}} if ctx is not None else None)
 """
         
         # Execute the code to create the function
@@ -131,12 +136,17 @@ def wrapper({param_list}):
         wrapper.__doc__ = (func.mcp.description if getattr(func, "mcp", None) and func.mcp.description else func.description) or ""
         return wrapper
 
-    def execute_tool(self, func: BrimleyFunction, tool_args: Dict[str, Any]) -> Any:
+    def execute_tool(
+        self,
+        func: BrimleyFunction,
+        tool_args: Dict[str, Any],
+        runtime_injections: Dict[str, Any] | None = None,
+    ) -> Any:
         """
         Execute a tool by resolving arguments and dispatching to the appropriate runner.
         """
         resolved_args = ArgumentResolver.resolve(func, tool_args, self.context)
-        return self.dispatcher.run(func, resolved_args, self.context)
+        return self.dispatcher.run(func, resolved_args, self.context, runtime_injections=runtime_injections)
 
     def create_tool_object(self, func: BrimleyFunction) -> Any:
         """

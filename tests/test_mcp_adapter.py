@@ -138,6 +138,45 @@ def test_create_tool_wrapper_applies_default_arguments():
     assert result == "Hello World"
 
 
+def test_create_tool_wrapper_accepts_ctx_kwarg_and_forwards_runtime_injections():
+    context = BrimleyContext()
+    func = TemplateFunction(
+        name="hello_default",
+        type="template_function",
+        return_shape="string",
+        template_body="Hello {{ args.name }}",
+        mcp={"type": "tool"},
+        arguments={
+            "inline": {
+                "name": {"type": "string", "default": "World"},
+            }
+        },
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    wrapper = adapter.create_tool_wrapper(func)
+
+    captured: dict[str, object] = {}
+
+    def fake_dispatcher_run(f, args, ctx, runtime_injections=None):
+        captured["func"] = f
+        captured["args"] = args
+        captured["ctx"] = ctx
+        captured["runtime_injections"] = runtime_injections
+        return "ok"
+
+    adapter.dispatcher.run = fake_dispatcher_run  # type: ignore[method-assign]
+
+    mcp_ctx = object()
+    result = wrapper(name="Alice", ctx=mcp_ctx)
+
+    assert result == "ok"
+    assert captured["func"] is func
+    assert captured["args"] == {"name": "Alice"}
+    assert captured["ctx"] is context
+    assert captured["runtime_injections"] == {"mcp_context": mcp_ctx}
+
+
 def test_create_tool_object_for_template_function_like_hello_md(monkeypatch):
     """Test creating a tool object for a template function similar to examples/hello.md"""
     context = BrimleyContext(config_dict={"config": {"support_email": "support@example.com"}})
