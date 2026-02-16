@@ -1,6 +1,6 @@
 import importlib
 import inspect
-from typing import Any, Dict, get_args, get_origin, Annotated
+from typing import Any, Dict, Optional, get_args, get_origin, Annotated
 from brimley.core.models import PythonFunction
 from brimley.core.context import BrimleyContext
 from brimley.core.di import AppState, Config, Connection
@@ -11,7 +11,13 @@ class PythonRunner:
     Executes a PythonFunction with robust Dependency Injection.
     """
 
-    def run(self, func: PythonFunction, args: Dict[str, Any], context: BrimleyContext) -> Any:
+    def run(
+        self,
+        func: PythonFunction,
+        args: Dict[str, Any],
+        context: BrimleyContext,
+        runtime_injections: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         """
         Executes the function handler.
         1. Loads the callable.
@@ -20,6 +26,7 @@ class PythonRunner:
         4. Calls the function.
         """
         handler = self._load_handler(func.handler)
+        _ = runtime_injections
         
         # Prepare arguments
         final_args = self._resolve_dependencies(handler, args, context)
