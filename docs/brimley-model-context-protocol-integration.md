@@ -44,6 +44,25 @@ In the example above:
 - The `support_email` argument (sourced from `from_context`) is hidden from the LLM's schema entirely.
     
 - When the LLM calls the tool, Brimley intercepts the call, fetches `config.support_email` from the active `BrimleyContext`, injects it, and executes the function seamlessly.
+
+### Agentic Python Tools (Context Passthrough)
+
+For Python tools, Brimley passes FastMCP invocation context through the MCP adapter into runtime injections. This allows handlers to declare `mcp.server.fastmcp.Context` directly in their function signature.
+
+```python
+from brimley.core.context import BrimleyContext
+from mcp.server.fastmcp import Context
+
+def agent_tool(prompt: str, ctx: BrimleyContext, mcp_ctx: Context):
+    sample = mcp_ctx.session.sample(messages=[{"role": "user", "content": prompt}])
+    return {
+      "prompt": prompt,
+      "sample": sample.message.content[0].text,
+      "functions_loaded": len(ctx.functions),
+    }
+```
+
+Brimley also keeps these system parameters out of exposed tool schemas, so LLM clients only provide true business arguments.
     
 
 ## The Embedded REPL Server
@@ -59,6 +78,8 @@ You will see a startup message like:
 ```
 
 If MCP tools exist but FastMCP is not installed, Brimley continues running REPL and logs a non-fatal warning.
+
+In REPL mode, Brimley also creates a local `MockMCPContext` shim and passes it to runtime injections for function execution. Calls to `session.sample(...)` are printed as `[Mock Sampling]` and return deterministic dummy responses, enabling local agentic-tool development without a live MCP server or model backend.
 
 You can now point your MCP-compatible LLM client to `http://127.0.0.1:8000/sse` to allow the LLM to call your Brimley functions in real-time while you monitor or interact with the REPL.
 

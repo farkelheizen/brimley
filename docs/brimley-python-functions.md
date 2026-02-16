@@ -99,6 +99,34 @@ def health_check(
 
 ```
 
+### C. BrimleyContext Injection
+
+For internal composition and advanced runtime behaviors, Python handlers may request the full `BrimleyContext` by type hint.
+
+```python
+from brimley.core.context import BrimleyContext
+
+def orchestrate(task: str, ctx: BrimleyContext):
+    ctx.app["last_task"] = task
+    return {"task": task, "registered_functions": len(ctx.functions)}
+```
+
+When `BrimleyContext` is type-hinted in the function signature, Brimley injects the active runtime context automatically.
+
+### D. MCP Context Injection (Agentic Sampling)
+
+Agentic Python handlers can opt-in to receiving FastMCP runtime context with `mcp.server.fastmcp.Context`.
+
+```python
+from mcp.server.fastmcp import Context
+
+def summarize_with_model(prompt: str, mcp_ctx: Context):
+    sample = mcp_ctx.session.sample(messages=[{"role": "user", "content": prompt}])
+    return sample.message.content[0].text
+```
+
+During MCP tool execution, Brimley forwards FastMCP `ctx` into runtime injections so the Python runner can inject this dependency by type hint.
+
 ## 5. Reflection & Type Mapping
 
 Brimley maps standard Python type hints to JSON Schema types to facilitate tool-calling.
@@ -112,3 +140,11 @@ Brimley maps standard Python type hints to JSON Schema types to facilitate tool-
 |`List[T]`|`array`|See [collection support](brimley-function-arguments.md#collection-support)|
 |`Optional[T]`|`T`|Property is marked as "not required"|
 |`Enum`|`string`|Uses the Enum members as `enum` values|
+
+### System Argument Filtering
+
+For MCP-facing schemas, Brimley hides system-injected arguments so external callers only see business inputs.
+
+- `BrimleyContext`-typed parameters are excluded from discovered/public argument schema.
+- `mcp.server.fastmcp.Context`-typed parameters are excluded from discovered/public argument schema.
+- User-supplied arguments remain visible and validated as normal.

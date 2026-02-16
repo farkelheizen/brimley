@@ -254,3 +254,55 @@ def calculate_tax(amount: float, rate: float) -> float:
 
     with pytest.raises(ValueError, match="Validation error"):
         parse_python_file(f)
+
+
+def test_parse_python_file_infers_inline_arguments_from_handler_signature(tmp_path):
+    f = tmp_path / "logic.py"
+    f.write_text('''"""
+---
+name: summarize
+type: python_function
+handler: summarize
+return_shape: string
+---
+"""
+def summarize(name: str, retries: int = 2, enabled: bool = True) -> str:
+    return name
+''')
+
+    func = parse_python_file(f)
+
+    assert func.arguments is not None
+    assert "inline" in func.arguments
+    assert func.arguments["inline"] == {
+        "name": "string",
+        "retries": {"type": "int", "default": 2},
+        "enabled": {"type": "bool", "default": True},
+    }
+
+
+def test_parse_python_file_omits_injected_context_typed_arguments(tmp_path):
+    f = tmp_path / "logic.py"
+    f.write_text('''"""
+---
+name: agent_tool
+type: python_function
+handler: agent_tool
+return_shape: string
+---
+"""
+from brimley.core.context import BrimleyContext
+from mcp.server.fastmcp import Context
+
+def agent_tool(prompt: str, ctx: BrimleyContext, mcp_ctx: Context, count: int = 1) -> str:
+    return prompt
+''')
+
+    func = parse_python_file(f)
+
+    assert func.arguments is not None
+    inline = func.arguments["inline"]
+    assert "prompt" in inline
+    assert "count" in inline
+    assert "ctx" not in inline
+    assert "mcp_ctx" not in inline
