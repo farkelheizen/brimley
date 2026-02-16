@@ -1,6 +1,7 @@
 import importlib
 import inspect
-from typing import Any, Dict, get_args, get_origin, Annotated
+import asyncio
+from typing import Any, Dict, Optional, get_args, get_origin, Annotated
 from brimley.core.models import PythonFunction
 from brimley.core.context import BrimleyContext
 from brimley.core.di import AppState, Config, Connection
@@ -11,7 +12,13 @@ class PythonRunner:
     Executes a PythonFunction with robust Dependency Injection.
     """
 
-    def run(self, func: PythonFunction, args: Dict[str, Any], context: BrimleyContext) -> Any:
+    def run(
+        self,
+        func: PythonFunction,
+        args: Dict[str, Any],
+        context: BrimleyContext,
+        runtime_injections: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         """
         Executes the function handler.
         1. Loads the callable.
@@ -22,9 +29,21 @@ class PythonRunner:
         handler = self._load_handler(func.handler)
         
         # Prepare arguments
-        final_args = self._resolve_dependencies(handler, args, context)
+        final_args = self._resolve_dependencies(handler, args, context, runtime_injections=runtime_injections)
         
         raw_result = handler(**final_args)
+
+        if inspect.isawaitable(raw_result):
+            async def _await_and_map() -> Any:
+                awaited_result = await raw_result
+                return ResultMapper.map_result(awaited_result, func, context)
+
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                return asyncio.run(_await_and_map())
+
+            return _await_and_map()
         
         # Validate result against return_shape if specified
         return ResultMapper.map_result(raw_result, func, context)
@@ -47,7 +66,13 @@ class PythonRunner:
         except (ValueError, ImportError, AttributeError) as e:
             raise ImportError(f"Could not load handler '{handler_path}': {str(e)}")
 
-    def _resolve_dependencies(self, handler, resolved_args: Dict[str, Any], context: BrimleyContext) -> Dict[str, Any]:
+    def _resolve_dependencies(
+        self,
+        handler,
+        resolved_args: Dict[str, Any],
+        context: BrimleyContext,
+        runtime_injections: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Inspects the handler signature and injects dependencies.
         """
@@ -79,7 +104,11 @@ class PythonRunner:
             # Check for Dependency Injection via Annotation
             annotation = type_hints.get(param_name, param.annotation)
             
-            injected_value, is_injected = self._get_dependency(annotation, context)
+            injected_value, is_injected = self._get_dependency(
+                annotation,
+                context,
+                runtime_injections=runtime_injections,
+            )
             
             if is_injected:
                 final_kwargs[param_name] = injected_value
@@ -92,12 +121,35 @@ class PythonRunner:
 
         return final_kwargs
 
-    def _get_dependency(self, annotation, context: BrimleyContext) -> tuple[Any, bool]:
+    def _get_dependency(
+        self,
+        annotation,
+        context: BrimleyContext,
+        runtime_injections: Optional[Dict[str, Any]] = None,
+    ) -> tuple[Any, bool]:
         """
         Parses an annotation to see if it requests a dependency.
         Returns (value, True) if injected, or (None, False) if not.
         Raises KeyError/AttributeError if dependency is found but missing in context.
         """
+        if self._is_brimley_context_annotation(annotation):
+            return context, True
+
+        if self._is_fastmcp_context_annotation(annotation):
+            if runtime_injections:
+                for key in (
+                    "mcp_context",
+                    "mcp",
+                    "ctx",
+                    "context",
+                    "fastmcp_context",
+                    "mcp.server.fastmcp.Context",
+                ):
+                    if key in runtime_injections:
+                        return runtime_injections[key], True
+
+            return None, False
+
         if get_origin(annotation) is Annotated:
             args = get_args(annotation)
             # args[0] is the type, args[1:] are metadata
@@ -121,3 +173,42 @@ class PythonRunner:
                         return context.databases[meta], True
         
         return None, False
+
+    def _is_brimley_context_annotation(self, annotation: Any) -> bool:
+        """
+        Determine whether an annotation targets BrimleyContext injection.
+        """
+        if annotation is BrimleyContext:
+            return True
+
+        if isinstance(annotation, type):
+            try:
+                return issubclass(annotation, BrimleyContext)
+            except TypeError:
+                return False
+
+        if isinstance(annotation, str):
+            normalized = annotation.replace(" ", "")
+            return normalized in {"BrimleyContext", "brimley.core.context.BrimleyContext"}
+
+        return False
+
+    def _is_fastmcp_context_annotation(self, annotation: Any) -> bool:
+        """
+        Determine whether an annotation targets FastMCP Context injection.
+        """
+        if isinstance(annotation, str):
+            normalized = annotation.replace(" ", "")
+            return normalized in {
+                "Context",
+                "mcp.server.fastmcp.Context",
+                "fastmcp.Context",
+                "fastmcp.server.context.Context",
+            }
+
+        annotation_name = getattr(annotation, "__name__", None)
+        annotation_module = getattr(annotation, "__module__", None)
+        return annotation_name == "Context" and annotation_module in {
+            "mcp.server.fastmcp",
+            "fastmcp.server.context",
+        }

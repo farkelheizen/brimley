@@ -17,6 +17,7 @@ from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
 from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.mcp.mock import MockMCPContext
 from brimley.runtime.reload_contracts import (
     ReloadCommandResult,
     ReloadCommandStatus,
@@ -64,6 +65,7 @@ class BrimleyREPL:
             self.context.databases = initialize_databases(self.context.databases)
         
         self.dispatcher = Dispatcher()
+        self.mock_mcp_context = MockMCPContext()
         self.prompt_session = PromptSession()
         self.mcp_server = None
         self.mcp_server_thread = None
@@ -553,7 +555,12 @@ class BrimleyREPL:
         try:
             OutputFormatter.log(f"Executing '{func_name}'...", severity="info")
             resolved_args = ArgumentResolver.resolve(func, parsed_input, self.context)
-            result = self.dispatcher.run(func, resolved_args, self.context)
+            result = self.dispatcher.run(
+                func,
+                resolved_args,
+                self.context,
+                runtime_injections={"mcp_context": self.mock_mcp_context},
+            )
             OutputFormatter.print_data(result)
         except Exception as e:
             OutputFormatter.log(f"Execution failed: {e}", severity="error")

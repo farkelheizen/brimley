@@ -40,6 +40,23 @@ Generates a greeting message.
 PYTHONPATH=../src poetry run brimley invoke hello --root . --input '{name: "Developer"}'
 ```
 
+### 4. Python Agent Function (`agent_sample`)
+
+Demonstrates MCP context injection in a Python function (`mcp_ctx: Context`) and calls `session.sample(...)`.
+
+Run this in REPL to use the local mock MCP context:
+
+```bash
+PYTHONPATH=../src poetry run brimley repl --root .
+```
+
+Then execute:
+
+```text
+brimley > agent_sample {prompt: "Summarize the Brimley project in one line."}
+# Prints [Mock Sampling] in the terminal and returns a mock sample payload
+```
+
 ---
 
 ## 🔄 Running via REPL (Interactive)
@@ -69,6 +86,9 @@ brimley > calculate_tax {amount: 250, rate: 0.15}
 
 brimley > hello {name: "Brimley User"}
 # Returns "Hello Brimley User! Welcome to Brimley."
+
+brimley > agent_sample {prompt: "Summarize Brimley in one line."}
+# Prints [Mock Sampling] and returns a dict with sample_text/model metadata
 
 brimley > /quit
 ```
@@ -101,4 +121,5 @@ PYTHONPATH=../src poetry run brimley mcp-serve --root . --host 127.0.0.1 --port 
 - `setup_db.py`: Initialization script for the SQLite database.
 - `users.sql`: SQL function definition with metadata frontmatter.
 - `calc.py`: Python function definition.
+- `agent_sample.py`: Python function example using MCP context injection and `session.sample(...)`.
 - `hello.md`: Template function definition using Jinja2.

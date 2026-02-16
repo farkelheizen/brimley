@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from brimley.core.models import BrimleyFunction, PythonFunction, SqlFunction, TemplateFunction
 from brimley.core.context import BrimleyContext
 from brimley.execution.python_runner import PythonRunner
@@ -14,14 +14,20 @@ class Dispatcher:
         self.sql_runner = SqlRunner()
         self.jinja_runner = JinjaRunner()
 
-    def run(self, func: BrimleyFunction, args: Dict[str, Any], context: BrimleyContext) -> Any:
+    def run(
+        self,
+        func: BrimleyFunction,
+        args: Dict[str, Any],
+        context: BrimleyContext,
+        runtime_injections: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         # Note: We match against specific types. 
         # If new types are added, this needs updating.
         
         if func.type == "python_function": 
             # Check type string or isinstance if classes are distinct
             if isinstance(func, PythonFunction):
-                return self.python_runner.run(func, args, context)
+                return self.python_runner.run(func, args, context, runtime_injections=runtime_injections)
             
         elif func.type == "sql_function":
             if isinstance(func, SqlFunction):
