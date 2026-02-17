@@ -1,6 +1,9 @@
 import importlib
 import inspect
 import asyncio
+import sys
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Dict, Optional, get_args, get_origin, Annotated
 from brimley.core.models import PythonFunction
 from brimley.core.context import BrimleyContext
@@ -26,7 +29,12 @@ class PythonRunner:
         3. Merges explicit args with injected args.
         4. Calls the function.
         """
-        handler = self._load_handler(func.handler)
+        try:
+            handler = self._load_handler(func.handler, context=context, runtime_injections=runtime_injections)
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc):
+                raise
+            handler = self._load_handler(func.handler)
         
         # Prepare arguments
         final_args = self._resolve_dependencies(handler, args, context, runtime_injections=runtime_injections)
@@ -48,7 +56,12 @@ class PythonRunner:
         # Validate result against return_shape if specified
         return ResultMapper.map_result(raw_result, func, context)
 
-    def _load_handler(self, handler_path: str):
+    def _load_handler(
+        self,
+        handler_path: str,
+        context: Optional[BrimleyContext] = None,
+        runtime_injections: Optional[Dict[str, Any]] = None,
+    ):
         """
         Loads the function from the dot-notation path string.
         e.g. "my_module.utils.my_func"
@@ -58,13 +71,113 @@ class PythonRunner:
 
         try:
             module_name, func_name = handler_path.rsplit(".", 1)
-            module = importlib.import_module(module_name)
+            module = self._import_module_with_roots(module_name, context=context, runtime_injections=runtime_injections)
             func = getattr(module, func_name)
             if not callable(func):
                 raise TypeError(f"Handler '{handler_path}' is not callable.")
             return func
         except (ValueError, ImportError, AttributeError) as e:
             raise ImportError(f"Could not load handler '{handler_path}': {str(e)}")
+
+    def _import_module_with_roots(
+        self,
+        module_name: str,
+        context: Optional[BrimleyContext] = None,
+        runtime_injections: Optional[Dict[str, Any]] = None,
+    ):
+        """Import module, retrying with candidate root directories on sys.path."""
+        try:
+            return importlib.import_module(module_name)
+        except ModuleNotFoundError as first_error:
+            roots = self._collect_import_roots(context=context, runtime_injections=runtime_injections)
+            if not roots:
+                raise first_error
+
+            with self._temporary_sys_path(roots):
+                try:
+                    return importlib.import_module(module_name)
+                except ModuleNotFoundError:
+                    discovered_roots = self._discover_module_roots(module_name, roots)
+                    if not discovered_roots:
+                        raise first_error
+
+            with self._temporary_sys_path(discovered_roots):
+                return importlib.import_module(module_name)
+
+    def _collect_import_roots(
+        self,
+        context: Optional[BrimleyContext] = None,
+        runtime_injections: Optional[Dict[str, Any]] = None,
+    ) -> list[str]:
+        """Collect candidate filesystem roots for Python module imports."""
+        candidate_values: list[Any] = []
+
+        if runtime_injections:
+            candidate_values.extend(
+                runtime_injections.get(key)
+                for key in ("root_dir", "project_root", "root", "scan_root")
+            )
+
+        if context is not None and isinstance(context.app, dict):
+            candidate_values.extend(
+                context.app.get(key)
+                for key in ("root_dir", "project_root", "root", "scan_root")
+            )
+
+        roots: list[str] = []
+        for value in candidate_values:
+            if value is None:
+                continue
+
+            root_path = Path(value).expanduser().resolve()
+            root_path_str = str(root_path)
+            if root_path.exists() and root_path_str not in roots:
+                roots.append(root_path_str)
+
+        return roots
+
+    def _discover_module_roots(self, module_name: str, roots: list[str]) -> list[str]:
+        """Discover additional import roots by locating module files under known roots."""
+        discovered: list[str] = []
+        module_path = Path(*module_name.split("."))
+        terminal_name = module_path.name
+
+        for root in roots:
+            root_path = Path(root)
+            if not root_path.exists():
+                continue
+
+            exact_module_file = root_path / module_path.with_suffix(".py")
+            exact_package_init = root_path / module_path / "__init__.py"
+            if exact_module_file.exists() or exact_package_init.exists():
+                if root not in discovered:
+                    discovered.append(root)
+                continue
+
+            for match in root_path.rglob(f"{terminal_name}.py"):
+                match_parent = str(match.parent.resolve())
+                if match_parent not in discovered:
+                    discovered.append(match_parent)
+
+        return discovered
+
+    @contextmanager
+    def _temporary_sys_path(self, roots: list[str]):
+        """Temporarily prepend import roots to sys.path."""
+        inserted: list[str] = []
+        for root in reversed(roots):
+            if root not in sys.path:
+                sys.path.insert(0, root)
+                inserted.append(root)
+
+        try:
+            yield
+        finally:
+            for root in inserted:
+                try:
+                    sys.path.remove(root)
+                except ValueError:
+                    continue
 
     def _resolve_dependencies(
         self,
