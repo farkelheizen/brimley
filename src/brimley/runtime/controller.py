@@ -38,6 +38,7 @@ class BrimleyRuntimeController:
 
         config_data = load_config(self.root_dir / "brimley.yaml")
         self.context = BrimleyContext(config_dict=config_data)
+        self.context.app["root_dir"] = str(self.root_dir.expanduser().resolve())
 
         self.reload_engine = PartitionedReloadEngine()
         self.auto_reload_watcher: Optional[PollingWatcher] = None

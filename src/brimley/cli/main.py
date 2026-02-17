@@ -69,6 +69,7 @@ def mcp_serve(
         config_path = Path.cwd() / "brimley.yaml"
 
     context = BrimleyContext(config_dict=load_config(config_path))
+    context.app["root_dir"] = str(root_dir.expanduser().resolve())
 
     effective_watch = watch_override if watch_override is not None else context.auto_reload.enabled
     effective_host = host if host is not None else context.mcp.host
@@ -181,6 +182,7 @@ def invoke(
         
     config_data = load_config(config_path)
     context = BrimleyContext(config_dict=config_data)
+    context.app["root_dir"] = str(root_path.expanduser().resolve())
 
     # Hydrate databases
     if context.databases:

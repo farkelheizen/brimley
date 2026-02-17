@@ -1,4 +1,5 @@
 import pytest
+import sys
 from typing import Annotated
 from brimley.execution.python_runner import PythonRunner
 from brimley.core.models import PythonFunction
@@ -46,8 +47,96 @@ class MockPythonRunner(PythonRunner):
     def __init__(self, handler_map):
         self.handler_map = handler_map
         
-    def _load_handler(self, handler_path: str):
+    def _load_handler(self, handler_path: str, context=None, runtime_injections=None):
         return self.handler_map.get(handler_path)
+
+
+def test_python_imports_module_from_context_root_dir(tmp_path):
+    module_name = "external_tax_module"
+    module_file = tmp_path / f"{module_name}.py"
+    module_file.write_text(
+        "def calculate_tax(amount: float, rate: float) -> float:\n"
+        "    return amount * rate\n"
+    )
+
+    sys.modules.pop(module_name, None)
+
+    runner = PythonRunner()
+    context = BrimleyContext()
+    context.app["root_dir"] = str(tmp_path)
+
+    func = PythonFunction(
+        name="calculate_tax",
+        type="python_function",
+        return_shape="float",
+        handler=f"{module_name}.calculate_tax",
+    )
+
+    result = runner.run(func, {"amount": 10, "rate": 10}, context)
+    assert result == 100
+
+    sys.modules.pop(module_name, None)
+
+
+def test_python_imports_module_from_runtime_injection_root_dir(tmp_path):
+    module_name = "external_tax_runtime_module"
+    module_file = tmp_path / f"{module_name}.py"
+    module_file.write_text(
+        "def calculate_tax(amount: float, rate: float) -> float:\n"
+        "    return amount * rate\n"
+    )
+
+    sys.modules.pop(module_name, None)
+
+    runner = PythonRunner()
+    context = BrimleyContext()
+
+    func = PythonFunction(
+        name="calculate_tax",
+        type="python_function",
+        return_shape="float",
+        handler=f"{module_name}.calculate_tax",
+    )
+
+    result = runner.run(
+        func,
+        {"amount": 5, "rate": 2},
+        context,
+        runtime_injections={"root_dir": tmp_path},
+    )
+    assert result == 10
+
+    sys.modules.pop(module_name, None)
+
+
+def test_python_imports_nested_module_from_context_root_dir(tmp_path):
+    functions_dir = tmp_path / "functions"
+    functions_dir.mkdir()
+
+    module_name = "calc"
+    module_file = functions_dir / f"{module_name}.py"
+    module_file.write_text(
+        "def calculate_tax(amount: float, rate: float) -> float:\n"
+        "    return amount * rate\n"
+    )
+
+    sys.modules.pop(module_name, None)
+
+    runner = PythonRunner()
+    context = BrimleyContext()
+    context.app["root_dir"] = str(tmp_path)
+
+    func = PythonFunction(
+        name="calculate_tax",
+        type="python_function",
+        return_shape="float",
+        handler="calc.calculate_tax",
+    )
+
+    result = runner.run(func, {"amount": 10, "rate": 10}, context)
+    assert result == 100
+
+    sys.modules.pop(module_name, None)
 
 def test_python_di_injection(context):
     def di_func(
