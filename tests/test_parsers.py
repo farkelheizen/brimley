@@ -215,6 +215,30 @@ def calculate_tax(amount: float, rate: float) -> float:
     func = parse_python_file(f)
     assert func.handler == "custom.module.calculate_tax"
 
+
+def test_parse_python_file_infers_handler_when_omitted(tmp_path, monkeypatch):
+    root = tmp_path / "project"
+    pkg = root / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+
+    f = pkg / "sha.py"
+    f.write_text('''"""
+---
+name: sha256_file
+type: python_function
+return_shape: string
+---
+"""
+def sha256_file(filepath: str) -> str:
+    return filepath
+''')
+
+    monkeypatch.syspath_prepend(str(root))
+    func = parse_python_file(f)
+
+    assert func.handler == "pkg.sha.sha256_file"
+
 def test_parse_python_file_with_mcp_tool(tmp_path):
     f = tmp_path / "logic.py"
     f.write_text('''"""

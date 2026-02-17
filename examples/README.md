@@ -67,6 +67,14 @@ PYTHONPATH=../src poetry run brimley invoke nested_greeting --root . --input '{n
 
 This calls `hello` internally via `ctx.execute_function_by_name(...)`.
 
+### 6. Python File Hash Function (`sha256_file`)
+
+Calculates a SHA256 digest for a file path.
+
+```bash
+PYTHONPATH=../src poetry run brimley invoke sha256_file --root . --input '{filepath: "../README.md"}'
+```
+
 ---
 
 ## 🔄 Running via REPL (Interactive)
@@ -99,6 +107,9 @@ brimley > hello {name: "Brimley User"}
 
 brimley > agent_sample {prompt: "Summarize Brimley in one line."}
 # Prints [Mock Sampling] and returns a dict with sample_text/model metadata
+
+brimley > sha256_file {filepath: "../README.md"}
+# Returns SHA256 digest string
 
 brimley > /quit
 ```
@@ -133,4 +144,5 @@ PYTHONPATH=../src poetry run brimley mcp-serve --root . --host 127.0.0.1 --port 
 - `calc.py`: Python function definition.
 - `agent_sample.py`: Python function example using MCP context injection and `session.sample(...)`.
 - `nested_greeting.py`: Python function example that composes another Brimley function by name via `BrimleyContext`.
+- `sha256_file.py`: Python function example that computes SHA256 digest for a file path.
 - `hello.md`: Template function definition using Jinja2.

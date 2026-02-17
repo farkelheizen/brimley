@@ -160,6 +160,25 @@ def _infer_module_name(file_path: Path) -> str:
 
     return file_path.stem
 
+
+def _infer_handler_name(tree: ast.Module, configured_name: str | None) -> str | None:
+    """
+    Infer the Python callable name when `handler` is omitted.
+    """
+    function_names = [
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+    if configured_name and configured_name in function_names:
+        return configured_name
+
+    if len(function_names) == 1:
+        return function_names[0]
+
+    return None
+
 def parse_python_file(file_path: Path) -> PythonFunction:
     """
     Parses a .py file looking for frontmatter in the module docstring.
@@ -193,9 +212,14 @@ def parse_python_file(file_path: Path) -> PythonFunction:
     # Let's require it.
     
     handler = meta.get("handler")
+    module_name = _infer_module_name(file_path)
+
     if isinstance(handler, str) and "." not in handler:
-        module_name = _infer_module_name(file_path)
         meta["handler"] = f"{module_name}.{handler}"
+    elif not handler:
+        inferred_handler_name = _infer_handler_name(tree, meta.get("name"))
+        if inferred_handler_name:
+            meta["handler"] = f"{module_name}.{inferred_handler_name}"
 
     if not meta.get("arguments"):
         handler_path = meta.get("handler")
