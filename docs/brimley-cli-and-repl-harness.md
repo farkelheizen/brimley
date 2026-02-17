@@ -32,7 +32,7 @@ Used for single-shot execution.
             
         - If parsing fails, exit with: `Error: Invalid YAML format in [FILE/STRING].`
             
-    3. **Execution:** Call `registry.get(name).run(context, resolved_args)`.
+    3. **Execution:** Resolve/execute through Brimley's standard invoke pipeline (`execute_function_by_name`), which performs function lookup, argument resolution, and dispatcher execution.
         
     4. **Output:** Print _only_ the function result to `STDOUT`. All system logs or errors must go to `STDERR`.
         
@@ -143,6 +143,8 @@ In `repl` mode, the `BrimleyContext` is persistent.
 - Modifications to `context.app` made by one function call are available to subsequent calls.
     
 - This allows for testing multi-step workflows (e.g., a "setup" function followed by a "logic" function).
+
+Nested function composition inside handlers follows the same pipeline via `BrimleyContext.execute_function_by_name(...)`.
     
 
 ## 6. Usage Examples
