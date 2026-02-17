@@ -11,8 +11,7 @@ from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
 from brimley.discovery.scanner import Scanner
 from brimley.core.registry import Registry
-from brimley.execution.dispatcher import Dispatcher
-from brimley.execution.arguments import ArgumentResolver
+from brimley.execution.execute_helper import execute_function_by_name
 from brimley.cli.formatter import OutputFormatter
 from brimley.cli.repl import BrimleyREPL
 from brimley.mcp.adapter import BrimleyMCPAdapter
@@ -208,17 +207,7 @@ def invoke(
     context.functions.register_all(scan_result.functions)
     context.entities.register_all(scan_result.entities)
 
-    # 3. Lookup Function
-    try:
-        func = context.functions.get(function_name)
-    except KeyError:
-        OutputFormatter.log(f"Error: Function '{function_name}' not found.", severity="error")
-        # Accessing internal _items for logging is okay, but list(context.functions) also works
-        available = [f.name for f in context.functions]
-        OutputFormatter.log(f"Available: {available}", severity="info")
-        raise typer.Exit(code=1)
-
-    # 4. Parse Input
+    # 3. Parse Input
     parsed_input = {}
     if input_data and input_data.strip():
         # Check if it is a file
@@ -240,22 +229,26 @@ def invoke(
             OutputFormatter.log(f"Error: Invalid YAML format in input: {e}", severity="error")
             raise typer.Exit(code=1)
 
-    # 5. Resolve Arguments
+    # 4. Execute
     try:
-        resolved_args = ArgumentResolver.resolve(func, parsed_input, context)
-    except Exception as e:
+        result = execute_function_by_name(
+            context=context,
+            function_name=function_name,
+            input_data=parsed_input,
+        )
+    except KeyError:
+        OutputFormatter.log(f"Error: Function '{function_name}' not found.", severity="error")
+        available = [f.name for f in context.functions]
+        OutputFormatter.log(f"Available: {available}", severity="info")
+        raise typer.Exit(code=1)
+    except ValueError as e:
         OutputFormatter.log(f"Error Resolving Arguments: {e}", severity="error")
         raise typer.Exit(code=1)
-
-    # 6. Execute
-    dispatcher = Dispatcher()
-    try:
-        result = dispatcher.run(func, resolved_args, context)
     except Exception as e:
         OutputFormatter.log(f"Execution Error: {e}", severity="error")
         raise typer.Exit(code=1)
 
-    # 7. Output
+    # 5. Output
     OutputFormatter.print_data(result)
 
 if __name__ == "__main__":
