@@ -5,6 +5,7 @@ from brimley.core.entity import Entity
 from brimley.core.models import PythonFunction
 from brimley.execution.arguments import ArgumentResolver
 from brimley.execution.dispatcher import Dispatcher
+from brimley.execution import execute_helper
 from brimley.mcp.mock import MockMCPContext
 
 
@@ -111,3 +112,48 @@ def test_injection_mock_mcp_with_entity_and_from_context_resolution() -> None:
     assert result["ctx_id"] == id(context)
     assert result["mcp_ctx_id"] == id(mock_mcp_context)
     assert result["sample_text"] == "local mock sample"
+
+
+def test_nested_invoke_helper_preserves_context_and_mcp_injection(
+    monkeypatch,
+) -> None:
+    context = BrimleyContext()
+    mock_mcp_context = MockMCPContext(response_text="nested mock sample")
+
+    FastMCPContext = type("Context", (), {"__module__": "mcp.server.fastmcp"})
+
+    def nested_handler(request_id: str, ctx: BrimleyContext, mcp_ctx: FastMCPContext) -> dict[str, Any]:
+        sample_result = mcp_ctx.session.sample(messages=[{"role": "user", "content": "nested"}])
+        return {
+            "request_id": request_id,
+            "ctx_id": id(ctx),
+            "mcp_ctx_id": id(mcp_ctx),
+            "sample_text": sample_result.message.content[0].text,
+        }
+
+    class HelperDispatcher(MockPythonRunnerDispatcher):
+        def __init__(self):
+            super().__init__({"test.handlers.nested": nested_handler})
+
+    nested_func = PythonFunction(
+        name="nested_injected",
+        type="python_function",
+        return_shape="dict",
+        handler="test.handlers.nested",
+        arguments={"inline": {"request_id": "string"}},
+    )
+    context.functions.register(nested_func)
+
+    monkeypatch.setattr(execute_helper, "Dispatcher", HelperDispatcher)
+
+    result = execute_helper.execute_function_by_name(
+        context=context,
+        function_name="nested_injected",
+        input_data={"request_id": "nested-1"},
+        runtime_injections={"mcp_context": mock_mcp_context},
+    )
+
+    assert result["request_id"] == "nested-1"
+    assert result["ctx_id"] == id(context)
+    assert result["mcp_ctx_id"] == id(mock_mcp_context)
+    assert result["sample_text"] == "nested mock sample"
