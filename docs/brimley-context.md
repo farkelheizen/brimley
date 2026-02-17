@@ -79,6 +79,8 @@ class BrimleyContext(Entity):
     - **Purpose**: The lookup table for all executable capabilities available to the system.
         
     - **Access**: `ctx.functions.get("calculate_tax")`
+
+    - **Composition Helper**: `ctx.execute_function_by_name("calculate_tax", {"subtotal": 100})`
         
 7. **`entities`**:
     
@@ -137,3 +139,16 @@ class BrimleyContext(Entity):
     - REPL watch mode and host runtime controller read `ctx.auto_reload` to configure polling/debounce behavior.
 
     - Successful reload cycles may refresh MCP tools; failed cycles keep unaffected runtime domains available.
+
+## Function Composition from Context
+
+`BrimleyContext` includes a convenience method for nested function execution:
+
+```python
+ctx.execute_function_by_name(
+    function_name="child_function",
+    input_data={"name": "Ada"},
+)
+```
+
+This method delegates to Brimley's standard invocation pipeline (lookup -> argument resolution -> dispatcher execution), so nested calls behave the same way as CLI and REPL invocations.

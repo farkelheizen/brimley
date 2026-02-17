@@ -127,6 +127,31 @@ def summarize_with_model(prompt: str, mcp_ctx: Context):
 
 During MCP tool execution, Brimley forwards FastMCP `ctx` into runtime injections so the Python runner can inject this dependency by type hint.
 
+### E. Executing Another Brimley Function by Name
+
+Handlers that receive `BrimleyContext` can compose other registered Brimley functions by name using the same runtime pipeline as CLI/REPL.
+
+```python
+from brimley.core.context import BrimleyContext
+
+def orchestrate_user_lookup(user_id: int, ctx: BrimleyContext):
+    result = ctx.execute_function_by_name(
+        function_name="get_user_profile",
+        input_data={"user_id": user_id},
+    )
+    return {
+        "user_id": user_id,
+        "profile": result,
+    }
+```
+
+Behavior notes:
+
+- Function lookup is performed against `ctx.functions`.
+- Arguments are resolved through normal Brimley argument rules (`from_context`, defaults, casting).
+- Execution is delegated to the dispatcher, preserving dependency injection behavior.
+- `KeyError` indicates missing function name, while argument/runtime failures bubble from resolver/runner.
+
 ## 5. Reflection & Type Mapping
 
 Brimley maps standard Python type hints to JSON Schema types to facilitate tool-calling.
