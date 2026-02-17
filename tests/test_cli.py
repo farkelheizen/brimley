@@ -113,6 +113,42 @@ SELECT * FROM users WHERE id = :id
     assert "123" in result.stdout
 
 
+def test_invoke_uses_execute_function_helper(monkeypatch, tmp_path):
+    (tmp_path / "funcs").mkdir()
+    func_file = tmp_path / "funcs" / "hello.md"
+    func_file.write_text("""---
+name: hello
+type: template_function
+return_shape: string
+arguments:
+  inline:
+    name: string
+---
+Hello {{ args.name }}""")
+
+    captured = {}
+
+    def fake_execute_helper(context, function_name, input_data, runtime_injections=None):
+        captured["context"] = context
+        captured["function_name"] = function_name
+        captured["input_data"] = input_data
+        captured["runtime_injections"] = runtime_injections
+        return "helper-result"
+
+    monkeypatch.setattr("brimley.cli.main.execute_function_by_name", fake_execute_helper)
+
+    result = runner.invoke(
+        app,
+        ["invoke", "hello", "--root", str(tmp_path / "funcs"), "--input", '{"name": "CLI"}'],
+    )
+
+    assert result.exit_code == 0
+    assert "helper-result" in result.stdout
+    assert captured["function_name"] == "hello"
+    assert captured["input_data"] == {"name": "CLI"}
+    assert captured["runtime_injections"] is None
+
+
 def test_repl_flag_mcp_enables_embedded(monkeypatch, tmp_path):
     captured = {}
 

@@ -70,3 +70,19 @@ class BrimleyContext(Entity):
         if "PromptMessage" not in self.entities:
             PromptMessage.name = "PromptMessage"
             self.entities.register(PromptMessage) # type: ignore
+
+    def execute_function_by_name(
+        self,
+        function_name: str,
+        input_data: Dict[str, Any],
+        runtime_injections: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        """Execute a registered function by name using the standard runtime pipeline."""
+        from brimley.execution.execute_helper import execute_function_by_name
+
+        return execute_function_by_name(
+            context=self,
+            function_name=function_name,
+            input_data=input_data,
+            runtime_injections=runtime_injections,
+        )
