@@ -63,6 +63,23 @@ def agent_tool(prompt: str, ctx: BrimleyContext, mcp_ctx: Context):
 ```
 
 Brimley also keeps these system parameters out of exposed tool schemas, so LLM clients only provide true business arguments.
+
+Python MCP tools can also compose other Brimley functions by name through `BrimleyContext`:
+
+```python
+from brimley.core.context import BrimleyContext
+from mcp.server.fastmcp import Context
+
+def orchestrator_tool(prompt: str, ctx: BrimleyContext, mcp_ctx: Context):
+  sampled = mcp_ctx.session.sample(messages=[{"role": "user", "content": prompt}])
+  return ctx.execute_function_by_name(
+    function_name="post_process_summary",
+    input_data={"text": sampled.message.content[0].text},
+    runtime_injections={"mcp_context": mcp_ctx},
+  )
+```
+
+This preserves normal nested invocation semantics (lookup, argument resolution, dispatch) while still allowing MCP context passthrough for downstream Python handlers that request `Context`.
     
 
 ## The Embedded REPL Server
