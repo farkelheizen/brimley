@@ -47,6 +47,7 @@ class BrimleyREPL:
             
         config_data = load_config(config_path)
         self.context = BrimleyContext(config_dict=config_data)
+        self.context.app["root_dir"] = str(self.root_dir.expanduser().resolve())
 
         # CLI override takes precedence over config/default
         self.mcp_embedded_enabled = (
@@ -198,6 +199,7 @@ class BrimleyREPL:
                     config_path = Path.cwd() / "brimley.yaml"
                     config_data = load_config(config_path)
                     self.context = BrimleyContext(config_dict=config_data)
+                    self.context.app["root_dir"] = str(self.root_dir.expanduser().resolve())
 
                     # Keep CLI override precedence after reset
                     self.mcp_embedded_enabled = (
