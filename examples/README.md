@@ -57,6 +57,16 @@ brimley > agent_sample {prompt: "Summarize the Brimley project in one line."}
 # Prints [Mock Sampling] in the terminal and returns a mock sample payload
 ```
 
+### 5. Python Nested Function Composition (`nested_greeting`)
+
+Demonstrates a `python_function` receiving `BrimleyContext` and executing another Brimley function by name.
+
+```bash
+PYTHONPATH=../src poetry run brimley invoke nested_greeting --root . --input '{name: "Composer"}'
+```
+
+This calls `hello` internally via `ctx.execute_function_by_name(...)`.
+
 ---
 
 ## 🔄 Running via REPL (Interactive)
@@ -122,4 +132,5 @@ PYTHONPATH=../src poetry run brimley mcp-serve --root . --host 127.0.0.1 --port 
 - `users.sql`: SQL function definition with metadata frontmatter.
 - `calc.py`: Python function definition.
 - `agent_sample.py`: Python function example using MCP context injection and `session.sample(...)`.
+- `nested_greeting.py`: Python function example that composes another Brimley function by name via `BrimleyContext`.
 - `hello.md`: Template function definition using Jinja2.
