@@ -1,6 +1,7 @@
 import pytest
 import json
 import sys
+import hashlib
 from pathlib import Path
 from typer.testing import CliRunner
 from brimley.cli.main import app
@@ -54,3 +55,24 @@ def test_e2e_calc_python():
     assert result.exit_code == 0
     # Output should be the float result 10.0
     assert "10.0" in result.stdout
+
+
+def test_e2e_sha256_python(tmp_path):
+    file_to_hash = tmp_path / "payload.txt"
+    file_to_hash.write_text("brimley-test-payload", encoding="utf-8")
+    expected = hashlib.sha256(b"brimley-test-payload").hexdigest()
+
+    result = runner.invoke(
+        app,
+        [
+            "invoke",
+            "sha256_file",
+            "--root",
+            str(EXAMPLES_DIR),
+            "--input",
+            json.dumps({"filepath": str(file_to_hash)}),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert expected in result.stdout
