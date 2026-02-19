@@ -1,8 +1,9 @@
 import pytest
+import ast
 from brimley.discovery.utils import parse_frontmatter
 from brimley.discovery.sql_parser import parse_sql_file
 from brimley.discovery.template_parser import parse_template_file
-from brimley.discovery.python_parser import parse_python_file
+from brimley.discovery.python_parser import parse_python_file, _scan_for_reload_hazards
 from brimley.core.models import DiscoveredEntity, SqlFunction, TemplateFunction, PythonFunction
 
 # -----------------------------------------------------------------------------
@@ -388,3 +389,71 @@ def test_parse_python_file_returns_empty_for_no_decorator_or_legacy_frontmatter(
 
     parsed = parse_python_file(f)
     assert parsed == []
+
+
+def test_scan_for_reload_hazards_detects_top_level_side_effect_calls_when_reload_enabled():
+    tree = ast.parse(
+        '''from brimley import function
+
+open("file.txt", "w")
+
+@function
+def greet() -> str:
+    return "ok"
+'''
+    )
+
+    hazards = _scan_for_reload_hazards(tree)
+
+    assert len(hazards) == 1
+    assert "open" in hazards[0]
+
+
+def test_scan_for_reload_hazards_ignores_top_level_calls_when_reload_disabled():
+    tree = ast.parse(
+        '''from brimley import function
+
+open("file.txt", "w")
+
+@function(reload=False)
+def greet() -> str:
+    return "ok"
+'''
+    )
+
+    hazards = _scan_for_reload_hazards(tree)
+
+    assert hazards == []
+
+
+def test_scan_for_reload_hazards_detects_attribute_calls():
+    tree = ast.parse(
+        '''from brimley import function
+import subprocess
+
+subprocess.Popen(["echo", "hi"])
+
+@function(reload=True)
+def greet() -> str:
+    return "ok"
+'''
+    )
+
+    hazards = _scan_for_reload_hazards(tree)
+
+    assert len(hazards) == 1
+    assert "Popen" in hazards[0]
+
+
+def test_scan_for_reload_hazards_ignores_when_no_decorated_functions():
+    tree = ast.parse(
+        '''open("file.txt", "w")
+
+def greet() -> str:
+    return "ok"
+'''
+    )
+
+    hazards = _scan_for_reload_hazards(tree)
+
+    assert hazards == []

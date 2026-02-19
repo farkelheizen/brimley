@@ -19,6 +19,7 @@ INJECTED_TYPE_NAMES = {
 
 _FUNCTION_DECORATORS = {"function", "brimley.function"}
 _ENTITY_DECORATORS = {"entity", "brimley.entity"}
+_RELOAD_HAZARD_IDENTIFIERS = {"open", "connect", "start", "run", "thread", "popen", "call"}
 
 
 def _decorator_name(node: ast.AST) -> str | None:
@@ -120,6 +121,52 @@ def _find_brimley_decorators(tree: ast.Module) -> list[tuple[ast.AST, str, dict[
                 break
 
     return matches
+
+
+def _call_identifier(call_node: ast.Call) -> str | None:
+    if isinstance(call_node.func, ast.Name):
+        return call_node.func.id
+
+    if isinstance(call_node.func, ast.Attribute):
+        return call_node.func.attr
+
+    return None
+
+
+def _scan_for_reload_hazards(tree: ast.Module) -> list[str]:
+    """Detect top-level side-effect calls in modules with reload-enabled functions."""
+    decorators = _find_brimley_decorators(tree)
+    has_reload_enabled_function = any(
+        kind == "function" and bool(kwargs.get("reload", True))
+        for _, kind, kwargs in decorators
+    )
+
+    if not has_reload_enabled_function:
+        return []
+
+    hazards: list[str] = []
+    for top_level_node in tree.body:
+        if isinstance(top_level_node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+
+        for descendant in ast.walk(top_level_node):
+            if not isinstance(descendant, ast.Call):
+                continue
+
+            identifier = _call_identifier(descendant)
+            if not identifier:
+                continue
+
+            if identifier.lower() not in _RELOAD_HAZARD_IDENTIFIERS:
+                continue
+
+            line_number = getattr(descendant, "lineno", None)
+            if line_number is not None:
+                hazards.append(f"line {line_number}: {identifier}")
+            else:
+                hazards.append(identifier)
+
+    return hazards
 
 
 def _build_import_aliases(tree: ast.Module) -> dict[str, str]:
