@@ -12,6 +12,7 @@ from brimley.infrastructure.database import initialize_databases
 from brimley.discovery.scanner import Scanner
 from brimley.core.registry import Registry
 from brimley.execution.execute_helper import execute_function_by_name
+from brimley.cli.build import compile_assets
 from brimley.cli.formatter import OutputFormatter
 from brimley.cli.repl import BrimleyREPL
 from brimley.mcp.adapter import BrimleyMCPAdapter
@@ -154,6 +155,33 @@ def mcp_serve(
         if runtime_controller is not None:
             runtime_controller.stop_auto_reload()
             OutputFormatter.log("Auto-reload watcher stopped for mcp-serve.", severity="info")
+
+
+@app.command()
+def build(
+    root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
+    output: Annotated[Optional[Path], typer.Option("--output", "-o", help="Generated asset module path")] = None,
+):
+    """Compile SQL/template assets into a Python shim module for runtime discovery."""
+    try:
+        result = compile_assets(root_dir=root_dir, output_file=output)
+    except Exception as exc:
+        OutputFormatter.log(f"Build failed: {exc}", severity="error")
+        raise typer.Exit(code=1)
+
+    OutputFormatter.log(
+        (
+            f"Generated assets at {result.output_file} "
+            f"(sql={result.sql_functions}, templates={result.template_functions})"
+        ),
+        severity="success",
+    )
+
+    if result.diagnostics_count:
+        OutputFormatter.log(
+            f"Build completed with {result.diagnostics_count} scanner diagnostics.",
+            severity="warning",
+        )
 
 @app.command()
 def invoke(
