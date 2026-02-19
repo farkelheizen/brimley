@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib
+import linecache
 from pathlib import Path
 from typing import Dict, List
 
@@ -72,6 +74,7 @@ class PartitionedReloadEngine:
             if domain == ReloadDomain.ENTITIES:
                 context.entities = self._build_entities_registry(context, partitions.entities)
             elif domain == ReloadDomain.FUNCTIONS:
+                self._rehydrate_python_modules(partitions.functions)
                 context.functions = self._build_functions_registry(partitions.functions)
             elif domain == ReloadDomain.MCP_TOOLS:
                 # Phase 1 pipeline: tool domain is derived and summarized here.
@@ -102,6 +105,7 @@ class PartitionedReloadEngine:
             context.entities = self._build_entities_registry(context, partitions.entities)
 
         if decisions[ReloadDomain.FUNCTIONS].can_swap:
+            self._rehydrate_python_modules(partitions.functions)
             context.functions = self._build_functions_registry(partitions.functions)
 
         tools_count = (
@@ -151,6 +155,36 @@ class PartitionedReloadEngine:
         next_functions: Registry[BrimleyFunction] = Registry()
         next_functions.register_all(functions)
         return next_functions
+
+    def _rehydrate_python_modules(self, functions: List[BrimleyFunction]) -> None:
+        """Reload discovered Python modules for reload-enabled handlers."""
+        module_reload_policy: Dict[str, bool] = {}
+
+        for function in functions:
+            if getattr(function, "type", None) != "python_function":
+                continue
+
+            handler = getattr(function, "handler", None)
+            if not isinstance(handler, str) or "." not in handler:
+                continue
+
+            module_name = handler.rsplit(".", 1)[0]
+            should_reload = bool(getattr(function, "reload", True))
+            module_reload_policy[module_name] = module_reload_policy.get(module_name, False) or should_reload
+
+        importlib.invalidate_caches()
+
+        for module_name, should_reload in module_reload_policy.items():
+            if not should_reload:
+                continue
+
+            try:
+                module = importlib.import_module(module_name)
+                importlib.reload(module)
+            except Exception:
+                continue
+
+        linecache.checkcache()
 
     def _count_current_tools(self, context: BrimleyContext) -> int:
         return sum(1 for func in context.functions if getattr(getattr(func, "mcp", None), "type", None) == "tool")
