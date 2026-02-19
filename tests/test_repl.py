@@ -12,11 +12,15 @@ from pathlib import Path
 
 runner = CliRunner()
 
+
+def _combined_output(result) -> str:
+    return f"{result.stdout}{getattr(result, 'stderr', '')}"
+
 def test_repl_quit(tmp_path):
     (tmp_path / "funcs").mkdir()
     result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input="quit\n")
     assert result.exit_code == 0
-    assert "Exiting Brimley REPL" in result.stdout
+    assert "Exiting Brimley REPL" in _combined_output(result)
 
 def test_repl_invoke_hello(tmp_path):
     # Setup
@@ -58,8 +62,9 @@ def test_repl_reset(tmp_path):
     # We will test 'reset' simply by checking the message for now.
     
     result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="reset\nquit\n")
-    assert "Reloading..." in result.stdout
-    assert "Rescan complete" in result.stdout
+    output = _combined_output(result)
+    assert "Reloading..." in output
+    assert "Rescan complete" in output
 
 
 def test_repl_starts_auto_reload_watcher_when_enabled(tmp_path):
@@ -188,7 +193,7 @@ Hello {{ args.name }}""")
     repl_input = "hello\nname: MultiLine\n\nquit\n"
     
     result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input=repl_input)
-    assert "** Enter multi-line input" in result.stdout # We expect this prompt
+    assert "** Enter multi-line input" in _combined_output(result) # We expect this prompt
     assert "Hello MultiLine" in result.stdout
 
 def test_repl_admin_help(tmp_path):
@@ -216,7 +221,7 @@ def test_repl_admin_functions(tmp_path):
 def test_repl_admin_invalid(tmp_path):
     (tmp_path / "funcs").mkdir()
     result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input="/unknown_cmd\n/quit\n")
-    assert "Unknown admin command: /unknown_cmd" in result.stdout
+    assert "Unknown admin command: /unknown_cmd" in _combined_output(result)
 
 
 def test_repl_initializes_mock_mcp_context_on_startup(tmp_path):
@@ -404,8 +409,9 @@ Hello
     result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp"], input="/quit\n")
 
     assert result.exit_code == 0
-    assert "fastmcp" in result.stdout.lower()
-    assert "skipping embedded mcp" in result.stdout.lower()
+    output = _combined_output(result).lower()
+    assert "fastmcp" in output
+    assert "skipping embedded mcp" in output
 
 
 def test_repl_slash_quit_triggers_mcp_shutdown(tmp_path, monkeypatch):
@@ -510,7 +516,7 @@ Hello
     result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="/reload\n/functions\n/quit\n")
 
     assert result.exit_code == 0
-    assert "Reload success" in result.stdout
+    assert "Reload success" in _combined_output(result)
     assert "[template_function] hello" in result.stdout
 
 
@@ -528,8 +534,9 @@ Broken
     result = runner.invoke(app, ["repl", "--root", str(tmp_path)], input="/reload\n/quit\n")
 
     assert result.exit_code == 0
-    assert "Reload failed" in result.stdout
-    assert "ERR_PARSE_FAILURE" in result.stdout
+    output = _combined_output(result)
+    assert "Reload failed" in output
+    assert "ERR_PARSE_FAILURE" in output
 
 
 def test_repl_reload_dispatch_uses_shared_entrypoint_by_default(tmp_path, monkeypatch):
