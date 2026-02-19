@@ -47,7 +47,7 @@ class Scanner:
 
                 # 2. Parsing
                 try:
-                    obj = self._parse_file(file_path, file_type)
+                    parsed = self._parse_file(file_path, file_type)
                 except ValueError as e:
                     # Parsing failed (e.g., bad YAML, missing fields)
                     diagnostics.append(BrimleyDiagnostic(
@@ -66,43 +66,41 @@ class Scanner:
                     ))
                     continue
 
-                # 3. Validation
-                
-                # Name validation check
-                if not obj.name or not self.NAME_REGEX.match(obj.name):
-                    diagnostics.append(BrimleyDiagnostic(
-                        file_path=str(file_path),
-                        error_code="ERR_INVALID_NAME",
-                        message=f"'{obj.name}' is an invalid name.",
-                        suggestion="Names must start with a letter and contain only alphanumeric chars, underscores, or dashes.",
-                        line_number=None 
-                    ))
-                    continue
+                objects = parsed if isinstance(parsed, list) else [parsed]
 
-                if isinstance(obj, BrimleyFunction):
-                    # Duplicate check for functions
-                    if obj.name in seen_function_names:
+                for obj in objects:
+                    if not obj.name or not self.NAME_REGEX.match(obj.name):
                         diagnostics.append(BrimleyDiagnostic(
                             file_path=str(file_path),
-                            error_code="ERR_DUPLICATE_NAME",
-                            message=f"Function '{obj.name}' is already defined.",
-                            suggestion="Rename this function or removed the duplicate."
+                            error_code="ERR_INVALID_NAME",
+                            message=f"'{obj.name}' is an invalid name.",
+                            suggestion="Names must start with a letter and contain only alphanumeric chars, underscores, or dashes.",
+                            line_number=None
                         ))
                         continue
-                    seen_function_names.add(obj.name)
-                    functions.append(obj)
-                else:
-                    # Duplicate check for entities
-                    if obj.name in seen_entity_names:
-                        diagnostics.append(BrimleyDiagnostic(
-                            file_path=str(file_path),
-                            error_code="ERR_DUPLICATE_NAME",
-                            message=f"Entity '{obj.name}' is already defined.",
-                            suggestion="Rename this entity or removed the duplicate."
-                        ))
-                        continue
-                    seen_entity_names.add(obj.name)
-                    entities.append(obj)
+
+                    if isinstance(obj, BrimleyFunction):
+                        if obj.name in seen_function_names:
+                            diagnostics.append(BrimleyDiagnostic(
+                                file_path=str(file_path),
+                                error_code="ERR_DUPLICATE_NAME",
+                                message=f"Function '{obj.name}' is already defined.",
+                                suggestion="Rename this function or removed the duplicate."
+                            ))
+                            continue
+                        seen_function_names.add(obj.name)
+                        functions.append(obj)
+                    else:
+                        if obj.name in seen_entity_names:
+                            diagnostics.append(BrimleyDiagnostic(
+                                file_path=str(file_path),
+                                error_code="ERR_DUPLICATE_NAME",
+                                message=f"Entity '{obj.name}' is already defined.",
+                                suggestion="Rename this entity or removed the duplicate."
+                            ))
+                            continue
+                        seen_entity_names.add(obj.name)
+                        entities.append(obj)
 
         return BrimleyScanResult(functions=functions, entities=entities, diagnostics=diagnostics)
 
