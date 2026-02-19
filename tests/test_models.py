@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 from brimley.core.models import (
     BrimleyFunction, 
+    DiscoveredEntity,
     PythonFunction, 
     SqlFunction, 
     TemplateFunction,
@@ -98,6 +99,29 @@ def test_python_function_properties():
     assert pf.handler == "pkg.mod.func"
     assert pf.type == "python_function"
 
+
+def test_python_function_reload_defaults_true():
+    pf = PythonFunction(
+        name="reload_default",
+        type="python_function",
+        handler="pkg.mod.func",
+        return_shape="void",
+    )
+
+    assert pf.reload is True
+
+
+def test_python_function_reload_can_be_disabled():
+    pf = PythonFunction(
+        name="reload_disabled",
+        type="python_function",
+        handler="pkg.mod.func",
+        return_shape="void",
+        reload=False,
+    )
+
+    assert pf.reload is False
+
 def test_python_function_type_validator():
     """Verify type must be 'python_function'."""
     with pytest.raises(ValidationError):
@@ -171,3 +195,22 @@ def test_auto_reload_settings_interval_minimum_enforced():
     """Verify interval lower bound is validated."""
     with pytest.raises(ValidationError):
         AutoReloadSettings(interval_ms=99)
+
+
+def test_discovered_entity_supports_python_entity_type_and_handler():
+    entity = DiscoveredEntity(
+        name="User",
+        type="python_entity",
+        handler="pkg.models.User",
+    )
+
+    assert entity.name == "User"
+    assert entity.type == "python_entity"
+    assert entity.handler == "pkg.models.User"
+
+
+def test_discovered_entity_defaults_to_legacy_entity_type():
+    entity = DiscoveredEntity(name="LegacyEntity")
+
+    assert entity.type == "entity"
+    assert entity.handler is None
