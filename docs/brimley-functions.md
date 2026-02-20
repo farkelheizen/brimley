@@ -1,11 +1,14 @@
 # Brimley Functions
-> Version 0.2
+> Version 0.3
 
-Brimley functions are the core execution units of the framework. They are defined in files containing YAML frontmatter followed by the function body.
+Brimley functions are the core execution units of the framework. In 0.3, Python functions are defined with decorators, while SQL/template functions continue to use embedded metadata frontmatter.
 
-## Frontmatter Schema
+## Metadata Schema
 
-Every Brimley function requires a YAML frontmatter block enclosed in `---`. The frontmatter defines the function's metadata, arguments, return shape, and external integrations (like MCP).
+Function metadata defines the function's name, type, arguments, return shape, and optional MCP exposure settings.
+
+- **Python functions**: metadata comes from `@function(...)` decorators and type hints.
+- **SQL/template functions**: metadata comes from frontmatter in source files.
 
 ## Core Properties
 
@@ -25,13 +28,15 @@ All functions share core properties.
 
 | **Function Type** | **File Extension(s)** | **Description** |
 | -- | -- | -- |
-| [Template Functions](brimley-template-functions.md) | *.yaml, *.md | Used to define strings or a list of messages based upon the arguments and an internal template |
-| [Python Functions](brimley-python-functions.md) | *.py | TBD |
-| [SQL Functions](brimley-sql-functions.md) | *.sql | TBD |
+| [Template Functions](brimley-template-functions.md) | `*.md` (and metadata-backed templates) | Jinja-based prompt/text rendering with argument mapping. |
+| [Python Functions](brimley-python-functions.md) | `*.py` | Native Python handlers discovered from `@function` / `@function(...)`. |
+| [SQL Functions](brimley-sql-functions.md) | `*.sql` | Parameterized SQL execution with metadata frontmatter. |
 
 ### The `mcp` Block
 
 The `mcp` block marks a function as eligible for MCP tool export via FastMCP.
+
+For Python functions, the equivalent is typically `@function(mcpType="tool")`.
 
 ```
 mcp:
