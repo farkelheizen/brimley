@@ -1,5 +1,5 @@
 # Brimley Project Structure & Dependencies
-> Version 0.2.0
+> Version 0.3
 
 This document outlines the directory structure and required libraries for the initial Python implementation of Brimley.
 
@@ -65,8 +65,10 @@ brimley2/
 │   ├── brimley-python-functions.md
 │   ├── brimley-sql-functions.md
 │   └── brimley-template-functions.md
-├── examples/               # Sample Brimley functions
-│   ├── calc.py
+├── examples/               # Sample Brimley modules and assets
+│   ├── calc.py             # Python module with multiple @function definitions
+│   ├── agent_sample.py     # Python module mixing @function and DI patterns
+│   ├── user_entity.py      # Python @entity definition
 │   ├── hello.md
 │   └── users.sql
 ├── tests/                  # Pytest suite
