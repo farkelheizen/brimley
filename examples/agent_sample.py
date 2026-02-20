@@ -1,19 +1,17 @@
-"""
----
-name: agent_sample
-type: python_function
-return_shape: dict
-handler: agent_sample
-arguments:
-  inline:
-    prompt: string
-mcp:
-  type: tool
----
-"""
 from typing import Any
 
-async def agent_sample(prompt: str, mcp_ctx: "Context") -> dict[str, Any]:
+from brimley import function
+
+
+class Context:
+    pass
+
+
+Context.__module__ = "mcp.server.fastmcp"
+
+
+@function(name="agent_sample", mcpType="tool")
+async def agent_sample(prompt: str, mcp_ctx: Context) -> dict:
     if hasattr(mcp_ctx, "sample"):
         sample = await mcp_ctx.sample(messages=prompt)
         sample_text = sample.text if hasattr(sample, "text") else str(sample)
