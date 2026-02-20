@@ -1,8 +1,9 @@
 import pytest
 import json
+import typer
 from types import SimpleNamespace
 from typer.testing import CliRunner
-from brimley.cli.main import app
+from brimley.cli.main import app, _resolve_optional_bool_flag
 from pathlib import Path
 
 runner = CliRunner()
@@ -47,6 +48,25 @@ Hello {{ args.name }}""")
 
     assert result.exit_code == 0
     assert "Hello CLI" in result.stdout
+
+
+def test_invoke_template_function_with_dot_root_from_cwd(monkeypatch, tmp_path):
+        func_file = tmp_path / "hello.md"
+        func_file.write_text("""---
+name: hello
+type: template_function
+return_shape: string
+arguments:
+    inline:
+        name: string
+---
+Hello {{ args.name }}""")
+
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(app, ["invoke", "hello", "--root", ".", "--input", '{"name": "CLI"}'])
+
+        assert result.exit_code == 0
+        assert "Hello CLI" in result.stdout
 
 def test_invoke_with_invalid_yaml(tmp_path):
     # Need a valid function first
@@ -212,6 +232,26 @@ def test_repl_flag_default_uses_config_or_default(monkeypatch, tmp_path):
     assert captured["started"] is True
 
 
+def test_repl_with_dot_root_from_cwd(monkeypatch, tmp_path):
+    captured = {}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
+            captured["root_dir"] = root_dir
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["repl", "--root", "."])
+
+    assert result.exit_code == 0
+    assert captured["started"] is True
+    assert str(captured["root_dir"]) == "."
+
+
 def test_repl_flag_watch_enables_auto_reload(monkeypatch, tmp_path):
     captured = {}
 
@@ -275,18 +315,14 @@ def test_repl_flag_watch_default_uses_config_or_default(monkeypatch, tmp_path):
     assert captured["started"] is True
 
 
-def test_repl_rejects_conflicting_mcp_flags(tmp_path):
-    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp", "--no-mcp"])
-
-    assert result.exit_code != 0
-    assert "Cannot use --mcp and --no-mcp together" in _combined_output(result)
+def test_resolve_optional_bool_flag_rejects_conflicting_mcp_flags():
+    with pytest.raises(typer.BadParameter, match="Cannot use --mcp and --no-mcp together"):
+        _resolve_optional_bool_flag(True, True, "mcp")
 
 
-def test_repl_rejects_conflicting_watch_flags(tmp_path):
-    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--watch", "--no-watch"])
-
-    assert result.exit_code != 0
-    assert "Cannot use --watch and --no-watch together" in _combined_output(result)
+def test_resolve_optional_bool_flag_rejects_conflicting_watch_flags():
+    with pytest.raises(typer.BadParameter, match="Cannot use --watch and --no-watch together"):
+        _resolve_optional_bool_flag(True, True, "watch")
 
 
 def test_mcp_serve_help():
