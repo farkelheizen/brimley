@@ -1,16 +1,20 @@
 # Brimley Function Arguments
-> Version 0.2
+> Version 0.3
 
-This specification defines the syntax and validation rules for **Brimley Arguments**, used to define inputs for Tools (SQL, API, Python) and Prompts.
+This specification defines argument inference and validation rules for Brimley functions.
+
+In 0.3, Python function signatures are the primary source for argument discovery.
 
 ## 1. Global Structure
 
-Arguments are defined as a Dictionary containing two primary keys. Both are optional, but at least one must be present if the tool requires input.
+Internally, Brimley stores arguments in an `arguments` object that may include:
 
 | **Key**      | **Type** | **Description**                                                                                                                               |
 | ------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `entity_ref` | `string` | A reference to a named Entity (e.g., `User`). Inherits all properties of that Entity as arguments.  The Entity must be dictionary-compatable. |
 | `inline`     | `dict`   | Manual argument definitions. Supports **Shorthand**, **Complex**, or **JSON Schema** modes.                                                   |
+
+For Python functions, this structure is typically inferred from type hints and `Annotated` metadata.
 
 ---
 
@@ -22,11 +26,13 @@ The Brimley parser determines the complexity of the arguments based on the "fing
 
 - **Trigger:** Values are primitive type strings.
 - **Use Case:** Quick scripts and simple parameters.
-- 
-```YAML
-inline:
-  customer_id: int
-  is_active: bool
+
+```python
+from brimley import function
+
+@function
+def get_customer(customer_id: int, is_active: bool) -> dict:
+    return {"customer_id": customer_id, "is_active": is_active}
 ```
 
 ### B. Complex Mode (Brimley Metadata)
@@ -34,24 +40,31 @@ inline:
 - **Trigger:** Values are dictionaries, but the top-level `inline` key does **not** contain `properties`.
 - **Use Case:** Adding defaults, constraints, and descriptions.
 
-```YAML
-inline:
-  limit:
-    type: int
-    default: 10
-    maximum: 100
-    description: "Number of records to return"
+```python
+from brimley import function
+
+@function
+def list_orders(limit: int = 10) -> list[dict]:
+    return []
 ```
 ### C. Standard Mode (JSON Schema)
 
 - **Trigger:** The `inline` dictionary contains the `properties` key.
 - **Use Case:** Strict industry-standard compliance and copy-pasting existing schemas.
 
-```YAML
-inline:
-  properties:
-    customer_id: { type: integer }
-  required: [customer_id]
+```python
+from brimley import function
+
+@function(
+    arguments={
+        "inline": {
+            "properties": {"customer_id": {"type": "integer"}},
+            "required": ["customer_id"],
+        }
+    }
+)
+def get_orders(customer_id: int) -> list[dict]:
+    return []
 ```
 
 ---
@@ -69,15 +82,17 @@ When an argument defines `from_context`, the framework resolves the value at ex
 
 **Example:**
 
-```
-args:
-  inline:
-    # Provided by user
-    reason: string
-    # Automatically injected from system state
-    actor_id:
-      type: string
-      from_context: "app.user.id"
+```python
+from typing import Annotated
+from brimley import function, AppState, Config
+
+@function
+def audit_action(
+    reason: str,
+    actor_id: Annotated[str, AppState("user.id")],
+    region: Annotated[str, Config("region")],
+) -> dict:
+    return {"reason": reason, "actor_id": actor_id, "region": region}
 ```
 
 
@@ -111,19 +126,18 @@ The exception would be for the `entity_ref` argument.  When defined, this must b
 ## 6. Implementation Example (Full Spec)
 
 **Example**: arguments for get_orders tool that fetches customer orders with optional filtering:
-```YAML
-arguments:
-  entity_ref: Customer # Inherits Customer fields
-  inline:
-    status:
-      type: string
-      default: "shipped"
-      enum: ["pending", "shipped", "cancelled"]
-    min_total: float
-    start_date: date
-    user_id:
-      type: string
-      from_context: "app.user.id"
+```python
+from typing import Annotated
+from brimley import function, AppState
+
+@function
+def get_orders(
+    customer_id: int,
+    status: str = "shipped",
+    min_total: float = 0.0,
+    user_id: Annotated[str, AppState("user.id")] = "",
+) -> list[dict]:
+    return []
 ```
 
 ## 7. Resource Path Parameters
@@ -131,13 +145,12 @@ arguments:
 When a resource has path parameters, it will require an `arguments` property.  All of the same rules apply.
 
 **Example:** `/docs/{category}/{sub_category}/{doc_index}`
-```YAML
-arguments:
-  entity_ref: ~
-  inline:
-    category: string
-    sub_category: string
-    doc_index: int
+```python
+from brimley import function
+
+@function
+def get_doc(category: str, sub_category: str, doc_index: int) -> str:
+    return f"/{category}/{sub_category}/{doc_index}"
 ```
 
 #### Handling "Wildcards" (The Catch-all)
@@ -146,10 +159,10 @@ If you want to allow a user to pass an arbitrary number of sub-paths (e.g., `/d
 
 **Example:** `/docs/{category}/{remainder*}`
 
-```YAML
-arguments:
-  entity_ref: ~
-  inline:
-    category: string
-    remainder: string # This would capture "hardware/sensors/v1"
+```python
+from brimley import function
+
+@function
+def get_doc_recursive(category: str, remainder: str) -> str:
+    return f"/{category}/{remainder}"
 ```
