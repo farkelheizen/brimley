@@ -1,5 +1,7 @@
 # Model Context Protocol (MCP) Integration
 
+> Version 0.3
+
 Brimley acts as a powerful single source of truth for your organizational functions. With built-in support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/ "null"), you can seamlessly expose your Brimley functions as tools to Large Language Models (LLMs) and agents like Claude, LangGraph, or AutoGen.
 
 Under the hood, Brimley uses [FastMCP](https://github.com/jlowin/fastmcp) to create and host these tools.
@@ -8,29 +10,23 @@ FastMCP is optional at install time. Brimley only requires it when you actually 
 
 ## Exposing a Function as an MCP Tool
 
-To expose a Brimley function as an MCP tool, simply add the `mcp` block to the function's YAML frontmatter and set its `type` to `tool`.
+For Python functions, expose tools with the decorator option `mcpType="tool"`.
 
-```
----
-name: create_user
-type: sql_function
-description: "Creates a new user in the database"
-arguments:
-  inline:
-    username:
-      type: string
-      description: "The desired username"
-    role:
-      type: string
-      default: "viewer"
-  support_email:
-    type: string
-    from_context: "config.support_email"
-mcp:
-  type: tool
----
-INSERT INTO users (username, role, created_by) 
-VALUES ({{ args.username }}, {{ args.role }}, '{{ args.support_email }}')
+```python
+from typing import Annotated
+from brimley import function, Config
+
+@function(name="create_user", mcpType="tool")
+def create_user(
+    username: str,
+    role: str = "viewer",
+    support_email: Annotated[str, Config("support_email")] = "",
+) -> dict:
+    return {
+        "username": username,
+        "role": role,
+        "created_by": support_email,
+    }
 ```
 
 ### Argument Filtering (Smart Context)
@@ -50,9 +46,11 @@ In the example above:
 For Python tools, Brimley passes FastMCP invocation context through the MCP adapter into runtime injections. This allows handlers to declare `mcp.server.fastmcp.Context` directly in their function signature.
 
 ```python
+from brimley import function
 from brimley.core.context import BrimleyContext
 from mcp.server.fastmcp import Context
 
+@function(mcpType="tool")
 def agent_tool(prompt: str, ctx: BrimleyContext, mcp_ctx: Context):
     sample = mcp_ctx.session.sample(messages=[{"role": "user", "content": prompt}])
     return {
@@ -67,9 +65,11 @@ Brimley also keeps these system parameters out of exposed tool schemas, so LLM c
 Python MCP tools can also compose other Brimley functions by name through `BrimleyContext`:
 
 ```python
+from brimley import function
 from brimley.core.context import BrimleyContext
 from mcp.server.fastmcp import Context
 
+@function(mcpType="tool")
 def orchestrator_tool(prompt: str, ctx: BrimleyContext, mcp_ctx: Context):
   sampled = mcp_ctx.session.sample(messages=[{"role": "user", "content": prompt}])
   return ctx.execute_function_by_name(
@@ -84,7 +84,7 @@ This preserves normal nested invocation semantics (lookup, argument resolution, 
 
 ## The Embedded REPL Server
 
-When you start the Brimley REPL via the CLI (`brimley repl`), Brimley discovers all functions tagged with `mcp: type: tool`. If any are found and MCP embedding is enabled (`mcp.embedded: true`, or via CLI override), Brimley spins up an embedded FastMCP server in the background.
+When you start the Brimley REPL via the CLI (`brimley repl`), Brimley discovers all functions exposed as MCP tools (for Python this is typically `@function(mcpType="tool")`). If any are found and MCP embedding is enabled (`mcp.embedded: true`, or via CLI override), Brimley spins up an embedded FastMCP server in the background.
 
 Because the interactive REPL requires your terminal's standard input/output, the embedded FastMCP server defaults to using the **SSE (Server-Sent Events) transport** over HTTP.
 
