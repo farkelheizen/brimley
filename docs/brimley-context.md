@@ -1,6 +1,6 @@
 # Brimley Context
 
-> Version 0.2
+> Version 0.3
 
 The `BrimleyContext` is the central nervous system of a Brimley application.
 
@@ -126,13 +126,13 @@ class BrimleyContext(Entity):
         
     - Found **Functions** are registered into `ctx.functions`.
         
-    - Found **Entities** (defined in YAML) are registered into `ctx.entities`.
+    - Found **Entities** (typically decorated Python classes) are registered into `ctx.entities`.
         
 3. **Execution**:
     
     - When a request comes in (or a CLI command is run), the `context` is passed to the dispatcher.
         
-    - Functions receive the `context` as their first argument (or via dependency injection), allowing them to access settings, config, state, or look up entity definitions.
+    - Functions receive context objects via dependency injection (for example, `BrimleyContext` or `fastmcp.Context` type hints), allowing access to settings, config, state, and runtime services.
 
 4. **Optional Runtime Reload**:
 
@@ -152,3 +152,28 @@ ctx.execute_function_by_name(
 ```
 
 This method delegates to Brimley's standard invocation pipeline (lookup -> argument resolution -> dispatcher execution), so nested calls behave the same way as CLI and REPL invocations.
+
+## Injection Examples
+
+### BrimleyContext injection
+
+```python
+from brimley import function
+from brimley.core.context import BrimleyContext
+
+@function
+def audit_ping(ctx: BrimleyContext) -> dict:
+    return {"functions": len(ctx.functions), "env": ctx.settings.env}
+```
+
+### fastmcp.Context injection
+
+```python
+from brimley import function
+from fastmcp.server.context import Context
+
+@function(mcpType="tool")
+def sample_with_context(prompt: str, mcp_ctx: Context) -> str:
+    sample = mcp_ctx.session.sample(messages=[{"role": "user", "content": prompt}])
+    return sample.message.content[0].text
+```
