@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from brimley.runtime.controller import BrimleyRuntimeController
+from brimley.execution.execute_helper import execute_function_by_name
 from brimley.runtime.reload_contracts import ReloadCommandStatus
 
 
@@ -235,5 +236,45 @@ def test_runtime_autoreload_failed_watched_update_does_not_invoke_mcp_refresh(tm
     assert failure_result.status == ReloadCommandStatus.FAILURE
     assert refresh_calls["count"] == 1
     assert "hello" in runtime.context.functions
+
+    runtime.stop_auto_reload()
+
+
+def test_runtime_autoreload_refreshes_python_function_body_only_changes(tmp_path: Path):
+    _write_config(tmp_path)
+
+    python_func = tmp_path / "calc.py"
+    python_func.write_text(
+        '''from brimley import function
+
+@function(name="calc")
+def calc() -> int:
+    return 1
+'''
+    )
+
+    runtime = BrimleyRuntimeController(tmp_path)
+    first_result = runtime.load_initial()
+
+    assert first_result.status == ReloadCommandStatus.SUCCESS
+    assert execute_function_by_name(runtime.context, "calc", {}) == 1
+
+    runtime.start_auto_reload(background=False)
+
+    python_func.write_text(
+        '''from brimley import function
+
+@function(name="calc")
+def calc() -> int:
+    return 2
+'''
+    )
+
+    runtime.poll_once(now=0.00)
+    second_result = runtime.poll_once(now=0.20)
+
+    assert second_result is not None
+    assert second_result.status == ReloadCommandStatus.SUCCESS
+    assert execute_function_by_name(runtime.context, "calc", {}) == 2
 
     runtime.stop_auto_reload()
