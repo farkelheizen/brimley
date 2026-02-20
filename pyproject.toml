@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "brimley"
-version = "0.2.0"
+version = "0.3.0"
 description = "A lightweight, file-based function execution engine."
-authors = ["Brimley Team"]
+authors = ["Bill Spratley"]
 readme = "README.md"
 packages = [{include = "brimley", from = "src"}]
 
