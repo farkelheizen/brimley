@@ -1,6 +1,6 @@
 # Brimley Function Return Shape Specification
 
-> Version 0.2
+> Version 0.3
 
 This specification defines the syntax and validation rules for **Brimley Function Return Shapes**, used to define the expected output structure for Functions (SQL, API, Python).
 
@@ -15,7 +15,7 @@ The `return_shape` property is polymorphic. It can be defined as a **String**
 
 ## 2. Shorthand String Mode
 
-When `return_shape` is a string, Brimley parses it as a root-level type. This is the most common format for SQL and Python functions.
+When `return_shape` is a string, Brimley parses it as a root-level type. This is the most common format for SQL and Python functions. In Python, this is typically inferred from return type annotations.
 
 ### A. Primitive Returns
 
@@ -28,6 +28,20 @@ Used for functions that return a single scalar value.
 - `return_shape: int`
     
 - `return_shape: bool`
+
+Python examples:
+
+```python
+from brimley import function
+
+@function
+def ping() -> str:
+  return "pong"
+
+@function
+def get_count() -> int:
+  return 42
+```
     
 
 ### B. Entity and Collection Returns
@@ -39,6 +53,25 @@ Used for functions returning mapped objects or lists of objects.
 - `return_shape: Order[]` (Returns a list of `Order` Entities; common for SELECT statements)
     
 - `return_shape: string[]` (Returns a list of raw strings)
+
+Python examples:
+
+```python
+from pydantic import BaseModel
+from brimley import function
+
+class Order(BaseModel):
+  id: int
+  status: str
+
+@function
+def get_order(order_id: int) -> Order:
+  return Order(id=order_id, status="shipped")
+
+@function
+def list_orders() -> list[Order]:
+  return [Order(id=1, status="shipped")]
+```
     
 
 ## 3. Structured Object Mode
@@ -62,6 +95,16 @@ return_shape:
     is_valid: bool
 ```
 
+Decorator example with explicit structured shape:
+
+```python
+from brimley import function
+
+@function(return_shape={"inline": {"order_id": "int", "is_valid": "bool"}})
+def validate_order(order_id: int) -> dict:
+    return {"order_id": order_id, "is_valid": True}
+```
+
 ### B. Inline Complex (Brimley Metadata)
 
 - **Trigger:** `inline` values are dictionaries.
@@ -73,6 +116,22 @@ return_shape:
     revenue:
       type: decimal
       description: "Total calculated revenue"
+```
+
+Decorator example:
+
+```python
+from brimley import function
+
+@function(
+  return_shape={
+    "inline": {
+      "revenue": {"type": "decimal", "description": "Total calculated revenue"}
+    }
+  }
+)
+def revenue_summary() -> dict:
+  return {"revenue": 10.5}
 ```
 
 ## 4. Void and Omitted Shapes
@@ -90,6 +149,13 @@ return_shape:
 |Returns a list of strings|`return_shape: string[]`|
 |Returns a list of database rows|`return_shape: MyEntity[]`|
 |Returns a wrapped object|`return_shape: { inline: { data: MyEntity[], count: int } }`|
+
+Python annotation equivalents:
+
+- `def noop() -> None` -> `void`
+- `def names() -> list[str]` -> `string[]`
+- `def order() -> Order` -> `Order`
+- `def orders() -> list[Order]` -> `Order[]`
 
 > [!TIP]
 > 

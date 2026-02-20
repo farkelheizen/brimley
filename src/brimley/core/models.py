@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from brimley.core.entity import Entity, PromptMessage
+from brimley.core.entity import Entity as BaseEntity, PromptMessage
 
 class FrameworkSettings(BaseSettings):
     """
@@ -54,7 +54,7 @@ class MCPConfig(BaseModel):
     type: Literal["tool"]
     description: Optional[str] = None
 
-class BrimleyFunction(Entity):
+class BrimleyFunction(BaseEntity):
     """
     Abstract base class for all function types in Brimley.
     """
@@ -70,7 +70,16 @@ class PythonFunction(BrimleyFunction):
     A function backed by native Python code.
     """
     type: Literal["python_function"]
+    reload: bool = True
     handler: Optional[str] = None  # e.g., "my_pkg.mod.func_name"
+
+
+class DiscoveredEntity(BaseEntity):
+    """A discovered entity definition from YAML or Python sources."""
+
+    type: Literal["entity", "python_entity"] = "entity"
+    handler: Optional[str] = None
+    raw_definition: Optional[Dict[str, Any]] = None
 
 class SqlFunction(BrimleyFunction):
     """

@@ -1,7 +1,7 @@
 # Brimley SQL Functions
 
-> Version 0.02
-SQL Functions in Brimley allow developers to expose database queries as Tools or internal logic. They support advanced metadata definition via YAML blocks embedded directly within `.sql` files or via standalone `.yaml` definition files.
+> Version 0.3
+SQL Functions in Brimley allow developers to expose database queries as Tools or internal logic. They support metadata blocks embedded directly within `.sql` files.
 
 ## 1. Core Properties
 
@@ -35,7 +35,7 @@ args:
     customer_id: int
     status: string
 return_shape:
-  entity_ref: Order[]
+  entity_ref: User[]
 ---
 */
 
@@ -110,7 +110,9 @@ SQL functions typically return an array of objects (rows).
 
 ### Entity Auto-Mapping
 
-If a `return_shape` uses an `entity_ref` (e.g., `Order` or `Order[]`), Brimley automatically maps the raw database rows to that Entity.
+If a `return_shape` uses an `entity_ref` (e.g., `User` or `User[]`), Brimley automatically maps raw database rows to that entity.
+
+In 0.3, these entities are expected to be Python-based entities discovered from decorated classes (for example `@entity(name="User")`).
 
 1. **Column Matching:** The columns returned by your SQL `SELECT` statement must match the fields defined in the Entity.
     

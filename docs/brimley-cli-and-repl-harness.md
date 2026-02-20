@@ -1,5 +1,5 @@
-# Brimley 0.2 CLI & REPL Harness
-> Version 0.2
+# Brimley 0.3 CLI & REPL Harness
+> Version 0.3
 
 The CLI is the primary interface for invoking and testing functions. It is designed to be "pipe-friendly" for automation while providing a rich interactive environment for developers.
 
@@ -13,7 +13,7 @@ brimley [ROOT_DIR] [COMMAND] [ARGS]
 
 - **`ROOT_DIR`**: (Optional) The directory to scan for Brimley functions. Defaults to the current working directory (`.`).
     
-- **`COMMAND`**: One of `invoke`, `repl`, or `mcp-serve`.
+- **`COMMAND`**: One of `invoke`, `repl`, `mcp-serve`, or `build`.
     
 
 ## 2. Commands
@@ -100,6 +100,25 @@ Runs Brimley as a non-REPL MCP server using FastMCP over SSE.
     - exits successfully with warning if no MCP tools are discovered
     - exits with error if FastMCP is required but unavailable
             
+### `brimley [ROOT_DIR] build [--output PATH]`
+
+Compiles non-Python assets into a generated Python shim module for runtime/compiled discovery.
+
+- **Process:**
+
+    1. **Scan:** Discover SQL/template functions from `ROOT_DIR` using standard scanner behavior.
+
+    2. **Generate:** Emit a `brimley_assets.py` module (or custom `--output`) containing decorated shim functions.
+
+    3. **Bridge:** Allow runtime reflection discovery (`scan_module`) to discover SQL/template assets via generated Python metadata.
+
+- **Flags:**
+    - `--output`, `-o`: optional output path for generated module file.
+
+- **Output:**
+    - Success message with generated file path and counts (`sql`, `templates`).
+    - Warning when scanner diagnostics were present during build.
+
 
 ## 3. Argument Merging Logic
 
@@ -198,6 +217,17 @@ Your current score is 1500.
 
 brimley > quit
 [SYSTEM] Goodbye.
+```
+
+### C. Build Assets
+
+```
+brimley ./tools build
+# [SYSTEM] Generated assets at ./tools/brimley_assets.py (sql=2, templates=1)
+```
+
+```
+brimley ./tools build --output ./dist/brimley_assets.py
 ```
 
 ## Embedded FastMCP Server

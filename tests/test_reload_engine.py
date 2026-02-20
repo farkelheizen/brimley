@@ -1,6 +1,8 @@
 from brimley.core.context import BrimleyContext
 from brimley.core.entity import Entity
-from brimley.core.models import TemplateFunction
+from types import ModuleType
+
+from brimley.core.models import PythonFunction, TemplateFunction
 from brimley.discovery.scanner import BrimleyScanResult
 from brimley.runtime.reload_contracts import ReloadDomain
 from brimley.runtime.reload_engine import PartitionedReloadEngine
@@ -252,3 +254,123 @@ def test_reload_engine_policy_rolls_back_downstream_domains_only():
     assert "new_tool" not in context.functions
     assert result.summary.tools == 1
     assert any(diag.message.startswith("[functions]") for diag in result.diagnostics)
+
+
+def test_reload_engine_rehydrates_only_reload_enabled_python_modules(monkeypatch):
+    engine = PartitionedReloadEngine()
+
+    reloaded_modules: list[str] = []
+    invalidate_calls = {"count": 0}
+    checkcache_calls = {"count": 0}
+
+    module_a = ModuleType("pkg.a")
+    module_b = ModuleType("pkg.b")
+
+    def fake_invalidate() -> None:
+        invalidate_calls["count"] += 1
+
+    def fake_import_module(name: str):
+        if name == "pkg.a":
+            return module_a
+        if name == "pkg.b":
+            return module_b
+        raise ModuleNotFoundError(name)
+
+    def fake_reload(module):
+        reloaded_modules.append(module.__name__)
+        return module
+
+    def fake_checkcache() -> None:
+        checkcache_calls["count"] += 1
+
+    monkeypatch.setattr("brimley.runtime.reload_engine.importlib.invalidate_caches", fake_invalidate)
+    monkeypatch.setattr("brimley.runtime.reload_engine.importlib.import_module", fake_import_module)
+    monkeypatch.setattr("brimley.runtime.reload_engine.importlib.reload", fake_reload)
+    monkeypatch.setattr("brimley.runtime.reload_engine.linecache.checkcache", fake_checkcache)
+
+    functions = [
+        PythonFunction(
+            name="f1",
+            type="python_function",
+            handler="pkg.a.one",
+            return_shape="void",
+            reload=True,
+        ),
+        PythonFunction(
+            name="f2",
+            type="python_function",
+            handler="pkg.a.two",
+            return_shape="void",
+            reload=False,
+        ),
+        PythonFunction(
+            name="f3",
+            type="python_function",
+            handler="pkg.b.three",
+            return_shape="void",
+            reload=False,
+        ),
+    ]
+
+    engine._rehydrate_python_modules(functions)
+
+    assert reloaded_modules == ["pkg.a"]
+    assert invalidate_calls["count"] == 1
+    assert checkcache_calls["count"] == 1
+
+
+def test_reload_engine_policy_rehydrates_only_when_function_domain_swaps(monkeypatch):
+    context = BrimleyContext()
+    engine = PartitionedReloadEngine()
+
+    calls = {"count": 0}
+
+    def fake_rehydrate(_functions):
+        calls["count"] += 1
+
+    monkeypatch.setattr(engine, "_rehydrate_python_modules", fake_rehydrate)
+
+    success_scan = BrimleyScanResult(
+        functions=[
+            PythonFunction(
+                name="reloadable",
+                type="python_function",
+                handler="pkg.mod.reloadable",
+                return_shape="void",
+                reload=True,
+            )
+        ],
+        entities=[Entity(name="EntityOk")],
+        diagnostics=[],
+    )
+
+    result_success = engine.apply_reload_with_policy(context, success_scan)
+
+    assert result_success.blocked_domains == []
+    assert calls["count"] == 1
+
+    failure_scan = BrimleyScanResult(
+        functions=[
+            PythonFunction(
+                name="broken",
+                type="python_function",
+                handler="pkg.mod.broken",
+                return_shape="void",
+                reload=True,
+            )
+        ],
+        entities=[Entity(name="EntityStillOk")],
+        diagnostics=[
+            BrimleyDiagnostic(
+                file_path="broken.py",
+                error_code="ERR_PARSE_FAILURE",
+                severity="error",
+                message="function parse failed",
+            )
+        ],
+    )
+
+    result_failure = engine.apply_reload_with_policy(context, failure_scan)
+
+    assert ReloadDomain.FUNCTIONS in result_failure.blocked_domains
+    assert calls["count"] == 1

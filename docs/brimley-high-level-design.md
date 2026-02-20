@@ -1,5 +1,5 @@
 # Brimley High-Level Design
-> Version 0.2
+> Version 0.3
 
 ## 1. Executive Summary
 
@@ -41,14 +41,26 @@ Defined in [Discovery & Loader](brimley-discovery-and-loader-specification.md), 
 
 - **Scanning**: Recursively finding `.py`, `.sql`, `.md`, and `.yaml` files.
     
-- **Parsing**: Extracting YAML frontmatter and code bodies.
+- **Parsing (Zero-Execution AST for Python)**: Parsing Python files with `ast.parse()` to discover `@function` and `@entity` markers without importing or executing user modules.
+
+- **Compatibility**: Supporting transitional legacy Python YAML frontmatter where decorators are not yet present.
     
 - **Validation**: Enforcing [Naming Conventions](brimley-naming-conventions.md) and schema requirements.
     
 - **Diagnostics**: Accumulating errors for the [Wall of Shame](brimley-diagnostics-and-error-reporting.md).
+
+### C. Hybrid Discovery Modes
+
+Brimley uses two discovery strategies depending on runtime context:
+
+- **Static Discovery (Default CLI/REPL)**: File-system scan + AST parsing for Python decorators and metadata parsing for SQL/template files.
+
+- **Runtime Discovery (Embedded/Compiled)**: Reflection scan (`scan_module`) for callables/classes carrying `_brimley_meta`, enabling discovery when source files are unavailable at runtime.
+
+- **Bridge for Non-Python Assets**: `brimley build` generates Python shim modules for SQL/template assets so runtime reflection can discover them uniformly.
     
 
-### C. Function Types
+### D. Function Types
 
 Brimley supports three primary function primitives:
 
@@ -59,7 +71,7 @@ Brimley supports three primary function primitives:
 3. [Template Functions](brimley-template-functions.md): Jinja2-based text generation returning strings or structured messages.
     
 
-### D. The Interface Layer
+### E. The Interface Layer
 
 Defined in [CLI & REPL Harness](brimley-cli-and-repl-harness.md):
 
@@ -69,7 +81,7 @@ Defined in [CLI & REPL Harness](brimley-cli-and-repl-harness.md):
 
 - **`auto_reload`**: Optional watch-mode orchestration for dynamic updates, available in REPL and via host-managed runtime controller.
 
-### E. The MCP Integration Layer
+### F. The MCP Integration Layer
 
 Defined in [MCP Integration](brimley-model-context-protocol-integration.md), this component handles:
 
