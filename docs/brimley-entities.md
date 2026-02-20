@@ -1,12 +1,40 @@
 # Brimley Entities
 
-> Version 0.2
+> Version 0.3
 
-Entities are the data structures and domain models within a Brimley application. They are used to define the shape of inputs and outputs for functions, as well as the structure of the application context.
+Entities are the data structures and domain models in a Brimley application. In 0.3, entities are Python-first and discovered from decorated classes.
 
-All Entities in Brimley inherit from `pydantic.BaseModel`.
+## 1. Entity Definition Model (0.3)
 
-## Built-In Entities
+Use `@entity` on Python classes (typically Pydantic models):
+
+```python
+from pydantic import BaseModel
+from brimley import entity
+
+@entity(name="User")
+class User(BaseModel):
+  id: int
+  username: str
+  email: str
+```
+
+Supported decorator forms:
+
+- `@entity`
+- `@entity(...)`
+
+Brimley records metadata for discovery and registers the entity with type `python_entity`.
+
+## 2. YAML Entity Deprecation
+
+YAML-based entity files are deprecated in the 0.3 decorator transition.
+
+- Prefer Python entity classes with `@entity`.
+- Existing YAML entity references should be migrated to Python classes.
+- Entity discovery for modern workflows is based on Python AST/runtime metadata, not standalone entity YAML definitions.
+
+## 3. Built-In Entities
 
 Brimley comes with several core entities pre-loaded into the registry.
 
@@ -46,31 +74,44 @@ PromptMessage:
             entity_ref: ContentBlock
 ```
 
-## User-Defined Entities
+## 4. Using Entities in Python Functions
 
-Users can define their own Entities by creating `.yaml` files in the project structure. These entities are discovered at startup and added to the Entity Registry.
+Entity classes can be used as return models and validation targets.
 
-### File Format
+### A. Return annotation usage
 
-A user-defined entity file must start with `type: entity`.
+```python
+from pydantic import BaseModel
+from brimley import function, entity
 
-**Example: `src/models/customer.yaml`**
+@entity(name="User")
+class User(BaseModel):
+    id: int
+    username: str
 
-```
-type: entity
-name: Customer
-description: "Represents a customer in the system."
-fields:
-  id:
-    type: string
-    description: "Unique identifier"
-  email:
-    type: string
-    pattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
-  tier:
-    type: string
-    default: "free"
-    enum: ["free", "pro", "enterprise"]
+@function
+def get_user(user_id: int) -> User:
+    return User(id=user_id, username="alice")
 ```
 
-These definitions are parsed and converted into Pydantic models at runtime, accessible via `ctx.entities.get("Customer")`.
+### B. Inter-function composition
+
+```python
+from brimley import function
+from brimley.core.context import BrimleyContext
+
+@function
+def get_profile_summary(user_id: int, ctx: BrimleyContext) -> dict:
+    user = ctx.execute_function_by_name("get_user", {"user_id": user_id})
+    return {"id": user.id, "username": user.username}
+```
+
+## 5. Registry and Mapping Behavior
+
+Brimley stores discovered entities in `context.entities`.
+
+- For Python entities, discovery records `python_entity` metadata with a module/class handler.
+- Result mapping resolves the registered entity and validates mapped output against the resolved class.
+- Built-in entities (`ContentBlock`, `PromptMessage`) remain available by default.
+
+See also [Python Functions](brimley-python-functions.md) and [Return Shapes](brimley-function-return-shape.md).
