@@ -5,6 +5,10 @@ import hashlib
 from pathlib import Path
 from typer.testing import CliRunner
 from brimley.cli.main import app
+from brimley.core.context import BrimleyContext
+from brimley.discovery.scanner import Scanner
+from brimley.execution.execute_helper import execute_function_by_name
+from brimley.mcp.mock import MockMCPContext
 
 runner = CliRunner()
 EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
@@ -76,3 +80,31 @@ def test_e2e_sha256_python(tmp_path):
 
     assert result.exit_code == 0
     assert expected in result.stdout
+
+
+def test_e2e_examples_discover_decorator_entity():
+    scan_result = Scanner(EXAMPLES_DIR).scan()
+
+    entity_names = {entity.name for entity in scan_result.entities}
+    assert "User" in entity_names
+
+
+def test_e2e_agent_sample_mockmcp_injection_runtime():
+    scan_result = Scanner(EXAMPLES_DIR).scan()
+    context = BrimleyContext()
+    context.functions.register_all(scan_result.functions)
+    context.entities.register_all(scan_result.entities)
+    context.app["root_dir"] = str(EXAMPLES_DIR)
+
+    mock_ctx = MockMCPContext(response_text="mocked-sample", model="mock-model")
+
+    result = execute_function_by_name(
+        context=context,
+        function_name="agent_sample",
+        input_data={"prompt": "hello"},
+        runtime_injections={"mcp_context": mock_ctx},
+    )
+
+    assert result["prompt"] == "hello"
+    assert result["sample_text"] == "mocked-sample"
+    assert result["model"] == "mock-model"

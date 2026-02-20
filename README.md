@@ -1,5 +1,5 @@
 # Brimley
-> Version 0.2
+> Version 0.3
 
 **Brimley** is a lightweight, file-based function execution engine designed to bridge the gap between static logic definitions (SQL, Python, Templates) and dynamic execution environments (CLI, REPL, and AI Agents).
 
@@ -23,7 +23,7 @@ It emphasizes a **"Configuration over Code"** approach for discovery and a str
 
 - **Auto Reload:** Optional watch mode with debounce for dynamic function/entity/tool refresh in REPL and host-managed runtimes.
 
-- **MCP Tooling:** Functions marked with `mcp: { type: tool }` can be exposed to MCP clients, with embedded FastMCP hosting in REPL when enabled via config or CLI.
+- **MCP Tooling:** Functions marked with `@function(mcpType="tool")` can be exposed to MCP clients, with embedded FastMCP hosting in REPL when enabled via config or CLI.
     
 - **Strict Validation:** Inputs and outputs are validated against defined schemas before execution.
     
@@ -57,18 +57,15 @@ poetry run pip install fastmcp
 
 ### 1. Create a Function
 
-Create a file named `hello.yaml` in your tools directory:
+Create a file named `hello.py` in your tools directory:
 
 ```
-# ./tools/hello.yaml
-name: greet_user
-type: template_function
-return_shape: string
-arguments:
-  inline:
-    name: string
----
-Hello, {{ name }}! Welcome to Brimley.
+# ./tools/hello.py
+from brimley import function
+
+@function(name="greet_user")
+def greet_user(name: str) -> str:
+    return f"Hello, {name}! Welcome to Brimley."
 ```
 
 ### 2. Run with CLI
@@ -78,6 +75,14 @@ Use the `invoke` command for single-shot execution:
 ```
 poetry run brimley ./tools invoke greet_user --input "{name: 'Developer'}"
 # Output: Hello, Developer! Welcome to Brimley.
+```
+
+### 2.5 Build Assets for Production/Compiled Runtimes
+
+When packaging for compiled or source-restricted environments, run `build` to generate Python shims for SQL and template assets:
+
+```
+poetry run brimley build ./tools
 ```
 
 ### 3. Interactive REPL

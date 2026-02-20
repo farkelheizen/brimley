@@ -1,4 +1,5 @@
 ---
+# Version 0.3
 name: hello
 type: template_function
 return_shape: string

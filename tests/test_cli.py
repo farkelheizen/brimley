@@ -7,6 +7,10 @@ from pathlib import Path
 
 runner = CliRunner()
 
+
+def _combined_output(result) -> str:
+    return f"{result.stdout}{getattr(result, 'stderr', '')}"
+
 def test_invoke_help():
     result = runner.invoke(app, ["invoke", "--help"])
     assert result.exit_code == 0
@@ -15,8 +19,7 @@ def test_invoke_help():
 def test_invoke_missing_function():
     result = runner.invoke(app, ["invoke", "non_existent_func"])
     assert result.exit_code == 1
-    # CliRunner default is to mix stderr into stdout
-    assert "Function 'non_existent_func' not found" in result.stdout
+    assert "Function 'non_existent_func' not found" in _combined_output(result)
 
 def test_invoke_template_function(tmp_path):
     # Setup: Create a meaningful directory structure
@@ -55,7 +58,7 @@ return_shape: void
 """)
     result = runner.invoke(app, ["invoke", "f", "--root", str(tmp_path), "--input", "{invalid"])
     assert result.exit_code == 1
-    assert "Invalid YAML" in result.stdout
+    assert "Invalid YAML" in _combined_output(result)
 
 def test_invoke_sql_function_json_output(tmp_path):
     # 1. Create brimley.yaml with a database
@@ -276,14 +279,14 @@ def test_repl_rejects_conflicting_mcp_flags(tmp_path):
     result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp", "--no-mcp"])
 
     assert result.exit_code != 0
-    assert "Cannot use --mcp and --no-mcp together" in result.stdout
+    assert "Cannot use --mcp and --no-mcp together" in _combined_output(result)
 
 
 def test_repl_rejects_conflicting_watch_flags(tmp_path):
     result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--watch", "--no-watch"])
 
     assert result.exit_code != 0
-    assert "Cannot use --watch and --no-watch together" in result.stdout
+    assert "Cannot use --watch and --no-watch together" in _combined_output(result)
 
 
 def test_mcp_serve_help():
@@ -297,7 +300,7 @@ def test_mcp_serve_rejects_conflicting_watch_flags(tmp_path):
     result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch", "--no-watch"])
 
     assert result.exit_code != 0
-    assert "Cannot use --watch and --no-watch together" in result.stdout
+    assert "Cannot use --watch and --no-watch together" in _combined_output(result)
 
 
 def test_mcp_serve_starts_server_with_config_defaults(tmp_path, monkeypatch):
@@ -397,7 +400,7 @@ def test_mcp_serve_exits_success_when_no_tools(tmp_path, monkeypatch):
     result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
 
     assert result.exit_code == 0
-    assert "No MCP tools discovered" in result.stdout
+    assert "No MCP tools discovered" in _combined_output(result)
 
 
 def test_mcp_serve_errors_when_fastmcp_missing(tmp_path, monkeypatch):
@@ -416,7 +419,7 @@ def test_mcp_serve_errors_when_fastmcp_missing(tmp_path, monkeypatch):
     result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
 
     assert result.exit_code == 1
-    assert "fastmcp" in result.stdout.lower()
+    assert "fastmcp" in _combined_output(result).lower()
 
 
 def test_mcp_serve_watch_mode_starts_and_stops_runtime_controller(tmp_path, monkeypatch):
@@ -541,5 +544,5 @@ def test_mcp_serve_watch_mode_exits_when_no_tools_before_starting_watcher(tmp_pa
     result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path), "--watch"])
 
     assert result.exit_code == 0
-    assert "No MCP tools discovered" in result.stdout
+    assert "No MCP tools discovered" in _combined_output(result)
     assert FakeRuntimeController.started == 0

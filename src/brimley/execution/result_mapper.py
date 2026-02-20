@@ -1,8 +1,9 @@
+import importlib
 from typing import Any, Dict, List, Optional, Union, Type, get_args
 import pydantic
 from pydantic import TypeAdapter, ValidationError
 from brimley.core.context import BrimleyContext
-from brimley.core.models import BrimleyFunction
+from brimley.core.models import BrimleyFunction, DiscoveredEntity
 from brimley.core.entity import Entity
 from brimley.utils.diagnostics import BrimleyExecutionError
 
@@ -170,6 +171,8 @@ class ResultMapper:
         # 2. Check Entities (Keep original casing for entities)
         entity_class = context.entities.get(type_name)
         if entity_class:
+            if isinstance(entity_class, DiscoveredEntity) and entity_class.type == "python_entity":
+                return cls._resolve_python_entity_class(entity_class)
             return entity_class
         
         # 3. Handle Python built-ins like list[dict] where user might use literal python typing
@@ -178,3 +181,29 @@ class ResultMapper:
         
         # 4. Default to Any or raise? Let's raise for clarity in this engine.
         raise ValueError(f"Unknown return type or entity: '{type_name}'")
+
+    @classmethod
+    def _resolve_python_entity_class(cls, entity: DiscoveredEntity) -> Type:
+        handler = entity.handler
+        if not handler or "." not in handler:
+            raise ValueError(
+                f"Python entity '{entity.name}' is missing a valid handler path."
+            )
+
+        module_name, class_name = handler.rsplit(".", 1)
+
+        try:
+            module = importlib.import_module(module_name)
+        except Exception as e:
+            raise ValueError(
+                f"Could not import module '{module_name}' for python entity '{entity.name}': {e}"
+            ) from e
+
+        try:
+            entity_class = getattr(module, class_name)
+        except AttributeError as e:
+            raise ValueError(
+                f"Could not find class '{class_name}' in module '{module_name}' for python entity '{entity.name}'."
+            ) from e
+
+        return entity_class

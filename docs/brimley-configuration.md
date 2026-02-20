@@ -1,6 +1,6 @@
 # Brimley Configuration
 
-> Version 0.2
+> Version 0.3
 
 Brimley applications are configured via a single YAML file (`brimley.yaml`) located in the project root.
 

@@ -1,17 +1,9 @@
-"""
----
-name: sha256_file
-type: python_function
-description: "Calculates SHA256 hash of a file."
-arguments:
-  inline:
-    filepath: { type: string }
-return_shape: string
-mcp:
-  type: tool
----
-"""
 import hashlib
+
+from brimley import function
+
+
+@function(name="sha256_file", description="Calculates SHA256 hash of a file.", mcpType="tool")
 def sha256_file(filepath: str) -> str:
     """Calculates SHA256 hash of a file."""
     sha256_hash = hashlib.sha256()

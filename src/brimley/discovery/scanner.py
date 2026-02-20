@@ -2,7 +2,7 @@ import os
 import re
 from pathlib import Path
 from typing import List, Set, Optional
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from brimley.core.entity import Entity
 from brimley.core.models import BrimleyFunction
@@ -10,7 +10,6 @@ from brimley.utils.diagnostics import BrimleyDiagnostic
 from brimley.discovery.sql_parser import parse_sql_file
 from brimley.discovery.template_parser import parse_template_file
 from brimley.discovery.python_parser import parse_python_file
-from brimley.discovery.entity_parser import parse_entity_file
 
 class BrimleyScanResult(BaseModel):
     functions: List[BrimleyFunction] = Field(default_factory=list)
@@ -40,14 +39,14 @@ class Scanner:
             for file in files:
                 file_path = Path(root) / file
                 
-                # 1. Identification (500-char rule)
+                # 1. Identification by extension/parser contract
                 file_type = self._identify_file_type(file_path)
                 if not file_type:
                     continue  # Silent ignore
 
                 # 2. Parsing
                 try:
-                    obj = self._parse_file(file_path, file_type)
+                    parsed = self._parse_file(file_path, file_type)
                 except ValueError as e:
                     # Parsing failed (e.g., bad YAML, missing fields)
                     diagnostics.append(BrimleyDiagnostic(
@@ -66,65 +65,83 @@ class Scanner:
                     ))
                     continue
 
-                # 3. Validation
-                
-                # Name validation check
-                if not obj.name or not self.NAME_REGEX.match(obj.name):
-                    diagnostics.append(BrimleyDiagnostic(
-                        file_path=str(file_path),
-                        error_code="ERR_INVALID_NAME",
-                        message=f"'{obj.name}' is an invalid name.",
-                        suggestion="Names must start with a letter and contain only alphanumeric chars, underscores, or dashes.",
-                        line_number=None 
-                    ))
-                    continue
+                objects = parsed if isinstance(parsed, list) else [parsed]
 
-                if isinstance(obj, BrimleyFunction):
-                    # Duplicate check for functions
-                    if obj.name in seen_function_names:
+                for obj in objects:
+                    if not obj.name or not self.NAME_REGEX.match(obj.name):
                         diagnostics.append(BrimleyDiagnostic(
                             file_path=str(file_path),
-                            error_code="ERR_DUPLICATE_NAME",
-                            message=f"Function '{obj.name}' is already defined.",
-                            suggestion="Rename this function or removed the duplicate."
+                            error_code="ERR_INVALID_NAME",
+                            message=f"'{obj.name}' is an invalid name.",
+                            suggestion="Names must start with a letter and contain only alphanumeric chars, underscores, or dashes.",
+                            line_number=None
                         ))
                         continue
-                    seen_function_names.add(obj.name)
-                    functions.append(obj)
-                else:
-                    # Duplicate check for entities
-                    if obj.name in seen_entity_names:
-                        diagnostics.append(BrimleyDiagnostic(
-                            file_path=str(file_path),
-                            error_code="ERR_DUPLICATE_NAME",
-                            message=f"Entity '{obj.name}' is already defined.",
-                            suggestion="Rename this entity or removed the duplicate."
-                        ))
-                        continue
-                    seen_entity_names.add(obj.name)
-                    entities.append(obj)
+
+                    if isinstance(obj, BrimleyFunction):
+                        if obj.name in seen_function_names:
+                            diagnostics.append(BrimleyDiagnostic(
+                                file_path=str(file_path),
+                                error_code="ERR_DUPLICATE_NAME",
+                                message=f"Function '{obj.name}' is already defined.",
+                                suggestion="Rename this function or removed the duplicate."
+                            ))
+                            continue
+                        seen_function_names.add(obj.name)
+                        functions.append(obj)
+                    else:
+                        if obj.name in seen_entity_names:
+                            diagnostics.append(BrimleyDiagnostic(
+                                file_path=str(file_path),
+                                error_code="ERR_DUPLICATE_NAME",
+                                message=f"Entity '{obj.name}' is already defined.",
+                                suggestion="Rename this entity or removed the duplicate."
+                            ))
+                            continue
+                        seen_entity_names.add(obj.name)
+                        entities.append(obj)
 
         return BrimleyScanResult(functions=functions, entities=entities, diagnostics=diagnostics)
 
     def _identify_file_type(self, file_path: Path) -> Optional[str]:
         """
-        Reads first 500 chars to find 'type: ..._function' or 'type: entity'.
+        Identify parser route by file extension and frontmatter markers.
         """
-        try:
-            # Only checking specific extensions to avoid binary reads on images etc if mixed
-            if file_path.suffix not in ['.py', '.sql', '.md', '.yaml', '.yml']:
-                return None
+        suffix = file_path.suffix.lower()
 
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                head = f.read(500)
-            
-            # Match "type:[space]some_function" or "type:[space]entity"
-            match = re.search(r'type:\s*([a-z_]+_function|entity)', head)
-            if match:
-                return match.group(1)
-        except Exception:
+        if suffix == ".py":
+            return "python_function"
+
+        if suffix == ".sql":
+            if self._has_sql_frontmatter(file_path):
+                return "sql_function"
             return None
+
+        if suffix == ".md":
+            if self._has_markdown_frontmatter(file_path):
+                return "template_function"
+            return None
+
+        # YAML entities are removed from scanner routing in decorator transition.
         return None
+
+    def _has_markdown_frontmatter(self, file_path: Path) -> bool:
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return False
+
+        stripped = content.lstrip()
+        return stripped.startswith("---")
+
+    def _has_sql_frontmatter(self, file_path: Path) -> bool:
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return False
+
+        stripped = content.lstrip()
+        return stripped.startswith("/*") and "---" in stripped
 
     def _parse_file(self, file_path: Path, file_type: str) -> Entity:
         """
@@ -136,7 +153,5 @@ class Scanner:
             return parse_template_file(file_path)
         elif file_type == "python_function":
             return parse_python_file(file_path)
-        elif file_type == "entity":
-            return parse_entity_file(file_path)
         else:
             raise ValueError(f"Unknown file type: {file_type}")

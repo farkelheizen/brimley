@@ -1,6 +1,6 @@
 # Brimley Application Structure
 
-> Version 0.2
+> Version 0.3
 
 A standard Brimley application follows a specific directory layout to ensure the **Discovery Engine** can locate functions, entities, and configuration.
 
@@ -25,19 +25,21 @@ my-brimley-app/
 - **`.env`**: Secrets and local overrides. Variables defined here can be referenced in `brimley.yaml` using `${VAR_NAME}` syntax.
     
 
-## Source Directory (`src/`)
+## Source Directory (`src/` or `tools/`)
 
-The `src` directory is scanned recursively. You can organize it however you like, but grouping by domain is recommended.
+Brimley recursively scans your project root. Most apps keep executable assets in either `src/` or `tools/`. Python files should be standard modules using decorators (`@function`, `@entity`) and can contain multiple related functions/classes.
+
+Grouping by domain is recommended.
 
 ```
 src/
 ├── sales/
-│   ├── calculate_tax.py      # Python Function
+│   ├── pricing.py            # Python module: @function(s) + @entity class(es)
 │   ├── monthly_report.sql    # SQL Function
-│   └── customer.yaml         # Entity Definition
+│   └── customer_notes.md     # Template Function
 └── marketing/
-    ├── welcome_email.md      # Template Function
-    └── campaign.yaml         # Entity Definition
+    ├── campaigns.py          # Python module with multiple decorators
+    └── welcome_email.md      # Template Function
 ```
 
 ## Runtime Orchestration
