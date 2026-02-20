@@ -1,5 +1,5 @@
 # Brimley Diagnostics & Error Reporting
-> Version 0.2
+> Version 0.3
 
 This document defines how Brimley should handle and display errors during the "Discovery" and "Registration" phases to ensure developers can fix issues without digging through source code.
 
@@ -66,7 +66,34 @@ When auto-reload is active (or `/reload` is invoked), diagnostics are emitted fo
 
 Use this summary to quickly identify which domains remained active and which were rolled back.
 
-## 5. Validating "Intent" vs "Content"
+## 5. Hot Reload Safety Warnings
+
+When Python discovery detects reload-enabled functions (`reload=True`, default), Brimley also performs a top-level AST call scan to identify likely side effects that would re-run on every save.
+
+Typical hazard identifiers include calls such as:
+
+- `open`
+- `connect`
+- `start`
+- `run`
+- `thread`
+- `popen`
+- `call`
+
+These findings should be emitted as **warnings** (not hard failures) so developers can choose whether to refactor top-level code or disable rehydration for that function/module.
+
+### Example Warning
+
+```
+[SYSTEM] ⚠ Hot reload safety warning in ./tools/worker.py
+- Message: Top-level execution detected in hot-reloaded module.
+- Details: line 7: connect
+- Suggestion: Move side effects into a function/class initializer or use @function(reload=False).
+```
+
+Hot reload safety warnings should not block normal discovery/registration when no critical errors are present.
+
+## 6. Validating "Intent" vs "Content"
 
 To avoid noise (like Brimley trying to parse a random `.md` file that isn't a function), the scanner should use a **Strict Filter**:
 
