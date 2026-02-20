@@ -3,7 +3,7 @@ from typing import Optional
 from pydantic import Field
 from brimley.core.context import BrimleyContext
 from brimley.core.entity import Entity
-from brimley.core.models import BrimleyFunction
+from brimley.core.models import BrimleyFunction, DiscoveredEntity
 from brimley.execution.result_mapper import ResultMapper
 from brimley.utils.diagnostics import BrimleyExecutionError
 
@@ -112,3 +112,40 @@ def test_map_missing_fields_raises_validation_error(context):
         ResultMapper.map_result(raw, func, context)
     assert "Execution Error in function 'test_func'" in str(excinfo.value)
     assert "username: Field required" in str(excinfo.value)
+
+
+def test_map_python_entity_from_discovered_entity_handler(context, tmp_path, monkeypatch):
+    (tmp_path / "entity_module.py").write_text(
+        """
+from brimley.core.entity import Entity
+
+class User(Entity):
+    id: int
+    username: str
+""".strip()
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    context.entities.register(
+        DiscoveredEntity(name="User", type="python_entity", handler="entity_module.User")
+    )
+
+    func = BrimleyFunction(name="test", type="sql_function", return_shape="User")
+    raw = {"id": 1, "username": "alice"}
+
+    result = ResultMapper.map_result(raw, func, context)
+    assert result.id == 1
+    assert result.username == "alice"
+    assert result.__class__.__name__ == "User"
+
+
+def test_map_python_entity_missing_handler_raises(context):
+    context.entities.register(
+        DiscoveredEntity(name="UserFromMeta", type="python_entity", handler=None)
+    )
+
+    func = BrimleyFunction(name="test", type="sql_function", return_shape="UserFromMeta")
+    raw = {"id": 1, "username": "alice"}
+
+    with pytest.raises(BrimleyExecutionError, match="missing a valid handler path"):
+        ResultMapper.map_result(raw, func, context)
