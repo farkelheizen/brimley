@@ -3,8 +3,7 @@ import yaml
 import json
 import sys
 from pathlib import Path
-from typing import Optional, Annotated 
-# from typing_extensions import Annotated # Use standard library
+from typing import Optional
 
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
@@ -19,58 +18,174 @@ from brimley.mcp.adapter import BrimleyMCPAdapter
 from brimley.runtime import BrimleyRuntimeController
 from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
 
-app = typer.Typer(name="brimley", help="Brimley CLI Interface")
+app = typer.Typer(name="brimley", help="Brimley CLI Interface", rich_markup_mode=None)
 
 
-def _resolve_optional_bool_flag(enabled: bool, disabled: bool, flag_name: str) -> Optional[bool]:
-    if enabled and disabled:
+def _coerce_bool_like(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off", ""}:
+            return False
+    return bool(value)
+
+
+def _resolve_optional_bool_flag(enabled: object, disabled: object, flag_name: str) -> Optional[bool]:
+    enabled_bool = _coerce_bool_like(enabled)
+    disabled_bool = _coerce_bool_like(disabled)
+    if enabled_bool and disabled_bool:
         raise typer.BadParameter(f"Cannot use --{flag_name} and --no-{flag_name} together.")
-    if enabled:
+    if enabled_bool:
         return True
-    if disabled:
+    if disabled_bool:
         return False
     return None
 
-@app.command()
+
+def _read_option_value(tokens: list[str], index: int, option_name: str) -> tuple[str, int]:
+    if index + 1 >= len(tokens):
+        raise typer.BadParameter(f"Option {option_name} requires a value.")
+    return tokens[index + 1], index + 2
+
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def repl(
-    root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
-    mcp: Annotated[bool, typer.Option("--mcp", help="Enable embedded MCP server for REPL")] = False,
-    no_mcp: Annotated[bool, typer.Option("--no-mcp", help="Disable embedded MCP server for REPL")] = False,
-    watch: Annotated[bool, typer.Option("--watch", help="Enable auto-reload watch mode for REPL")] = False,
-    no_watch: Annotated[bool, typer.Option("--no-watch", help="Disable auto-reload watch mode for REPL")] = False,
+    ctx: typer.Context,
 ):
     """
     Start an interactive REPL session.
     """
+    effective_root = Path(".")
+    mcp = False
+    no_mcp = False
+    watch = False
+    no_watch = False
+
+    tokens = list(ctx.args)
+    extras: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in ("--root", "-r"):
+            root_value, index = _read_option_value(tokens, index, token)
+            effective_root = Path(root_value)
+            continue
+        if token.startswith("--root="):
+            effective_root = Path(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token == "--mcp":
+            mcp = True
+            index += 1
+            continue
+        if token == "--no-mcp":
+            no_mcp = True
+            index += 1
+            continue
+        if token == "--watch":
+            watch = True
+            index += 1
+            continue
+        if token == "--no-watch":
+            no_watch = True
+            index += 1
+            continue
+        if token.startswith("-"):
+            raise typer.BadParameter(f"Unknown option: {token}")
+        extras.append(token)
+        index += 1
+
+    if extras and effective_root == Path("."):
+        effective_root = Path(extras.pop(0))
+    if extras:
+        raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
+
     mcp_enabled_override = _resolve_optional_bool_flag(mcp, no_mcp, "mcp")
     auto_reload_enabled_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
     repl_session = BrimleyREPL(
-        root_dir,
+        effective_root,
         mcp_enabled_override=mcp_enabled_override,
         auto_reload_enabled_override=auto_reload_enabled_override,
     )
     repl_session.start()
 
 
-@app.command("mcp-serve")
+@app.command("mcp-serve", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def mcp_serve(
-    root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
-    watch: Annotated[bool, typer.Option("--watch", help="Enable auto-reload watch mode for MCP server")] = False,
-    no_watch: Annotated[bool, typer.Option("--no-watch", help="Disable auto-reload watch mode for MCP server")] = False,
-    host: Annotated[Optional[str], typer.Option("--host", help="Override MCP host bind address")] = None,
-    port: Annotated[Optional[int], typer.Option("--port", min=1, max=65535, help="Override MCP port")] = None,
+    ctx: typer.Context,
 ):
     """
     Start a non-REPL MCP server.
     """
+    root_path = Path(".")
+    watch = False
+    no_watch = False
+    host: Optional[str] = None
+    port: Optional[int] = None
+
+    tokens = list(ctx.args)
+    extras: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in ("--root", "-r"):
+            root_value, index = _read_option_value(tokens, index, token)
+            root_path = Path(root_value)
+            continue
+        if token.startswith("--root="):
+            root_path = Path(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token == "--watch":
+            watch = True
+            index += 1
+            continue
+        if token == "--no-watch":
+            no_watch = True
+            index += 1
+            continue
+        if token == "--host":
+            host, index = _read_option_value(tokens, index, token)
+            continue
+        if token.startswith("--host="):
+            host = token.split("=", 1)[1]
+            index += 1
+            continue
+        if token == "--port":
+            port_value, index = _read_option_value(tokens, index, token)
+            try:
+                port = int(port_value)
+            except ValueError as exc:
+                raise typer.BadParameter("Option --port must be an integer.") from exc
+            continue
+        if token.startswith("--port="):
+            port_value = token.split("=", 1)[1]
+            try:
+                port = int(port_value)
+            except ValueError as exc:
+                raise typer.BadParameter("Option --port must be an integer.") from exc
+            index += 1
+            continue
+        if token.startswith("-"):
+            raise typer.BadParameter(f"Unknown option: {token}")
+        extras.append(token)
+        index += 1
+
+    if extras:
+        raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
+    if port is not None and not (1 <= port <= 65535):
+        raise typer.BadParameter("Option --port must be between 1 and 65535.")
+
     watch_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
 
-    config_path = root_dir / "brimley.yaml"
+    config_path = root_path / "brimley.yaml"
     if not config_path.exists():
         config_path = Path.cwd() / "brimley.yaml"
 
     context = BrimleyContext(config_dict=load_config(config_path))
-    context.app["root_dir"] = str(root_dir.expanduser().resolve())
+    context.app["root_dir"] = str(root_path.expanduser().resolve())
 
     effective_watch = watch_override if watch_override is not None else context.auto_reload.enabled
     effective_host = host if host is not None else context.mcp.host
@@ -80,7 +195,7 @@ def mcp_serve(
     mcp_server = None
 
     if effective_watch:
-        runtime_controller = BrimleyRuntimeController(root_dir=root_dir)
+        runtime_controller = BrimleyRuntimeController(root_dir=root_path)
         server_state = {"server": None}
         refresh_adapter = ExternalMCPRefreshAdapter(
             context=runtime_controller.context,
@@ -110,8 +225,8 @@ def mcp_serve(
         OutputFormatter.log("Auto-reload watcher started for mcp-serve.", severity="info")
 
     else:
-        if root_dir.exists():
-            scanner = Scanner(root_dir)
+        if root_path.exists():
+            scanner = Scanner(root_path)
             scan_result = scanner.scan()
         else:
             OutputFormatter.log(f"Warning: Root directory '{root_dir}' does not exist.", severity="warning")
@@ -157,12 +272,43 @@ def mcp_serve(
             OutputFormatter.log("Auto-reload watcher stopped for mcp-serve.", severity="info")
 
 
-@app.command()
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def build(
-    root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
-    output: Annotated[Optional[Path], typer.Option("--output", "-o", help="Generated asset module path")] = None,
+    ctx: typer.Context,
 ):
     """Compile SQL/template assets into a Python shim module for runtime discovery."""
+    root_dir = Path(".")
+    output: Optional[Path] = None
+
+    tokens = list(ctx.args)
+    extras: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in ("--root", "-r"):
+            root_value, index = _read_option_value(tokens, index, token)
+            root_dir = Path(root_value)
+            continue
+        if token.startswith("--root="):
+            root_dir = Path(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token in ("--output", "-o"):
+            output_value, index = _read_option_value(tokens, index, token)
+            output = Path(output_value)
+            continue
+        if token.startswith("--output="):
+            output = Path(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token.startswith("-"):
+            raise typer.BadParameter(f"Unknown option: {token}")
+        extras.append(token)
+        index += 1
+
+    if extras:
+        raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
+
     try:
         result = compile_assets(root_dir=root_dir, output_file=output)
     except Exception as exc:
@@ -183,15 +329,14 @@ def build(
             severity="warning",
         )
 
-@app.command()
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def invoke(
-    names: Annotated[list[str], typer.Argument(help="Name of the function to execute")],
-    root_dir: Annotated[Path, typer.Option("--root", "-r", help="Root directory to scan")] = Path("."),
-    input_data: Annotated[str, typer.Option("--input", "-i", help="Input JSON/YAML string or file path")] = "{}"
+    ctx: typer.Context,
 ):
     """
     Invoke a Brimley function by name.
     """
+    names = list(ctx.args)
     if not names:
         typer.echo("Error: Missing function name.", err=True)
         raise typer.Exit(code=2)
@@ -202,8 +347,46 @@ def invoke(
 
     function_name = names[0]
 
+    # Compatibility fallback: some Typer/Click combinations may parse --root/--input
+    # option values as extra positional args and leave option values as None.
+    effective_root_dir = Path(".")
+    effective_input_data = "{}"
+    tail = list(names[1:])
+    extras: list[str] = []
+    index = 0
+    while index < len(tail):
+        token = tail[index]
+        if token in ("--root", "-r"):
+            root_value, index = _read_option_value(tail, index, token)
+            effective_root_dir = Path(root_value)
+            continue
+        if token.startswith("--root="):
+            effective_root_dir = Path(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token in ("--input", "-i"):
+            input_value, index = _read_option_value(tail, index, token)
+            effective_input_data = input_value
+            continue
+        if token.startswith("--input="):
+            effective_input_data = token.split("=", 1)[1]
+            index += 1
+            continue
+        if token.startswith("-"):
+            raise typer.BadParameter(f"Unknown option: {token}")
+        extras.append(token)
+        index += 1
+
+    if extras:
+        if effective_root_dir == Path("."):
+            effective_root_dir = Path(extras.pop(0))
+        if extras and effective_input_data == "{}":
+            effective_input_data = extras.pop(0)
+    if extras:
+        raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
+
     # 1. Load Context & Resources
-    root_path = Path(root_dir)
+    root_path = effective_root_dir
     config_path = root_path / "brimley.yaml"
     if not config_path.exists():
         config_path = Path.cwd() / "brimley.yaml"
@@ -221,7 +404,7 @@ def invoke(
         scanner = Scanner(root_path)
         scan_result = scanner.scan()
     else:
-        OutputFormatter.log(f"Warning: Root directory '{root_dir}' does not exist.", severity="warning")
+        OutputFormatter.log(f"Warning: Root directory '{effective_root_dir}' does not exist.", severity="warning")
         from brimley.discovery.scanner import BrimleyScanResult
         scan_result = BrimleyScanResult()
 
@@ -239,14 +422,14 @@ def invoke(
 
     # 3. Parse Input
     parsed_input = {}
-    if input_data and input_data.strip():
+    if effective_input_data and effective_input_data.strip():
         # Check if it is a file
-        p = Path(input_data)
+        p = Path(effective_input_data)
         # If the string is likely a path and exists
-        if len(input_data) < 256 and p.exists() and p.is_file():
+        if len(effective_input_data) < 256 and p.exists() and p.is_file():
             content = p.read_text()
         else:
-            content = input_data
+            content = effective_input_data
             
         try:
             parsed_input = yaml.safe_load(content)
