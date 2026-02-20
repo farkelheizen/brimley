@@ -312,7 +312,7 @@ def test_reload_engine_rehydrates_only_reload_enabled_python_modules(monkeypatch
         ),
     ]
 
-    engine._rehydrate_python_modules(functions)
+    engine._rehydrate_python_modules(BrimleyContext(), functions)
 
     assert reloaded_modules == ["pkg.a"]
     assert invalidate_calls["count"] == 1
@@ -325,7 +325,7 @@ def test_reload_engine_policy_rehydrates_only_when_function_domain_swaps(monkeyp
 
     calls = {"count": 0}
 
-    def fake_rehydrate(_functions):
+    def fake_rehydrate(_context, _functions):
         calls["count"] += 1
 
     monkeypatch.setattr(engine, "_rehydrate_python_modules", fake_rehydrate)

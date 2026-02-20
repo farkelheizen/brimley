@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 import importlib
 import linecache
 from pathlib import Path
+import sys
 from typing import Dict, List
 
 from brimley.core.context import BrimleyContext
@@ -74,7 +76,7 @@ class PartitionedReloadEngine:
             if domain == ReloadDomain.ENTITIES:
                 context.entities = self._build_entities_registry(context, partitions.entities)
             elif domain == ReloadDomain.FUNCTIONS:
-                self._rehydrate_python_modules(partitions.functions)
+                self._rehydrate_python_modules(context, partitions.functions)
                 context.functions = self._build_functions_registry(partitions.functions)
             elif domain == ReloadDomain.MCP_TOOLS:
                 # Phase 1 pipeline: tool domain is derived and summarized here.
@@ -105,7 +107,7 @@ class PartitionedReloadEngine:
             context.entities = self._build_entities_registry(context, partitions.entities)
 
         if decisions[ReloadDomain.FUNCTIONS].can_swap:
-            self._rehydrate_python_modules(partitions.functions)
+            self._rehydrate_python_modules(context, partitions.functions)
             context.functions = self._build_functions_registry(partitions.functions)
 
         tools_count = (
@@ -156,9 +158,10 @@ class PartitionedReloadEngine:
         next_functions.register_all(functions)
         return next_functions
 
-    def _rehydrate_python_modules(self, functions: List[BrimleyFunction]) -> None:
+    def _rehydrate_python_modules(self, context: BrimleyContext, functions: List[BrimleyFunction]) -> None:
         """Reload discovered Python modules for reload-enabled handlers."""
         module_reload_policy: Dict[str, bool] = {}
+        import_roots = self._collect_import_roots(context)
 
         for function in functions:
             if getattr(function, "type", None) != "python_function":
@@ -179,12 +182,64 @@ class PartitionedReloadEngine:
                 continue
 
             try:
-                module = importlib.import_module(module_name)
-                importlib.reload(module)
+                if import_roots:
+                    with self._temporary_sys_path(import_roots):
+                        module = importlib.import_module(module_name)
+                        self._remove_cached_bytecode(module)
+                        importlib.reload(module)
+                else:
+                    module = importlib.import_module(module_name)
+                    self._remove_cached_bytecode(module)
+                    importlib.reload(module)
             except Exception:
                 continue
 
         linecache.checkcache()
+
+    def _remove_cached_bytecode(self, module: object) -> None:
+        cached_path = getattr(module, "__cached__", None)
+        if not isinstance(cached_path, str):
+            return
+
+        try:
+            cached_file = Path(cached_path)
+            if cached_file.exists():
+                cached_file.unlink()
+        except Exception:
+            return
+
+    def _collect_import_roots(self, context: BrimleyContext) -> List[str]:
+        roots: List[str] = []
+        if not isinstance(context.app, dict):
+            return roots
+
+        for key in ("root_dir", "project_root", "root", "scan_root"):
+            value = context.app.get(key)
+            if value is None:
+                continue
+            path = Path(value).expanduser().resolve()
+            path_str = str(path)
+            if path.exists() and path_str not in roots:
+                roots.append(path_str)
+
+        return roots
+
+    @contextmanager
+    def _temporary_sys_path(self, roots: List[str]):
+        inserted: List[str] = []
+        for root in reversed(roots):
+            if root not in sys.path:
+                sys.path.insert(0, root)
+                inserted.append(root)
+
+        try:
+            yield
+        finally:
+            for root in inserted:
+                try:
+                    sys.path.remove(root)
+                except ValueError:
+                    continue
 
     def _count_current_tools(self, context: BrimleyContext) -> int:
         return sum(1 for func in context.functions if getattr(getattr(func, "mcp", None), "type", None) == "tool")
