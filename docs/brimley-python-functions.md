@@ -1,175 +1,135 @@
 # Brimley Python Functions
 
-> Version 0.2
+> Version 0.3
 
-Python Functions in Brimley allow developers to execute complex logic, perform data transformations, and interact with external systems using native Python code. These functions benefit from **Reflection-Driven Schema Generation** and **Dependency Injection**.
+Python Functions are native Python callables registered with the `@function` decorator. In Brimley 0.3, this is the primary Python discovery model.
 
-## 1. Core Properties
+## 1. Decorator-Based Registration
 
-| **Property**   | **Type** | **Required** | **Description**                                                         |
-| -------------- | -------- | ------------ | ----------------------------------------------------------------------- |
-| `name` | string | Yes | The unique identifier for the function. |
-| `type` | string | Yes | Always `python_function`. |
-| `handler` | string | Conditional | The dot-notation path to the Python function (e.g., `pkg.module.func`). |
-| `description` | string | No | A docstring or explicit description for LLM discovery. |
-| `arguments` | dict | No | Inferred via reflection by default; can be overridden. | 
-| `return_shape` | dict | No | Defines the output structure. |
+Use `@function` directly on your handler:
 
-## 2. Registration Methods
+```python
+from brimley import function
 
-### A. The `@brimley_function` Decorator
-
-The most common way to define a function is within Python code. When a function is decorated, the `handler` is **inferred**automatically by the framework.
-
-```
-from typing import List, Annotated
-from brimley import brimley_function, Connection
-
-@brimley_function(name="process_batch")
-def process_batch(
-    ids: List[int],
-    # Dependency Injection: Inject the 'default' database connection
-    db: Annotated[Connection, "default"]
-):
-    """Processes a batch of record IDs."""
-    # ... logic using db ...
-    return {"count": len(ids)}
-
+@function
+def ping() -> str:
+    return "pong"
 ```
 
-### B. YAML Definition
+You can also provide options:
 
-You can register existing Python functions (or third-party library functions) via a `.yaml` file. In this mode, the `handler` is **required** to serve as a pointer to the code.
+```python
+from brimley import function
 
-```
-name: calculate_risk
-type: python_function
-handler: analytics_engine.risk.calculate
-description: "Calculates risk score for a specific profile"
-arguments:
-  inline:
-    profile_id: int
-    strict_mode: bool
-
+@function(name="summarize", mcpType="tool", reload=True)
+def summarize(text: str) -> str:
+    return text[:120]
 ```
 
-## 3. The `handler` Property
+Both forms are supported:
 
-The `handler` string represents the fully qualified name of the Python function.
+- `@function`
+- `@function(...)`
 
-- **Inference:** When using the decorator, Brimley captures the module and function name at runtime.
-    
-- **Explicit Mapping:** In YAML, the handler must be importable by the Brimley runner.
-    
+## 2. Decorator Options
 
-## 4. Dependency Injection
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `name` | `str \| None` | inferred from function name | Public function name in registry. |
+| `type` | `str` | `python_function` | Function kind. For Python handlers this should remain `python_function`. |
+| `reload` | `bool` | `True` | Controls whether this function participates in hot reload module rehydration. |
+| `mcpType` | `str \| None` | `None` | Set to `"tool"` to expose the function as an MCP tool. |
+| `**kwargs` | `Any` | n/a | Reserved extension metadata. |
 
-Brimley Functions are designed to be "Pure." You do not receive a massive `context` object. Instead, you declare the specific resources you need using Python Type Annotations.
+## 3. Discovery and Handler Resolution
 
-### A. Database Connections
+During static discovery, Brimley parses Python modules with AST (`ast.parse`) and identifies decorated functions without importing/executing user code.
 
-To get a database connection, use the `Connection` type hint combined with `Annotated` to specify the pool name.
+For each discovered Python function, Brimley derives:
 
+- `name` from decorator `name` or function definition name
+- `handler` as `{module_name}.{function_name}`
+- `description` from docstring
+- `arguments` from signature and annotations
+- `return_shape` from return annotation
+
+Legacy YAML-frontmatter Python parsing may still be supported during transition, but decorator-based registration is the canonical 0.3 path.
+
+## 4. `reload=True/False` Behavior
+
+`reload` controls participation in auto-reload rehydration:
+
+- `reload=True` (default): function is eligible for module re-import/rehydration during hot reload.
+- `reload=False`: function is excluded from rehydrate updates and keeps previous loaded behavior until full reload/restart.
+
+When a module mixes reload policies, Brimley applies conservative policy to maintain runtime safety.
+
+## 5. MCP Tool Exposure (`mcpType="tool"`)
+
+Set `mcpType="tool"` to mark a Python function for MCP tool registration:
+
+```python
+from brimley import function
+
+@function(mcpType="tool")
+def get_status(service: str) -> dict:
+    return {"service": service, "status": "ok"}
 ```
+
+Brimley maps this to MCP metadata (`type: tool`) during discovery/registration.
+
+## 6. Dependency Injection and `Annotated`
+
+Python function arguments are inferred from signatures. Brimley supports both user inputs and injected parameters.
+
+### A. App/Config injection with `Annotated`
+
+```python
 from typing import Annotated
-from brimley import Connection
+from brimley import function, AppState, Config
 
-# Injects the connection named 'warehouse' defined in context.databases
-def list_products(db: Annotated[Connection, "warehouse"], category: str):
-    return db.fetch_all("SELECT * FROM items WHERE category = :c", {"c": category})
-
-```
-
-### B. App State & Config
-
-You can inject specific values from the global state using `AppState` and `Config` markers.
-
-```
-from typing import Annotated
-from brimley import AppState, Config
-import time
-
-def health_check(
-    # Injects context.app["start_time"]
+@function
+def health(
+    env: Annotated[str, Config("env")],
     start_time: Annotated[float, AppState("start_time")],
-    # Injects context.config.env
-    env: Annotated[str, Config("env")]
-):
-    return {"uptime": time.time() - start_time, "env": env}
-
+) -> dict:
+    return {"env": env, "start_time": start_time}
 ```
 
-### C. BrimleyContext Injection
+These map to `from_context` entries during argument inference.
 
-For internal composition and advanced runtime behaviors, Python handlers may request the full `BrimleyContext` by type hint.
+### B. Context-type injection (system parameters)
+
+Brimley treats the following typed parameters as injected/system arguments:
+
+- `BrimleyContext`
+- `Context` (FastMCP context aliases)
+- `MockMCPContext` (test/runtime compatibility)
+
+System-injected parameters are excluded from public argument schema and provided by runtime injections.
+
+### C. Composing functions via context
 
 ```python
+from brimley import function
 from brimley.core.context import BrimleyContext
 
-def orchestrate(task: str, ctx: BrimleyContext):
-    ctx.app["last_task"] = task
-    return {"task": task, "registered_functions": len(ctx.functions)}
+@function
+def orchestrate(user_id: int, ctx: BrimleyContext) -> dict:
+    profile = ctx.execute_function_by_name("get_user_profile", {"user_id": user_id})
+    return {"user_id": user_id, "profile": profile}
 ```
 
-When `BrimleyContext` is type-hinted in the function signature, Brimley injects the active runtime context automatically.
+## 7. Return Shape Inference
 
-### D. MCP Context Injection (Agentic Sampling)
+Return annotations are mapped to Brimley return shapes.
 
-Agentic Python handlers can opt-in to receiving FastMCP runtime context with `mcp.server.fastmcp.Context`.
+Examples:
 
-```python
-from mcp.server.fastmcp import Context
+- `-> str` → `string`
+- `-> int` → `int`
+- `-> list[dict]` / `-> List[dict]` → `dict[]`
+- `-> None` → `void`
+- `-> User` → `User`
 
-def summarize_with_model(prompt: str, mcp_ctx: Context):
-    sample = mcp_ctx.session.sample(messages=[{"role": "user", "content": prompt}])
-    return sample.message.content[0].text
-```
-
-During MCP tool execution, Brimley forwards FastMCP `ctx` into runtime injections so the Python runner can inject this dependency by type hint.
-
-### E. Executing Another Brimley Function by Name
-
-Handlers that receive `BrimleyContext` can compose other registered Brimley functions by name using the same runtime pipeline as CLI/REPL.
-
-```python
-from brimley.core.context import BrimleyContext
-
-def orchestrate_user_lookup(user_id: int, ctx: BrimleyContext):
-    result = ctx.execute_function_by_name(
-        function_name="get_user_profile",
-        input_data={"user_id": user_id},
-    )
-    return {
-        "user_id": user_id,
-        "profile": result,
-    }
-```
-
-Behavior notes:
-
-- Function lookup is performed against `ctx.functions`.
-- Arguments are resolved through normal Brimley argument rules (`from_context`, defaults, casting).
-- Execution is delegated to the dispatcher, preserving dependency injection behavior.
-- `KeyError` indicates missing function name, while argument/runtime failures bubble from resolver/runner.
-
-## 5. Reflection & Type Mapping
-
-Brimley maps standard Python type hints to JSON Schema types to facilitate tool-calling.
-
-|**Python Type**|**JSON Schema Equivalent**|**Note**|
-|---|---|---|
-|`int`|`integer`||
-|`float` / `Decimal`|`number`||
-|`bool`|`boolean`||
-|`str`|`string`||
-|`List[T]`|`array`|See [collection support](brimley-function-arguments.md#collection-support)|
-|`Optional[T]`|`T`|Property is marked as "not required"|
-|`Enum`|`string`|Uses the Enum members as `enum` values|
-
-### System Argument Filtering
-
-For MCP-facing schemas, Brimley hides system-injected arguments so external callers only see business inputs.
-
-- `BrimleyContext`-typed parameters are excluded from discovered/public argument schema.
-- `mcp.server.fastmcp.Context`-typed parameters are excluded from discovered/public argument schema.
-- User-supplied arguments remain visible and validated as normal.
+See [Return Shapes](brimley-function-return-shape.md) for full mapping and validation behavior.
