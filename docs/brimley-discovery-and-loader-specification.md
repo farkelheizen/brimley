@@ -1,83 +1,97 @@
 # Brimley Discovery & Loader Specification
 
-> Version 0.2
+> Version 0.3
 
-The Discovery Engine is the heart of Brimley. It translates files on disk into executable `BrimleyFunction` objects and schema-defined `Entity` objects, populating the `BrimleyContext`.
+The Discovery Engine translates assets on disk (or reflected module metadata) into executable function/entity models, then loads them into Brimley registries.
 
-## 1. The Scanning Algorithm
+## 1. Scanning Algorithm
 
-1. **Initialization:** The engine accepts a `root_dir`.
-    
-2. **Traversal:** Use `os.walk` or `pathlib.Path.rglob("*")` to visit every file.
-    
-3. **Identification (The 500-Character Rule):** For `.py`, `.sql`, `.md`, and `.yaml` files, the scanner reads the first 500 characters to determine the file type.
-    
-    It looks for a `type:` marker.
-    
-    - **Match:** `type: [something]_function` -> Identified as **Function**.
-        
-    - **Match:** `type: entity` -> Identified as **Entity**.
-        
-    - **No Match:** Ignore the file (Silent Ignore).
-        
-4. **Parsing:** The scanner delegates to a specific parser based on the identified type:
-    
-    - **Functions:**
-        
-        - `sql_function` -> `parse_sql_file`
-            
-        - `template_function` -> `parse_template_file`
-            
-        - `python_function` -> `parse_python_file`
-            
-    - **Entities:**
-        
-        - `entity` -> `parse_entity_file` (Parses YAML definition into an `Entity` schema/model).
-            
+1. **Initialization:** accept a `root_dir`.
+2. **Traversal:** walk the tree recursively (`os.walk` / `Path.rglob`).
+3. **Identification (extension-based):**
+   - `.py` -> Python parser route
+   - `.sql` -> SQL parser route only when SQL frontmatter marker is present
+   - `.md` -> template parser route only when markdown frontmatter marker is present
+   - `.yaml` -> not routed as standalone entities in the decorator-transition model
+4. **Parsing dispatch:**
+   - `sql_function` -> `parse_sql_file`
+   - `template_function` -> `parse_template_file`
+   - `python_function` -> `parse_python_file`
+5. **Collection:** parser outputs are normalized into function/entity lists plus diagnostics.
 
-## 2. Validation Flow
+This replaces the old Python 500-character YAML type probe for function identification.
 
-For every identified file:
+## 2. Python AST Parsing (Zero-Execution)
 
-### For Functions
+`parse_python_file` is AST-first and does not import/execute target modules during scanner discovery.
 
-1. **Schema Check:** Does the metadata contain `name` and `return_shape`?
-    
-2. **Name Check:** Does `name` match `^[a-zA-Z][a-zA-Z0-9_-]{1,63}$`?
-    
-3. **Registry Check:** Is `name` unique within `ctx.functions`?
-    
-4. **Handler Check:** (Python only) Can the `handler` be resolved?
+Behavior summary:
 
-5. **MCP Metadata Check:** If an `mcp` block exists, validate its schema (e.g., currently `type: tool` with optional description override). Invalid MCP metadata should produce diagnostics and not crash scanning.
-    
+- Parse with `ast.parse`.
+- Detect decorators:
+  - `@function` / `@brimley.function`
+  - `@entity` / `@brimley.entity`
+- Extract decorator literal kwargs when statically evaluable (`name`, `reload`, `mcpType`, `type`, etc.).
+- Infer function arguments from signatures, including:
+  - `Annotated[..., AppState("...")]`
+  - `Annotated[..., Config("...")]`
+  - system-injected context types (`BrimleyContext`, `Context`, `MockMCPContext`) filtered from public argument schema.
+- Infer `return_shape` from return annotations.
+- Build entity handlers as `{module_name}.{class_name}` for decorated classes.
 
-### For Entities
+Transition note: a legacy fallback for Python YAML frontmatter may still be applied when no decorators are discovered.
 
-1. **Schema Check:** Does the YAML contain `name` and a valid schema definition (e.g., `fields` or Pydantic-compatible structure)?
-    
-2. **Name Check:** Does `name` match the entity naming convention (PascalCase recommended)?
-    
-3. **Registry Check:** Is `name` unique within `ctx.entities`?
-    
+## 3. Validation Flow
 
-## 3. Error Accumulation
+For every identified object:
 
-The Loader must **not** raise an exception on the first error. It must finish the scan of the entire directory, collecting all `BrimleyDiagnostic` objects.
+### Functions
 
-If critical errors (parsing failures, invalid names, duplicates) occur, the application should display the "Wall of Shame" (a formatted list of diagnostics) and refuse to start.
+1. **Schema check:** required metadata exists (for example `name`, `return_shape`).
+2. **Name check:** must pass naming regex and uniqueness constraints.
+3. **Handler check (Python):** handler path must be derivable/importable by runtime.
+4. **MCP metadata check:** if MCP metadata exists, validate it against supported schema (`type: tool` + optional fields).
 
-## 4. Successful Registration
+### Entities
 
-A successful scan produces a `BrimleyScanResult` containing two lists:
+1. **Decorator check:** class is marked with `@entity`/`@brimley.entity`.
+2. **Name check:** name passes regex and uniqueness constraints.
+3. **Registry check:** no duplicate names in `ctx.entities`.
 
-1. **`functions`**: A list of `BrimleyFunction` objects.
-    
-2. **`entities`**: A list of `Entity` definitions.
-    
+## 4. Error Accumulation
 
-These are then bulk-registered into the `BrimleyContext`:
+Discovery should not abort on first failure. Scanner/parser errors are accumulated as diagnostics. If critical errors remain, Brimley emits diagnostics output and blocks normal startup/load flow.
+
+## 5. Successful Registration
+
+A successful scan returns:
+
+1. `functions`: list of `BrimleyFunction` implementations.
+2. `entities`: list of discovered entities.
+3. `diagnostics`: warnings/errors encountered during scan.
+
+Registration:
 
 - `ctx.functions.register_all(scan_result.functions)`
-    
 - `ctx.entities.register_all(scan_result.entities)`
+
+## 6. Hybrid Discovery for Runtime/Compiled Modes
+
+When file-system scanning is constrained (embedded/compiled environments), Brimley supports runtime reflection discovery through `scan_module(module_obj)`.
+
+- Reflection inspects members carrying `_brimley_meta`.
+- Discovered members are converted into function/entity models.
+- This enables discovery without direct source-file AST parsing.
+
+## 7. Asset Compilation Bridge (`brimley build`)
+
+To make SQL/Markdown assets discoverable in runtime reflection scenarios, Brimley provides `brimley build`.
+
+Workflow:
+
+1. Scan project with standard scanner.
+2. Collect discovered SQL/template functions.
+3. Generate `brimley_assets.py` containing shim functions decorated with `@function(...)` metadata.
+4. Load/scan the generated module in runtime mode so non-Python assets are discoverable via reflection.
+
+Default output target is `<root>/brimley_assets.py` (CLI options can override output path).
