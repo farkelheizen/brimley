@@ -397,7 +397,7 @@ def invoke(
 
     # Hydrate databases
     if context.databases:
-        context.databases = initialize_databases(context.databases)
+        context.databases = initialize_databases(context.databases, base_dir=root_path)
     
     # 2. Scan & Register
     if root_path.exists():

@@ -20,6 +20,8 @@ databases:
     url: "postgresql://user:pass@localhost:5432/warehouse"
 ```
 
+For SQLite URLs that use relative filesystem paths (for example `sqlite:///./brimley.db`), Brimley resolves the path against the active project root (`--root` when provided, otherwise the current project root).
+
 ## 2. Infrastructure Layer
 
 ### Connection Management

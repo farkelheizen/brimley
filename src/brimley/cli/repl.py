@@ -63,7 +63,7 @@ class BrimleyREPL:
         
         # Hydrate databases
         if self.context.databases:
-            self.context.databases = initialize_databases(self.context.databases)
+            self.context.databases = initialize_databases(self.context.databases, base_dir=self.root_dir)
         
         self.dispatcher = Dispatcher()
         self.mock_mcp_context = MockMCPContext()
@@ -215,7 +215,7 @@ class BrimleyREPL:
                     
                     # Hydrate databases
                     if self.context.databases:
-                        self.context.databases = initialize_databases(self.context.databases)
+                        self.context.databases = initialize_databases(self.context.databases, base_dir=self.root_dir)
                         
                     self.load()
                     self.start_auto_reload()

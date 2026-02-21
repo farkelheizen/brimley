@@ -136,6 +136,57 @@ SELECT * FROM users WHERE id = :id
     assert "123" in result.stdout
 
 
+def test_invoke_sql_function_resolves_relative_sqlite_url_from_root(monkeypatch, tmp_path):
+    root = tmp_path / "examples"
+    root.mkdir()
+
+    (root / "brimley.yaml").write_text(
+        """
+databases:
+  default:
+    url: "sqlite:///./data.db"
+"""
+    )
+
+    db_path = root / "data.db"
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as conn:
+        conn.execute(text("CREATE TABLE users (id int, username text, email text)"))
+        conn.execute(text("INSERT INTO users VALUES (1, 'relative-user', 'relative@example.com')"))
+        conn.commit()
+
+    (root / "get_users.sql").write_text(
+        """/*
+---
+type: sql_function
+name: get_users
+connection: default
+return_shape: list[dict]
+arguments:
+  inline:
+    limit: int
+---
+*/
+SELECT id, username, email
+FROM users
+ORDER BY id DESC
+LIMIT :limit
+"""
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(
+        app,
+        ["invoke", "get_users", "--root", str(root), "--input", '{"limit": 1}'],
+    )
+
+    assert result.exit_code == 0
+    assert "relative-user" in result.stdout
+
+
 def test_invoke_uses_execute_function_helper(monkeypatch, tmp_path):
     (tmp_path / "funcs").mkdir()
     func_file = tmp_path / "funcs" / "hello.md"
