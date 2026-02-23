@@ -2,6 +2,7 @@
 ---
 name: get_users
 type: sql_function
+description: Retrieves users ordered by newest first with an optional row limit.
 connection: default
 return_shape: list[dict]
 arguments:

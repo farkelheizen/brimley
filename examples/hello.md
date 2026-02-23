@@ -2,6 +2,7 @@
 # Version 0.3
 name: hello
 type: template_function
+description: Renders a friendly welcome message using a provided name and support email.
 return_shape: string
 arguments:
   inline:
