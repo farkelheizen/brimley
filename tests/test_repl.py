@@ -263,6 +263,380 @@ def test_repl_handle_command_passes_mock_mcp_context_runtime_injection(tmp_path,
     assert captured["runtime_injections"] == {"mcp_context": repl.mock_mcp_context}
 
 
+def test_repl_handle_command_supports_positional_args(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="calculate_tax",
+            type="template_function",
+            return_shape="string",
+            template_body="{{ args.amount }} {{ args.rate }}",
+            arguments={"inline": {"amount": "int", "rate": "int"}},
+        )
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_run(func, args, context, runtime_injections=None):
+        captured["args"] = args
+        return "ok"
+
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda *_args, **_kwargs: None)
+
+    repl.handle_command("calculate_tax 100 11")
+
+    assert captured["args"] == {"amount": 100, "rate": 11}
+
+
+def test_repl_handle_command_supports_keyword_args(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="calculate_tax",
+            type="template_function",
+            return_shape="string",
+            template_body="{{ args.amount }} {{ args.rate }}",
+            arguments={"inline": {"amount": "int", "rate": "int"}},
+        )
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_run(func, args, context, runtime_injections=None):
+        captured["args"] = args
+        return "ok"
+
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda *_args, **_kwargs: None)
+
+    repl.handle_command("calculate_tax amount=100 rate=11")
+
+    assert captured["args"] == {"amount": 100, "rate": 11}
+
+
+def test_repl_handle_command_supports_mixed_positional_and_keyword_args(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="calculate_tax",
+            type="template_function",
+            return_shape="string",
+            template_body="{{ args.amount }} {{ args.rate }}",
+            arguments={"inline": {"amount": "int", "rate": "int"}},
+        )
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_run(func, args, context, runtime_injections=None):
+        captured["args"] = args
+        return "ok"
+
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda *_args, **_kwargs: None)
+
+    repl.handle_command("calculate_tax 100 rate=11")
+
+    assert captured["args"] == {"amount": 100, "rate": 11}
+
+
+def test_repl_handle_command_rejects_duplicate_assignment_between_positional_and_keyword(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="calculate_tax",
+            type="template_function",
+            return_shape="string",
+            template_body="{{ args.amount }}",
+            arguments={"inline": {"amount": "int", "rate": "int"}},
+        )
+    )
+
+    calls = {"run": 0}
+    logs: list[tuple[str, str]] = []
+
+    def fake_run(func, args, context, runtime_injections=None):
+        calls["run"] += 1
+        return "ok"
+
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    repl.handle_command("calculate_tax 100 amount=200")
+
+    assert calls["run"] == 0
+    assert any(severity == "error" and "Duplicate argument assignment" in message for severity, message in logs)
+
+
+def test_repl_handle_command_rejects_unknown_keyword_argument(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="calculate_tax",
+            type="template_function",
+            return_shape="string",
+            template_body="{{ args.amount }} {{ args.rate }}",
+            arguments={"inline": {"amount": "int", "rate": "int"}},
+        )
+    )
+
+    calls = {"run": 0}
+    logs: list[tuple[str, str]] = []
+
+    def fake_run(func, args, context, runtime_injections=None):
+        calls["run"] += 1
+        return "ok"
+
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    repl.handle_command("calculate_tax amount=100 vat=11")
+
+    assert calls["run"] == 0
+    assert any(severity == "error" and "Unknown argument" in message for severity, message in logs)
+
+
+def test_repl_handle_command_json_fallback_supports_complex_object(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="create_user",
+            type="template_function",
+            return_shape="string",
+            template_body="{{ args.name }}",
+            arguments={"inline": {"name": "string", "metadata": "dict"}},
+        )
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_run(func, args, context, runtime_injections=None):
+        captured["args"] = args
+        return "ok"
+
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda *_args, **_kwargs: None)
+
+    repl.handle_command('create_user {"name": "Bob", "metadata": {"role": "admin"}}')
+
+    assert captured["args"] == {"name": "Bob", "metadata": {"role": "admin"}}
+
+
+def test_repl_handle_command_preserves_object_payload_into_argument_resolver(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="create_user",
+            type="template_function",
+            return_shape="string",
+            template_body="{{ args.name }}",
+            arguments={"inline": {"name": "string", "metadata": "dict"}},
+        )
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_resolve(func, user_input, context):
+        captured["resolver_input"] = user_input
+        return user_input
+
+    def fake_run(func, args, context, runtime_injections=None):
+        captured["run_args"] = args
+        return "ok"
+
+    monkeypatch.setattr("brimley.cli.repl.ArgumentResolver.resolve", fake_resolve)
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda *_args, **_kwargs: None)
+
+    repl.handle_command('create_user {"name": "Bob", "metadata": {"role": "admin"}}')
+
+    expected = {"name": "Bob", "metadata": {"role": "admin"}}
+    assert captured["resolver_input"] == expected
+    assert captured["run_args"] == expected
+
+
+def test_repl_handle_command_preserves_file_payload_into_argument_resolver(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="create_user",
+            type="template_function",
+            return_shape="string",
+            template_body="{{ args.name }}",
+            arguments={"inline": {"name": "string", "metadata": "dict"}},
+        )
+    )
+
+    args_file = tmp_path / "create_user_args.yaml"
+    args_file.write_text(
+        """
+name: FileUser
+metadata:
+  role: admin
+"""
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_resolve(func, user_input, context):
+        captured["resolver_input"] = user_input
+        return user_input
+
+    def fake_run(func, args, context, runtime_injections=None):
+        captured["run_args"] = args
+        return "ok"
+
+    monkeypatch.setattr("brimley.cli.repl.ArgumentResolver.resolve", fake_resolve)
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda *_args, **_kwargs: None)
+
+    repl.handle_command(f"create_user @{args_file}")
+
+    expected = {"name": "FileUser", "metadata": {"role": "admin"}}
+    assert captured["resolver_input"] == expected
+    assert captured["run_args"] == expected
+
+
+def test_repl_handle_command_logs_error_on_unmatched_quotes(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.functions.register(
+        TemplateFunction(
+            name="calculate_tax",
+            type="template_function",
+            return_shape="string",
+            template_body="{{ args.amount }}",
+            arguments={"inline": {"amount": "int"}},
+        )
+    )
+
+    calls = {"run": 0}
+    logs: list[tuple[str, str]] = []
+
+    def fake_run(func, args, context, runtime_injections=None):
+        calls["run"] += 1
+        return "ok"
+
+    monkeypatch.setattr(repl.dispatcher, "run", fake_run)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_data", lambda _data: None)
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    repl.handle_command('calculate_tax "100 11')
+
+    assert calls["run"] == 0
+    assert any(severity == "error" and "Invalid argument syntax" in message for severity, message in logs)
+
+
+def test_repl_cli_reports_malformed_object_payload_error(tmp_path):
+    (tmp_path / "funcs").mkdir()
+    f = tmp_path / "funcs" / "create_user.md"
+    f.write_text(
+        """---
+name: create_user
+type: template_function
+return_shape: string
+arguments:
+  inline:
+    name: string
+---
+Hello {{ args.name }}"""
+    )
+
+    result = runner.invoke(
+        app,
+        ["repl", "--root", str(tmp_path / "funcs")],
+        input="create_user {name: [}\nquit\n",
+    )
+
+    assert result.exit_code == 0
+    assert "Invalid argument syntax" in _combined_output(result)
+
+
+def test_repl_cli_reports_invalid_keyword_tokenization_error(tmp_path):
+    (tmp_path / "funcs").mkdir()
+    f = tmp_path / "funcs" / "calculate_tax.md"
+    f.write_text(
+        """---
+name: calculate_tax
+type: template_function
+return_shape: string
+arguments:
+  inline:
+    amount: int
+    rate: int
+---
+Tax {{ args.amount }} {{ args.rate }}"""
+    )
+
+    result = runner.invoke(
+        app,
+        ["repl", "--root", str(tmp_path / "funcs")],
+        input="calculate_tax =11 rate=5\nquit\n",
+    )
+
+    assert result.exit_code == 0
+    assert "Invalid argument token" in _combined_output(result)
+
+
+def test_repl_cli_reports_positional_overflow_error(tmp_path):
+    (tmp_path / "funcs").mkdir()
+    f = tmp_path / "funcs" / "calculate_tax.md"
+    f.write_text(
+        """---
+name: calculate_tax
+type: template_function
+return_shape: string
+arguments:
+  inline:
+    amount: int
+    rate: int
+---
+Tax {{ args.amount }} {{ args.rate }}"""
+    )
+
+    result = runner.invoke(
+        app,
+        ["repl", "--root", str(tmp_path / "funcs")],
+        input="calculate_tax 100 11 9\nquit\n",
+    )
+
+    assert result.exit_code == 0
+    assert "Too many positional arguments provided" in _combined_output(result)
+
+
+def test_repl_split_argument_tokens_supports_quoted_strings(tmp_path):
+    repl = BrimleyREPL(tmp_path)
+
+    tokens = repl._split_argument_tokens('amount=100 note="Bob Smith"')
+
+    assert tokens == ["amount=100", "note=Bob Smith"]
+
+
+def test_repl_split_positional_and_keyword_tokens_separates_values(tmp_path):
+    repl = BrimleyREPL(tmp_path)
+
+    positional, keyword = repl._split_positional_and_keyword_tokens(["100", "rate=11", "label=tax"])
+
+    assert positional == ["100"]
+    assert keyword == {"rate": "11", "label": "tax"}
+
+
+def test_repl_parse_object_payload_supports_nested_object(tmp_path):
+    repl = BrimleyREPL(tmp_path)
+
+    parsed = repl._parse_object_payload('{"name": "Bob", "metadata": {"role": "admin"}}')
+
+    assert parsed == {"name": "Bob", "metadata": {"role": "admin"}}
+
+
 def test_repl_mcp_warns_when_tools_exist_but_fastmcp_missing(tmp_path, monkeypatch):
     repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
     repl.context.functions.register(

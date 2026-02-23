@@ -493,6 +493,94 @@ class BrimleyREPL:
         typer.echo(json.dumps(self.context.databases, indent=2, default=str))
         return True
 
+    def _parse_scalar_token(self, raw_value: str):
+        if raw_value == "":
+            return ""
+        return yaml.safe_load(raw_value)
+
+    def _is_object_payload(self, payload: str) -> bool:
+        stripped = payload.strip()
+        return stripped.startswith("{") and stripped.endswith("}")
+
+    def _parse_object_payload(self, payload: str) -> dict:
+        try:
+            parsed = yaml.safe_load(payload)
+        except yaml.YAMLError as exc:
+            raise ValueError(f"Invalid argument syntax: {exc}") from exc
+
+        if parsed is None:
+            return {}
+
+        if not isinstance(parsed, dict):
+            raise ValueError("Input args must appear as a dict/map.")
+
+        return parsed
+
+    def _split_argument_tokens(self, arg_payload: str) -> list[str]:
+        try:
+            return shlex.split(arg_payload)
+        except ValueError as exc:
+            raise ValueError(f"Invalid argument syntax: {exc}") from exc
+
+    def _split_positional_and_keyword_tokens(self, tokens: list[str]) -> tuple[list[str], dict[str, str]]:
+        positional_tokens: list[str] = []
+        keyword_tokens: dict[str, str] = {}
+
+        for token in tokens:
+            if token.startswith("="):
+                raise ValueError(f"Invalid argument token: '{token}'. Expected key=value or positional value.")
+
+            if "=" in token and not token.startswith("="):
+                key, value = token.split("=", 1)
+                if key in keyword_tokens:
+                    raise ValueError(f"Duplicate argument assignment for '{key}'.")
+                keyword_tokens[key] = value
+            else:
+                positional_tokens.append(token)
+
+        return positional_tokens, keyword_tokens
+
+    def _get_inline_argument_names(self, func) -> list[str]:
+        if not func.arguments:
+            return []
+
+        inline_args = func.arguments.get("inline", {})
+        if not isinstance(inline_args, dict):
+            return []
+
+        names: list[str] = []
+        for arg_name, spec in inline_args.items():
+            if isinstance(spec, dict) and spec.get("from_context"):
+                continue
+            names.append(arg_name)
+
+        return names
+
+    def _parse_tokenized_arguments(self, func, arg_payload: str) -> dict:
+        tokens = self._split_argument_tokens(arg_payload)
+        positional_tokens, keyword_tokens = self._split_positional_and_keyword_tokens(tokens)
+
+        argument_names = self._get_inline_argument_names(func)
+        parsed_input: dict = {}
+        for positional_index, token in enumerate(positional_tokens):
+            if positional_index >= len(argument_names):
+                raise ValueError("Too many positional arguments provided.")
+
+            key = argument_names[positional_index]
+            if key in parsed_input:
+                raise ValueError(f"Duplicate argument assignment for '{key}'.")
+
+            parsed_input[key] = self._parse_scalar_token(token)
+
+        for key, value in keyword_tokens.items():
+            if key in parsed_input:
+                raise ValueError(f"Duplicate argument assignment for '{key}'.")
+            if key not in argument_names:
+                raise ValueError(f"Unknown argument: '{key}'.")
+            parsed_input[key] = self._parse_scalar_token(value)
+
+        return parsed_input
+
     def handle_command(self, line: str):
         # Format: [NAME] [ARGS...]
         parts = line.split(" ", 1)
@@ -543,14 +631,18 @@ class BrimleyREPL:
 
         # Parse args
         try:
-            parsed_input = yaml.safe_load(input_content)
-            if parsed_input is None:
-                parsed_input = {}
-            if not isinstance(parsed_input, dict):
-                 OutputFormatter.log("Input args must appear as a dict/map.", severity="error")
-                 return
-        except yaml.YAMLError as e:
-            OutputFormatter.log(f"Invalid argument syntax: {e}", severity="error")
+            if arg_str is not None and not arg_str.startswith("@"):
+                payload = input_content.strip()
+                if not payload:
+                    parsed_input = {}
+                elif self._is_object_payload(payload):
+                    parsed_input = self._parse_object_payload(payload)
+                else:
+                    parsed_input = self._parse_tokenized_arguments(func, payload)
+            else:
+                parsed_input = self._parse_object_payload(input_content)
+        except ValueError as e:
+            OutputFormatter.log(str(e), severity="error")
             return
 
         # Execute

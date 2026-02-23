@@ -70,8 +70,14 @@ Used for an interactive, stateful session.
     - **`reset`**: Clear `context.app` and re-scan `ROOT_DIR`.
         
     - **`[NAME] @[PATH]`**: Invoke function using a specific YAML/JSON file for arguments.
-        
-    - **`[NAME] [YAML_STRING]`**: Invoke function with single-line inline YAML.
+    
+    - **`[NAME] [ARGS...]`**: Invoke function with smart inline parsing.
+        - **Object Fallback (`{...}`):** If payload starts with `{` and ends with `}`, parse as YAML/JSON object map.
+        - **Token Mode:** Otherwise parse with `shlex.split(...)`.
+            - Tokens matching `key=value` are treated as keyword arguments.
+            - Other tokens are treated as positional arguments, mapped to inline argument order.
+            - Scalar token values are YAML-cast (`100` → int, `true` → bool, `null` → None).
+        - Mixed forms are supported (e.g., `calculate_tax 100 rate=11`).
         
     - **`[NAME]` (No Arguments)**: Trigger **Multi-line Input Mode**.
         
@@ -133,6 +139,12 @@ Before a handler is called, the engine merges data from three sources:
 
 **Priority:** Input > Context > Defaults.
 
+For REPL token mode specifically:
+- Positional values map first in inline argument order.
+- Keyword values are applied next.
+- Duplicate assignment (same argument from positional + keyword, or repeated keyword) is rejected.
+- Unknown keyword names are rejected.
+
 ## 4. Output & Error Diagnostics
 
 ### Output Standards
@@ -147,8 +159,11 @@ Before a handler is called, the engine merges data from three sources:
 ### Standard Error Messages
 
 - **Missing File:** `Error: Input file '[FILENAME]' not found.`
-    
-- **Invalid Input:** `Error: Invalid YAML format in [FILE/STRING].`
+- **Invalid Object Input:** `Invalid argument syntax: ...`
+- **Invalid Tokenization:** `Invalid argument token: '=...'. Expected key=value or positional value.`
+- **Too Many Positional Values:** `Too many positional arguments provided.`
+- **Unknown Keyword:** `Unknown argument: '[ARG_NAME]'.`
+- **Duplicate Assignment:** `Duplicate argument assignment for '[ARG_NAME]'.`
     
 - **Missing Function:** `Error: Function '[NAME]' not found in registry.`
     
@@ -199,6 +214,18 @@ $ brimley ./tools repl
 brimley > get_user {uid: 42}
 [SYSTEM] Executing get_user...
 { "id": 42, "name": "Arthur Dent", "role": "User" }
+
+# Positional input
+brimley > calculate_tax 100 11
+
+# Keyword input
+brimley > calculate_tax amount=100 rate=11
+
+# Mixed positional + keyword
+brimley > calculate_tax 100 rate=11
+
+# Quote tokens containing spaces
+brimley > create_user name="Bob Smith" role=admin
 
 # Using the @ prefix for a file-based input
 brimley > update_score @./test_data/score_update.yaml
