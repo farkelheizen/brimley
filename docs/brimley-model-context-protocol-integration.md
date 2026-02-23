@@ -4,7 +4,7 @@
 
 Brimley acts as a powerful single source of truth for your organizational functions. With built-in support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/ "null"), you can seamlessly expose your Brimley functions as tools to Large Language Models (LLMs) and agents like Claude, LangGraph, or AutoGen.
 
-Under the hood, Brimley uses [FastMCP](https://github.com/jlowin/fastmcp) to create and host these tools.
+Under the hood, Brimley uses [FastMCP](https://github.com/PrefectHQ/fastmcp) to create and host these tools.
 
 FastMCP is optional at install time. Brimley only requires it when you actually register or run MCP tools.
 
