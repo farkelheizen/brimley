@@ -1252,6 +1252,70 @@ Hello V2 {{ args.name }}
         assert refresh_calls["initialize"] == 0
 
 
+def test_repl_reload_schema_change_restarts_embedded_mcp_server(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+
+    class FakeServer:
+        def __init__(self):
+            self.clear_calls = 0
+
+        def clear_tools(self):
+            self.clear_calls += 1
+
+    fake_server = FakeServer()
+    repl.mcp_server = fake_server
+
+    calls = {"shutdown": 0, "initialize": 0, "register": 0}
+    schema_state = {"value": "v1"}
+
+    monkeypatch.setattr(repl, "_shutdown_mcp_server", lambda: calls.__setitem__("shutdown", calls["shutdown"] + 1))
+    monkeypatch.setattr(repl, "_initialize_mcp_server", lambda: calls.__setitem__("initialize", calls["initialize"] + 1))
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def is_fastmcp_available(self):
+            return True
+
+        def get_tool_schema_signatures(self, tools=None):
+            return {"hello_tool": schema_state["value"]}
+
+        def register_tools(self, mcp_server=None):
+            calls["register"] += 1
+            return mcp_server
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr(
+        repl.reload_engine,
+        "apply_reload_with_policy",
+        lambda _context, _scan: ReloadApplicationResult(
+            summary=ReloadSummary(functions=1, entities=len(repl.context.entities), tools=1),
+            blocked_domains=[],
+            diagnostics=[],
+        ),
+    )
+
+    first_result = repl._run_reload_cycle()
+    assert first_result.status == ReloadCommandStatus.SUCCESS
+    assert fake_server.clear_calls == 1
+    assert calls["register"] == 1
+    assert calls["shutdown"] == 0
+    assert calls["initialize"] == 0
+
+    schema_state["value"] = "v2"
+    second_result = repl._run_reload_cycle()
+
+    assert second_result.status == ReloadCommandStatus.SUCCESS
+    assert calls["shutdown"] == 1
+    assert calls["initialize"] == 1
+    assert fake_server.clear_calls == 1
+    assert calls["register"] == 1
+
+
 def test_repl_run_reload_cycle_failure_does_not_preserve_stale_memory_only_functions(tmp_path):
     repl = BrimleyREPL(tmp_path)
     repl.context.functions.register(

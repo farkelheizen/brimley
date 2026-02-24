@@ -70,6 +70,7 @@ class BrimleyREPL:
         self.prompt_session = PromptSession()
         self.mcp_server = None
         self.mcp_server_thread = None
+        self._mcp_tool_schema_signatures: dict[str, str] = {}
         self.auto_reload_watcher: Optional[PollingWatcher] = None
         self.auto_reload_thread: Optional[threading.Thread] = None
         self._auto_reload_stop_event = threading.Event()
@@ -114,7 +115,14 @@ class BrimleyREPL:
 
         adapter = BrimleyMCPAdapter(registry=self.context.functions, context=self.context)
         tools = adapter.discover_tools()
+        schema_signatures_getter = getattr(adapter, "get_tool_schema_signatures", None)
+        schema_signatures = (
+            schema_signatures_getter(tools)
+            if callable(schema_signatures_getter)
+            else {}
+        )
         if not tools:
+            self._mcp_tool_schema_signatures = {}
             return
 
         if not adapter.is_fastmcp_available():
@@ -131,6 +139,7 @@ class BrimleyREPL:
             return
 
         self.mcp_server = server
+        self._mcp_tool_schema_signatures = schema_signatures
 
         if hasattr(server, "run"):
             host = self.context.mcp.host
@@ -468,10 +477,17 @@ class BrimleyREPL:
 
         adapter = BrimleyMCPAdapter(registry=self.context.functions, context=self.context)
         tools = adapter.discover_tools()
+        schema_signatures_getter = getattr(adapter, "get_tool_schema_signatures", None)
+        schema_signatures = (
+            schema_signatures_getter(tools)
+            if callable(schema_signatures_getter)
+            else {}
+        )
 
         if not tools:
             if self.mcp_server is not None or self.mcp_server_thread is not None:
                 self._shutdown_mcp_server()
+            self._mcp_tool_schema_signatures = {}
             return
 
         if not adapter.is_fastmcp_available():
@@ -485,10 +501,24 @@ class BrimleyREPL:
             self._initialize_mcp_server()
             return
 
+        schema_changed = (
+            bool(self._mcp_tool_schema_signatures)
+            and schema_signatures != self._mcp_tool_schema_signatures
+        )
+        if schema_changed:
+            OutputFormatter.log(
+                "MCP tool schema changed; restarting embedded MCP server to apply updated schema.",
+                severity="info",
+            )
+            self._shutdown_mcp_server()
+            self._initialize_mcp_server()
+            return
+
         if self.mcp_server is not None and self._supports_tool_reset(self.mcp_server):
             try:
                 self._clear_server_tools(self.mcp_server)
                 adapter.register_tools(mcp_server=self.mcp_server)
+                self._mcp_tool_schema_signatures = schema_signatures
                 OutputFormatter.log("Embedded MCP tools refreshed.", severity="success")
             except Exception as exc:
                 OutputFormatter.log(f"Unable to refresh embedded MCP tools in place: {exc}", severity="warning")

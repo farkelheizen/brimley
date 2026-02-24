@@ -265,10 +265,20 @@ def mcp_serve(
     if effective_watch:
         runtime_controller = BrimleyRuntimeController(root_dir=root_path)
         server_state = {"server": None}
+
+        def _server_factory():
+            mcp_adapter = BrimleyMCPAdapter(
+                registry=runtime_controller.context.functions,
+                context=runtime_controller.context,
+            )
+            fastmcp_cls = mcp_adapter.require_fastmcp()
+            return fastmcp_cls(name="BrimleyTools")
+
         refresh_adapter = ExternalMCPRefreshAdapter(
             context=runtime_controller.context,
             get_server=lambda: server_state["server"],
             set_server=lambda server: server_state.__setitem__("server", server),
+            server_factory=_server_factory,
         )
         runtime_controller.mcp_refresh = refresh_adapter.refresh
 

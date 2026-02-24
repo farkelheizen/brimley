@@ -1,5 +1,6 @@
 import importlib
 import importlib.util
+import json
 from typing import Any, Dict, Tuple, Type
 
 from pydantic import BaseModel, Field, create_model
@@ -34,6 +35,21 @@ class BrimleyMCPAdapter:
             for func in self.registry
             if getattr(func, "mcp", None) is not None and func.mcp.type == "tool"
         ]
+
+    def get_tool_schema_signatures(self, tools: list[BrimleyFunction] | None = None) -> Dict[str, str]:
+        """Return deterministic MCP tool schema signatures keyed by tool name."""
+        selected_tools = tools if tools is not None else self.discover_tools()
+        signatures: Dict[str, str] = {}
+
+        for func in selected_tools:
+            input_model = self.build_tool_input_model(func)
+            schema_payload = {
+                "tool": func.name,
+                "input_schema": input_model.model_json_schema(),
+            }
+            signatures[func.name] = json.dumps(schema_payload, sort_keys=True)
+
+        return signatures
 
     def build_tool_input_model(self, func: BrimleyFunction) -> Type[BaseModel]:
         """
