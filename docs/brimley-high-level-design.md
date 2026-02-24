@@ -120,6 +120,8 @@ Defined in [MCP Integration](brimley-model-context-protocol-integration.md), thi
 
 ## 5. Reference Documentation Map
 
+- [What’s New in 0.4](brimley-0.4-whats-new.md)
+- [What’s Next in 0.5](brimley-0.5-what-next.md)
 - [Project Structure](brimley-application-structure.md)
 - [Function Arguments](brimley-function-arguments.md)
 - [Return Shapes](brimley-function-return-shape.md)

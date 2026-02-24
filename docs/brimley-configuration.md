@@ -132,6 +132,6 @@ class BrimleyContext(Entity):
   ### Transport Note (0.4)
 
   - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in 0.4.
-  - In hybrid workflows, REPL remains loopback-control-plane oriented and does not share terminal `stdio` with MCP transport.
+  - In hybrid workflows, REPL remains interactive in the same process while embedded FastMCP serves over SSE, avoiding terminal `stdio` conflicts.
 
   Precedence: CLI override > config > model default.

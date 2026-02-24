@@ -332,7 +332,7 @@ def mcp_serve(
             scanner = Scanner(root_path)
             scan_result = scanner.scan()
         else:
-            OutputFormatter.log(f"Warning: Root directory '{root_dir}' does not exist.", severity="warning")
+            OutputFormatter.log(f"Warning: Root directory '{root_path}' does not exist.", severity="warning")
             from brimley.discovery.scanner import BrimleyScanResult
             scan_result = BrimleyScanResult()
 
