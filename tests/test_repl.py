@@ -1131,7 +1131,7 @@ Hello V2 {{ args.name }}
         assert refresh_calls["initialize"] == 0
 
 
-def test_repl_run_reload_cycle_failure_preserves_existing_registries(tmp_path):
+def test_repl_run_reload_cycle_failure_does_not_preserve_stale_memory_only_functions(tmp_path):
     repl = BrimleyREPL(tmp_path)
     repl.context.functions.register(
         TemplateFunction(
@@ -1155,7 +1155,7 @@ type: template_function
 
     assert result.status == ReloadCommandStatus.FAILURE
     assert len(result.diagnostics) > 0
-    assert "existing_tool" in repl.context.functions
+    assert "existing_tool" not in repl.context.functions
 
 
 def test_repl_run_reload_cycle_success_swaps_registries(tmp_path):

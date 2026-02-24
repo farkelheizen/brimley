@@ -1,3 +1,5 @@
+import pytest
+
 from brimley.core.context import BrimleyContext
 from brimley.core.entity import Entity
 from types import ModuleType
@@ -119,8 +121,8 @@ def test_reload_engine_policy_keeps_functions_when_function_domain_has_errors():
 
     assert ReloadDomain.FUNCTIONS in result.blocked_domains
     assert ReloadDomain.MCP_TOOLS in result.blocked_domains
-    assert "existing" in context.functions
-    assert "broken_candidate" not in context.functions
+    assert "existing" not in context.functions
+    assert "broken_candidate" in context.functions
     assert "Invoice" in context.entities
     assert any(diag.message.startswith("[functions]") for diag in result.diagnostics)
 
@@ -250,8 +252,8 @@ def test_reload_engine_policy_rolls_back_downstream_domains_only():
     assert ReloadDomain.FUNCTIONS in result.blocked_domains
     assert ReloadDomain.MCP_TOOLS in result.blocked_domains
     assert "Address" in context.entities
-    assert "existing_tool" in context.functions
-    assert "new_tool" not in context.functions
+    assert "existing_tool" not in context.functions
+    assert "new_tool" in context.functions
     assert result.summary.tools == 1
     assert any(diag.message.startswith("[functions]") for diag in result.diagnostics)
 
@@ -373,4 +375,64 @@ def test_reload_engine_policy_rehydrates_only_when_function_domain_swaps(monkeyp
     result_failure = engine.apply_reload_with_policy(context, failure_scan)
 
     assert ReloadDomain.FUNCTIONS in result_failure.blocked_domains
-    assert calls["count"] == 1
+    assert calls["count"] == 2
+
+
+def test_reload_engine_quarantines_changed_broken_function_without_stale_fallback():
+    context = BrimleyContext()
+    context.app["root_dir"] = "/project"
+    context.functions.register(
+        TemplateFunction(
+            name="hello",
+            type="template_function",
+            return_shape="string",
+            template_body="old",
+            canonical_id="function:hello.md:hello",
+        )
+    )
+    context.functions.register(
+        TemplateFunction(
+            name="stable",
+            type="template_function",
+            return_shape="string",
+            template_body="stable-old",
+            canonical_id="function:stable.md:stable",
+        )
+    )
+
+    engine = PartitionedReloadEngine()
+    scan_result = BrimleyScanResult(
+        functions=[
+            TemplateFunction(
+                name="stable",
+                type="template_function",
+                return_shape="string",
+                template_body="stable-new",
+                canonical_id="function:stable.md:stable",
+            ),
+            TemplateFunction(
+                name="fresh",
+                type="template_function",
+                return_shape="string",
+                template_body="fresh",
+                canonical_id="function:fresh.md:fresh",
+            ),
+        ],
+        diagnostics=[
+            BrimleyDiagnostic(
+                file_path="/project/hello.md",
+                error_code="ERR_PARSE_FAILURE",
+                severity="error",
+                message="invalid frontmatter",
+            )
+        ],
+    )
+
+    result = engine.apply_reload_with_policy(context, scan_result)
+
+    assert ReloadDomain.FUNCTIONS in result.blocked_domains
+    assert "fresh" in context.functions
+    assert "stable" in context.functions
+    assert "hello" in context.functions
+    with pytest.raises(KeyError, match="quarantined"):
+        context.functions.get("hello")

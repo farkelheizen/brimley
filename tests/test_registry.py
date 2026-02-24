@@ -65,3 +65,14 @@ def test_registry_alias_chain_is_rejected():
 
     with pytest.raises(ValueError, match="Alias chains are not supported"):
         reg.register_alias(alias="older", target="legacy")
+
+
+def test_registry_quarantined_name_raises_clear_error_on_get():
+    reg = Registry()
+    reg.register(MockFunction(name="hello"))
+
+    reg.mark_quarantined(name="hello", reason="reload validation failed")
+
+    assert "hello" in reg
+    with pytest.raises(KeyError, match="quarantined"):
+        reg.get("hello")

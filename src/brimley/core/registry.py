@@ -12,6 +12,7 @@ class Registry(Generic[T]):
     def __init__(self):
         self._items: Dict[str, T] = {}
         self._aliases: Dict[str, str] = {}
+        self._quarantined: Dict[str, str] = {}
 
     def register(self, item: T) -> None:
         """
@@ -19,6 +20,9 @@ class Registry(Generic[T]):
         """
         if item.name in self._aliases:
             raise ValueError(f"Item name '{item.name}' conflicts with an existing alias.")
+
+        if item.name in self._quarantined:
+            del self._quarantined[item.name]
 
         if item.name in self._items:
             raise ValueError(f"Item with name '{item.name}' is already registered.")
@@ -33,8 +37,15 @@ class Registry(Generic[T]):
         """
         Retrieve an item by name. Raises KeyError if not found.
         """
+        if name in self._quarantined:
+            reason = self._quarantined[name]
+            raise KeyError(f"'{name}' is quarantined due to reload error: {reason}")
+
         if name in self._aliases:
             target = self._aliases[name]
+            if target in self._quarantined:
+                reason = self._quarantined[target]
+                raise KeyError(f"'{target}' is quarantined due to reload error: {reason}")
             return self._items[target]
 
         if name not in self._items:
@@ -62,8 +73,20 @@ class Registry(Generic[T]):
 
         self._aliases[alias] = target
 
+    def mark_quarantined(self, name: str, reason: str) -> None:
+        """Mark a canonical name as quarantined for fail-closed reload behavior."""
+        self._quarantined[name] = reason
+
+    def is_quarantined(self, name: str) -> bool:
+        """Return whether a canonical or alias name is quarantined."""
+        if name in self._quarantined:
+            return True
+        if name in self._aliases:
+            return self._aliases[name] in self._quarantined
+        return False
+
     def __contains__(self, name: str) -> bool:
-        return name in self._items or name in self._aliases
+        return name in self._items or name in self._aliases or name in self._quarantined
 
     def __len__(self) -> int:
         return len(self._items)
