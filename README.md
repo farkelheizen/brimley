@@ -1,166 +1,215 @@
-# Brimley
-> Version 0.4
+# Brimley (v0.4) 🎩
 
-**Brimley** is a lightweight, file-based function execution engine designed to bridge the gap between static logic definitions (SQL, Python, Templates) and dynamic execution environments (CLI, REPL, and AI Agents).
+**The Fault-Tolerant Authoring Engine for AI Tools**
 
-It emphasizes a **"Configuration over Code"** approach for discovery and a strict contract for inputs and outputs, making it the ideal engine for building modular toolsets for Large Language Models (LLMs).
+Brimley is an advanced execution environment designed to bridge the gap between local developer workflows and AI-driven tool execution (via the Model Context Protocol).
 
-## 🚀 Key Features
+While most MCP frameworks focus on transport (how to send messages to the LLM), Brimley focuses on **Authoring and Execution**—giving developers a magical, instant-feedback loop for building complex agentic tools.
 
-- **File-Based Discovery:** Just drop `.py`, `.sql`, `.md`, or `.yaml` files into a directory. Brimley automatically scans, validates, and registers them.
-    
-- **Unified Context:** Every function receives a `BrimleyContext` containing configuration, database pools, and shared application state.
-    
-- **Multi-Modal Functions:**
-    
-    - **Python:** Native logic with reflection-based schema inference.
-        
-    - **SQL:** Parameterized queries managed via connection pools.
-        
-    - **Templates:** Jinja2-based text/prompt generation.
-        
-- **Developer Experience:** Built-in CLI and interactive REPL with state persistence.
+Think of the split this way: **Brimley is the Authoring Engine, FastMCP is the Transport Layer.**
 
-- **Auto Reload:** Optional watch mode with debounce for dynamic function/entity/tool refresh in REPL and host-managed runtimes.
+## ✨ Why Brimley? (The Differentiators)
 
-- **MCP Tooling:** Functions marked with `@function(mcpType="tool")` can be exposed to MCP clients, with embedded FastMCP hosting in REPL when enabled via config or CLI.
-    
-- **Strict Validation:** Inputs and outputs are validated against defined schemas before execution.
-    
+Writing tools for AI agents shouldn't require restarting your server every time you tweak a prompt or fix a bug. Brimley rethinks the tool-building lifecycle:
 
-## 🛠️ Installation
+- 🔍 **Zero-Import AST Discovery:** Brimley discovers your tools by scanning Abstract Syntax Trees (AST). It reads metadata, docstrings, and type hints without importing the modules. Broken code in one file will never crash your server.
+- 🔄 **Safe Instant Hot-Reloading:** Edit function logic, save, and Brimley promotes valid changes immediately. Broken changed objects are quarantined with explicit errors (no silent stale fallback).
+- 🧪 **Developer Trust Surface:** Use `/errors` in the REPL for the live "wall of shame" and run `brimley validate --root .` for preflight diagnostics before shipping.
+- 🌍 **Polyglot Tooling:** Why write Python just to execute a database query? Brimley treats `.py`, `.sql`, and `.md` files as first-class citizens.
+- 💻 **The Hybrid REPL:** Test your tools manually in an interactive terminal while your LLM is connected to the exact same live-updating environment.
 
-Brimley uses **Poetry** for dependency management.
+## 🚀 Quick Start
 
-### Prerequisites
+### 1. Installation
 
-- Python 3.10+
-    
-- [Poetry](https://python-poetry.org/docs)
-
-
-### Setup
+Brimley is lightweight by default, but to serve tools to an LLM, you'll want the FastMCP integration.
 
 ```
-# Clone the repository
-git clone [https://github.com/farkelheizen/brimley.git](https://github.com/farkelheizen/brimley.git)
-cd brimley
-
-# Install dependencies
-poetry install
-
-# Optional: install FastMCP if you want MCP tool hosting
-poetry run pip install fastmcp
+# Install Brimley with FastMCP transport support
+pip install "brimley[fastmcp]"
 ```
 
-## ⚡ Quick Start
+### 2. Project Initialization & Configuration
 
-### 1. Create a Function
+Brimley uses a `brimley.yaml` configuration file at your project root. This file does more than just name your project—it manages three critical layers of your environment out-of-the-box:
 
-Create a file named `hello.py` in your tools directory:
-
-```
-# ./tools/hello.py
-from brimley import function
-
-@function(name="greet_user")
-def greet_user(name: str) -> str:
-    return f"Hello, {name}! Welcome to Brimley."
-```
-
-### 2. Run with CLI
-
-Use the `invoke` command for single-shot execution:
+1. **Immutable Config:** Read-only settings (like URLs or emails) injected into your tools.
+2. **Mutable State:** In-memory variables that persist across tool calls while the daemon runs.
+3. **Database Pools:** Connection managers that automatically wire up to your SQL tools.
 
 ```
-poetry run brimley ./tools invoke greet_user --input "{name: 'Developer'}"
-# Output: Hello, Developer! Welcome to Brimley.
+# brimley.yaml
+name: my-ai-tools
+
+# 1. Immutable configuration (accessible via context.config)
+config:
+    support_email: "help@example.com"
+
+# 2. Mutable application state (accessible via context.state)
+state:
+    tools_called: 0
+
+# 3. Database connection pools (automatically linked to .sql tools)
+connections:
+    default:
+        type: sqlite
+        url: "sqlite:///app.db"
 ```
 
-### 2.5 Build Assets for Production/Compiled Runtimes
+### 3. Write a Tool
 
-When packaging for compiled or source-restricted environments, run `build` to generate Python shims for SQL and template assets:
-
-```
-poetry run brimley build ./tools
-```
-
-### 3. Interactive REPL
-
-Start the interactive loop to test stateful workflows:
+Create your `tools/` directory and drop in a Python file. Brimley discovers functions using the `@brimley.function` decorator, reading standard Python type hints and docstrings.
 
 ```
-poetry run brimley ./tools repl
+# tools/weather.py
+import brimley
+
+@brimley.function
+def get_weather(location: str) -> str:
+        """
+        Fetches the current weather for a given location.
+
+        Args:
+                location: The city and state, e.g., 'San Francisco, CA'
+        """
+        return f"It is currently 72°F and sunny in {location}."
 ```
 
-Enable watch mode (or disable it explicitly) with:
+### 4. Test in the REPL
+
+Before handing the tool to an AI, test it yourself using Brimley's interactive terminal. You'll specify your project root directly in the command. (When you run this command, Brimley will automatically start a background daemon if one isn't already running).
 
 ```
-poetry run brimley ./tools repl --watch
-# or
-poetry run brimley ./tools repl --no-watch
+brimley repl --root .
 ```
 
 ```
-[SYSTEM] Scanning ./tools...
-[SYSTEM] Loaded 1 functions: greet_user
+Brimley Interactive REPL (v0.4)
+Watching for changes...
 
-brimley > greet_user {name: "Arthur"}
-Hello, Arthur! Welcome to Brimley.
-
-brimley > quit
+brimley> get_weather location="New York, NY"
+It is currently 72°F and sunny in New York, NY.
 ```
 
-### 4. Run MCP Server (Non-REPL)
+_Magic Trick:_ Leave the REPL running, change the temperature in `weather.py` to `60°F`, save the file, and hit the up arrow in your REPL. Brimley hot-reloads the function instantly.
 
-Serve MCP tools without REPL:
+If your edit introduces a broken signature or invalid metadata, Brimley surfaces a clear runtime/diagnostic error instead of silently serving old logic.
 
-```
-poetry run brimley mcp-serve --root ./tools
-```
+## 🌍 Polyglot Support
 
-Enable watch mode:
+Brimley isn't just for Python. You can drop other file types directly into your root or tools directory.
 
-```
-poetry run brimley mcp-serve --root ./tools --watch
-```
+### SQL Tools (`.sql`)
 
-## 📚 Documentation
-
-Detailed architectural designs and technical specifications are located in the [docs/](docs/) directory:
-
-### 🏛️ Core Architecture
-- [High-Level Design](docs/brimley-high-level-design.md): The vision and architectural overview.
-- [Project Structure](docs/brimley-project-structure.md): Layout and module responsibilities.
-- [Discovery & Loader](docs/brimley-discovery-and-loader-specification.md): How files are scanned and registered.
-- [Brimley Context](docs/brimley-context.md): Service injection and state management.
-- [MCP Integration](docs/brimley-model-context-protocol-integration.md): Exposing functions as MCP tools and embedded server behavior.
-
-### 🧩 Function Types
-- [Python Functions](docs/brimley-python-functions.md): Native code with schema inference.
-- [SQL Functions](docs/brimley-sql-functions.md): Parameterized query execution.
-- [Template Functions](docs/brimley-template-functions.md): Jinja2 prompt engineering.
-- [General Principles](docs/brimley-functions.md): Standards common to all function types.
-
-### 📐 Specifications
-- [Function Arguments](docs/brimley-function-arguments.md): Input mapping and validation.
-- [Return Shapes](docs/brimley-function-return-shape.md): Output contract management.
-- [Entities](docs/brimley-entities.md): Shared data models.
-- [Naming Conventions](docs/brimley-naming-conventions.md): Standards for functions and files.
-
-### 🛠️ Developer Experience
-- [CLI & REPL Harness](docs/brimley-cli-and-repl-harness.md): Using the interactive tools.
-- [REPL Admin Commands](docs/brimley-repl-admin-commands.md): Observability commands for the REPL.
-- [Diagnostics & Error Reporting](docs/brimley-diagnostics-and-error-reporting.md): Troubleshooting and validation.
-
-## 🧪 Development
-
-We follow a strict **Test-First** methodology.
+Define tools purely in SQL. Brimley parses the YAML front-matter block to define the tool schema for the LLM, and automatically routes the query to the `connection` defined in your `brimley.yaml`.
 
 ```
-# Run the test suite
-poetry run pytest
+/*
+---
+name: get_users
+type: sql_function
+description: Retrieves users ordered by newest first with an optional row limit.
+connection: default
+return_shape: list[dict]
+arguments:
+    inline:
+        limit:
+            type: int
+            default: 10
+mcp:
+    type: tool
+---
+*/
 
-# Run tests with coverage
-poetry run pytest --cov=brimley
+SELECT id, name, status, created_at
+FROM users
+ORDER BY created_at DESC
+LIMIT :limit;
 ```
+
+### Markdown Tools (`.md`)
+
+Serve static content, standard operating procedures, or dynamically rendered templates directly to the LLM without writing any backend code.
+
+```
+---
+name: hello
+type: template_function
+description: Renders a friendly welcome message using a provided name and support email.
+return_shape: string
+arguments:
+    inline:
+        name:
+            type: string
+            default: "World"
+        support_email:
+            type: string
+            from_context: "config.support_email"
+mcp:
+    type: tool
+---
+# Hello {{ args.name }}!
+
+Welcome to Brimley.
+
+Contact us at: {{ args.support_email }}
+```
+
+## 🔌 Connecting to an LLM (FastMCP Integration)
+
+Brimley 0.4 seamlessly delegates the networking layer to [FastMCP](https://github.com/jlowin/fastmcp).
+
+When you are ready to deploy your tools natively in Python or connect them to an MCP client like Claude Desktop, you simply pass the `BrimleyProvider` to FastMCP. Brimley handles the hot-reloading execution, and FastMCP handles the standard input/output.
+
+**Important:** logic-only changes can hot-reload; MCP schema-shape changes (argument/signature/default/requiredness) require provider reinitialization or process restart so clients receive updated schemas.
+
+```
+# server.py
+from fastmcp import FastMCP
+from brimley.mcp.fastmcp_provider import BrimleyProvider
+
+# Initialize FastMCP
+mcp = FastMCP("My Brimley Server")
+
+# Attach Brimley as the tool provider, pointing to your project root
+provider = BrimleyProvider(root=".")
+mcp.add_provider(provider)
+
+if __name__ == "__main__":
+        # Run the server
+        mcp.run()
+```
+
+### Hybrid Mode: Starting FastMCP via the REPL
+
+Brimley operates as a background daemon when running the REPL. If there isn't a daemon running, the `brimley repl` command seamlessly creates one.
+
+In this mode, the daemon owns MCP `stdio`; the REPL client talks only to the daemon over loopback API.
+
+To instruct the daemon to also spin up FastMCP on `stdio` so your LLM can connect simultaneously, simply pass the `--mcp` flag:
+
+```
+brimley repl --root . --mcp
+```
+
+The LLM and the human developer are now targeting the exact same hot-reloaded code session, completely isolated from each other's I/O streams!
+
+### Validate Before You Ship
+
+Run a non-interactive validation pass to catch naming, parsing, and schema issues:
+
+```
+brimley validate --root .
+```
+
+## 🛠️ Advanced Usage
+
+### Custom Embedded Applications
+
+Need to embed Brimley inside an existing Discord bot, FastAPI server, or LangGraph workflow? Brimley's components are fully decoupled. You can manually instantiate the `Scanner`, `Registry`, and `PollingWatcher` to build entirely custom, hot-reloading execution environments.
+
+See [Embedded Deployments & Port Management](docs/brimley-embedded-deployments-and-port-management.md) for hosting patterns, lifecycle ownership, and port strategy guidance.
+
+### Migration Note (JSON Schema)
+
+In v0.4, Brimley runtime authoring is FieldSpec-first (Python hints + Brimley metadata). Direct JSON Schema runtime authoring is no longer first-class; use the conversion utility path during migration.
