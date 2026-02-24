@@ -1,5 +1,5 @@
 ---
-# Version 0.3
+# Version 0.4
 name: hello
 type: template_function
 description: Renders a friendly welcome message using a provided name and support email.

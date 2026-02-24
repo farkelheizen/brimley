@@ -1,6 +1,6 @@
 # Brimley Examples
 
-> Version 0.3
+> Version 0.4
 
 This directory contains example Brimley functions and configuration to demonstrate the engine's capabilities with Python, SQL, and Template functions.
 

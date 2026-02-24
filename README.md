@@ -1,5 +1,5 @@
 # Brimley
-> Version 0.3
+> Version 0.4
 
 **Brimley** is a lightweight, file-based function execution engine designed to bridge the gap between static logic definitions (SQL, Python, Templates) and dynamic execution environments (CLI, REPL, and AI Agents).
 
