@@ -37,3 +37,31 @@ def test_registry_len_iteration():
     assert len(reg) == 2
     names = {f.name for f in reg}
     assert names == {"a", "b"}
+
+
+def test_registry_alias_resolution_maps_to_canonical_target():
+    reg = Registry()
+    item = MockFunction(name="canonical")
+    reg.register(item)
+
+    reg.register_alias(alias="legacy_name", target="canonical")
+
+    assert reg.get("legacy_name") is item
+
+
+def test_registry_alias_cannot_shadow_existing_canonical_name():
+    reg = Registry()
+    reg.register(MockFunction(name="a"))
+    reg.register(MockFunction(name="b"))
+
+    with pytest.raises(ValueError, match="cannot shadow"):
+        reg.register_alias(alias="a", target="b")
+
+
+def test_registry_alias_chain_is_rejected():
+    reg = Registry()
+    reg.register(MockFunction(name="canonical"))
+    reg.register_alias(alias="legacy", target="canonical")
+
+    with pytest.raises(ValueError, match="Alias chains are not supported"):
+        reg.register_alias(alias="older", target="legacy")

@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field
 
 from brimley.core.entity import Entity
 from brimley.core.models import BrimleyFunction
+from brimley.core.naming import (
+    build_canonical_id,
+    is_reserved_function_name,
+    normalize_name_for_proximity,
+)
 from brimley.utils.diagnostics import BrimleyDiagnostic
 from brimley.discovery.sql_parser import parse_sql_file
 from brimley.discovery.template_parser import parse_template_file
@@ -33,6 +38,9 @@ class Scanner:
         diagnostics: List[BrimleyDiagnostic] = []
         seen_function_names: Set[str] = set()
         seen_entity_names: Set[str] = set()
+        seen_identity_keys: Set[str] = set()
+        seen_function_proximity: dict[str, str] = {}
+        seen_entity_proximity: dict[str, str] = {}
 
         # Walk the directory
         for root, _, files in os.walk(self.root_dir):
@@ -77,6 +85,61 @@ class Scanner:
                             line_number=None
                         ))
                         continue
+
+                    if isinstance(obj, BrimleyFunction) and is_reserved_function_name(obj.name):
+                        diagnostics.append(BrimleyDiagnostic(
+                            file_path=str(file_path),
+                            error_code="ERR_RESERVED_NAME",
+                            message=f"Function name '{obj.name}' is reserved.",
+                            suggestion="Rename the function to avoid REPL/admin command collisions.",
+                            line_number=None,
+                        ))
+                        continue
+
+                    kind = "function" if isinstance(obj, BrimleyFunction) else "entity"
+                    symbol = obj.name
+                    if isinstance(obj, BrimleyFunction) and getattr(obj, "handler", None):
+                        handler_value = getattr(obj, "handler")
+                        if isinstance(handler_value, str) and "." in handler_value:
+                            symbol = handler_value.rsplit(".", 1)[-1]
+
+                    canonical_id = build_canonical_id(
+                        kind=kind,
+                        root_dir=self.root_dir,
+                        source_file=file_path,
+                        symbol=symbol,
+                    )
+                    identity_key = canonical_id.lower()
+                    if identity_key in seen_identity_keys:
+                        diagnostics.append(BrimleyDiagnostic(
+                            file_path=str(file_path),
+                            error_code="ERR_IDENTITY_COLLISION",
+                            message=f"Canonical identity collision for '{obj.name}' ({canonical_id}).",
+                            suggestion="Rename the symbol or move one definition to a unique source path.",
+                            line_number=None,
+                        ))
+                        continue
+                    seen_identity_keys.add(identity_key)
+                    if hasattr(obj, "canonical_id"):
+                        obj.canonical_id = canonical_id
+
+                    proximity_key = normalize_name_for_proximity(obj.name)
+                    proximity_map = seen_function_proximity if isinstance(obj, BrimleyFunction) else seen_entity_proximity
+                    existing_similar = proximity_map.get(proximity_key)
+                    if existing_similar and existing_similar != obj.name:
+                        diagnostics.append(BrimleyDiagnostic(
+                            file_path=str(file_path),
+                            error_code="ERR_NAME_PROXIMITY",
+                            message=(
+                                f"Name '{obj.name}' is very similar to '{existing_similar}'. "
+                                "This may confuse operators and clients."
+                            ),
+                            severity="warning",
+                            suggestion="Prefer a more distinct identifier to reduce ambiguity.",
+                            line_number=None,
+                        ))
+                    else:
+                        proximity_map[proximity_key] = obj.name
 
                     if isinstance(obj, BrimleyFunction):
                         if obj.name in seen_function_names:

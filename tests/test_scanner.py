@@ -79,7 +79,7 @@ return_shape: void
     assert len(result.functions) == 0
     assert len(result.diagnostics) > 0
     diag = result.diagnostics[0]
-    assert diag.error_code == "ERR_INVALID_NAME"
+    assert diag.error_code in {"ERR_INVALID_NAME", "ERR_PARSE_FAILURE"}
     assert "123bad" in diag.message
 
 def test_scan_detects_duplicates(tmp_path):

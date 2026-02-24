@@ -141,9 +141,10 @@ class BrimleyFunction(BaseEntity):
     """
     Abstract base class for all function types in Brimley.
     """
-    name: str = Field(..., pattern=r'^[a-zA-Z0-9_]+$')
+    name: str = Field(..., pattern=r'^[a-zA-Z][a-zA-Z0-9_-]{0,63}$')
     type: str
     description: Optional[str] = None
+    canonical_id: Optional[str] = None
     arguments: Optional[Dict[str, Any]] = None
     mcp: Optional[MCPConfig] = None
     return_shape: Union[str, Dict[str, Any]]
@@ -161,6 +162,7 @@ class DiscoveredEntity(BaseEntity):
     """A discovered entity definition from YAML or Python sources."""
 
     type: Literal["entity", "python_entity"] = "entity"
+    canonical_id: Optional[str] = None
     handler: Optional[str] = None
     raw_definition: Optional[Dict[str, Any]] = None
 
