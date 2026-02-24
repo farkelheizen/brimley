@@ -1,5 +1,5 @@
 # Brimley Project Structure & Dependencies
-> Version 0.3
+> Version 0.4
 
 This document outlines the directory structure and required libraries for the initial Python implementation of Brimley.
 

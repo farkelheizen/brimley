@@ -1,7 +1,7 @@
 # Brimley Functions
-> Version 0.3
+> Version 0.4
 
-Brimley functions are the core execution units of the framework. In 0.3, Python functions are defined with decorators, while SQL/template functions continue to use embedded metadata frontmatter.
+Brimley functions are the core execution units of the framework. In 0.4, Python functions are defined with decorators, while SQL/template functions continue to use embedded metadata frontmatter.
 
 ## Metadata Schema
 

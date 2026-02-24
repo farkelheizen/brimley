@@ -1,6 +1,6 @@
 # Model Context Protocol (MCP) Integration
 
-> Version 0.3
+> Version 0.4
 
 Brimley acts as a powerful single source of truth for your organizational functions. With built-in support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/ "null"), you can seamlessly expose your Brimley functions as tools to Large Language Models (LLMs) and agents like Claude, LangGraph, or AutoGen.
 
@@ -111,6 +111,16 @@ mcp:
 ```
 
 When watch mode or `/reload` applies a successful registry update, Brimley refreshes embedded MCP tool registrations. If FastMCP is missing, Brimley emits a warning and continues running without failing the REPL session.
+
+### Schema-Shape Change Semantics (v0.4)
+
+- Logic-only changes can refresh wrappers/tool behavior without requiring schema rebuild.
+
+- If an MCP-exposed function signature shape changes (argument names/types/defaults/requiredness), the tool schema must be rebuilt and clients must reconnect to consume the new schema.
+
+- Embedded REPL hosting restarts/reinitializes MCP provider lifecycle for schema-shape changes rather than silently hot-applying stale schema.
+
+- External host-managed refresh uses provider reinitialization when available; if no reinit path is available, Brimley raises a `client_action_required` error indicating restart/reconnect is required.
 
 ## Running MCP Without REPL (CLI)
 

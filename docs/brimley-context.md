@@ -1,6 +1,6 @@
 # Brimley Context
 
-> Version 0.3
+> Version 0.4
 
 The `BrimleyContext` is the central nervous system of a Brimley application.
 
@@ -12,6 +12,7 @@ class BrimleyContext(Entity):
     config: AppConfig               # User Application Config
     mcp: MCPSettings                # MCP Runtime Settings
     auto_reload: AutoReloadSettings # Watcher Runtime Settings
+    execution: ExecutionSettings    # Runtime Execution Controls
     app: Dict[str, Any]             # Mutable Application State
     
     functions: Registry[BrimleyFunction]
@@ -25,6 +26,7 @@ class BrimleyContext(Entity):
 |`config`|`config:`|**Read-Only**|User-defined configuration (API keys, constants).|
 |`mcp`|`mcp:`|**Read-Only**|MCP runtime settings (embedded mode, transport, host, port).|
 |`auto_reload`|`auto_reload:`|**Read-Only**|Polling watcher settings (enabled, interval/debounce, include/exclude patterns).|
+|`execution`|`execution:`|**Read-Only**|Sync execution controls (thread pool size, timeout budget, queue capacity/behavior).|
 |`app`|`state:`|**Mutable**|Global shared state. Seeded from YAML, modified at runtime.|
 |`functions`|N/A|**Resolved**|Registry of internal Brimley functions.|
 |`entities`|N/A|**Resolved**|Registry of domain models.|
@@ -56,7 +58,15 @@ class BrimleyContext(Entity):
         
     - **Access**: `ctx.mcp.port`
         
-4. **`app`**:
+4. **`execution`**:
+
+    - **Type**: `ExecutionSettings`
+
+    - **Purpose**: Runtime execution controls loaded from the `execution` section of `brimley.yaml`.
+
+    - **Access**: `ctx.execution.timeout_seconds`
+
+5. **`app`**:
     
     - **Type**: `Dict[str, Any]`
         
@@ -64,7 +74,7 @@ class BrimleyContext(Entity):
         
     - **Access**: `ctx.app["maintenance_mode"]`
         
-5. **`auto_reload`**:
+6. **`auto_reload`**:
 
     - **Type**: `AutoReloadSettings`
 
@@ -72,7 +82,7 @@ class BrimleyContext(Entity):
 
     - **Access**: `ctx.auto_reload.enabled`
 
-6. **`functions`**:
+7. **`functions`**:
     
     - **Type**: `Registry[BrimleyFunction]`
         
@@ -82,7 +92,7 @@ class BrimleyContext(Entity):
 
     - **Composition Helper**: `ctx.execute_function_by_name("calculate_tax", {"subtotal": 100})`
         
-7. **`entities`**:
+8. **`entities`**:
     
     - **Type**: `Registry[Entity]`
         
@@ -96,7 +106,7 @@ class BrimleyContext(Entity):
             
     - **Access**: `ctx.entities.get("UserProfile")`
         
-8. **`databases`**:
+9. **`databases`**:
     
     - **Type**: `Dict[str, Engine]`
         
@@ -111,7 +121,7 @@ class BrimleyContext(Entity):
         
     - `brimley.yaml` is loaded and interpolated.
         
-    - `settings`, `config`, `mcp`, `auto_reload`, and `app` (initial state) are populated.
+    - `settings`, `config`, `mcp`, `auto_reload`, `execution`, and `app` (initial state) are populated.
         
     - **Built-in Entities** (`ContentBlock`, `PromptMessage`) are automatically registered in `entities`.
         
@@ -133,6 +143,8 @@ class BrimleyContext(Entity):
     - When a request comes in (or a CLI command is run), the `context` is passed to the dispatcher.
         
     - Functions receive context objects via dependency injection (for example, `BrimleyContext` or `fastmcp.Context` type hints), allowing access to settings, config, state, and runtime services.
+
+    - Dispatcher queue/thread/timeout behavior follows `ctx.execution` settings.
 
 4. **Optional Runtime Reload**:
 

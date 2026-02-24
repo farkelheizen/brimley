@@ -1,6 +1,6 @@
 # Brimley Discovery & Loader Specification
 
-> Version 0.3
+> Version 0.4
 
 The Discovery Engine translates assets on disk (or reflected module metadata) into executable function/entity models, then loads them into Brimley registries.
 

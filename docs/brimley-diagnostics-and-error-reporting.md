@@ -1,5 +1,5 @@
 # Brimley Diagnostics & Error Reporting
-> Version 0.3
+> Version 0.4
 
 This document defines how Brimley should handle and display errors during the "Discovery" and "Registration" phases to ensure developers can fix issues without digging through source code.
 
@@ -66,7 +66,28 @@ When auto-reload is active (or `/reload` is invoked), diagnostics are emitted fo
 
 Use this summary to quickly identify which domains remained active and which were rolled back.
 
-## 5. Hot Reload Safety Warnings
+## 5. Persisted Runtime Error Surface (`/errors`)
+
+Brimley persists runtime diagnostics into an active unresolved set plus resolved history entries.
+
+- REPL command: `/errors [--limit N] [--offset N] [--history]`
+- Default view: unresolved/current runtime issues only.
+- `--history`: includes resolved entries for timeline/debugging context.
+- Records are sorted deterministically (severity, then most recently updated) and paginated.
+
+This surface allows developers to inspect current runtime health after startup, reload cycles, and watch-mode events without losing earlier context.
+
+## 6. Validation Report Surface (`brimley validate`)
+
+`brimley validate` emits structured diagnostics for CI/local quality gates:
+
+- Formats: `text` (human readable) and `json` (machine readable).
+- Thresholds: `--fail-on error|warning` control non-zero exit semantics.
+- Output file: `--output PATH` writes rendered report while still printing to stdout.
+
+Validation output includes per-issue severity/code/message/source location and aggregated summary counts.
+
+## 7. Hot Reload Safety Warnings
 
 When Python discovery detects reload-enabled functions (`reload=True`, default), Brimley also performs a top-level AST call scan to identify likely side effects that would re-run on every save.
 
@@ -93,7 +114,7 @@ These findings should be emitted as **warnings** (not hard failures) so develope
 
 Hot reload safety warnings should not block normal discovery/registration when no critical errors are present.
 
-## 6. Validating "Intent" vs "Content"
+## 8. Validating "Intent" vs "Content"
 
 To avoid noise (like Brimley trying to parse a random `.md` file that isn't a function), the scanner should use a **Strict Filter**:
 

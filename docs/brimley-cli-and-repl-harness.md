@@ -1,5 +1,5 @@
-# Brimley 0.3 CLI & REPL Harness
-> Version 0.3
+# Brimley 0.4 CLI & REPL Harness
+> Version 0.4
 
 The CLI is the primary interface for invoking and testing functions. It is designed to be "pipe-friendly" for automation while providing a rich interactive environment for developers.
 
@@ -13,7 +13,7 @@ brimley [ROOT_DIR] [COMMAND] [ARGS]
 
 - **`ROOT_DIR`**: (Optional) The directory to scan for Brimley functions. Defaults to the current working directory (`.`).
     
-- **`COMMAND`**: One of `invoke`, `repl`, `mcp-serve`, or `build`.
+- **`COMMAND`**: One of `invoke`, `repl`, `mcp-serve`, `build`, `validate`, or `schema-convert`.
     
 
 ## 2. Commands
@@ -61,7 +61,7 @@ Used for an interactive, stateful session.
 
 - **Admin Commands:**
     - The REPL supports meta-commands prefixed with `/` for observability.
-    - See [Admin Commands Reference](brimley-repl-admin-commands.md) for `/settings`, `/config`, `/state`, `/functions`, `/entities`, `/databases`, `/reload`, and `/help`.
+    - See [Admin Commands Reference](brimley-repl-admin-commands.md) for `/settings`, `/config`, `/state`, `/functions`, `/entities`, `/databases`, `/reload`, `/errors`, and `/help`.
     
 - **Interactive Parsing Logic:**
     
@@ -124,6 +124,26 @@ Compiles non-Python assets into a generated Python shim module for runtime/compi
 - **Output:**
     - Success message with generated file path and counts (`sql`, `templates`).
     - Warning when scanner diagnostics were present during build.
+
+### `brimley [ROOT_DIR] validate [--format text|json] [--fail-on warning|error] [--output PATH]`
+
+Runs discovery/validation and emits a deterministic diagnostics report suitable for local checks and CI.
+
+- **Behavior:**
+    - scans artifacts under `ROOT_DIR`
+    - renders report in text or JSON
+    - supports threshold-based failure (`--fail-on error|warning`)
+    - supports writing the same rendered report to `--output`
+
+### `brimley schema-convert --in PATH --out PATH [--allow-lossy] [--format text|json] [--fail-on warning|error]`
+
+Converts constrained JSON Schema subsets into Brimley `inline` FieldSpec for migration workflows.
+
+- **Behavior:**
+    - strict by default (unsupported/unknown constructs are hard errors)
+    - `--allow-lossy` downgrades droppable unsupported constructs to warnings where deterministic
+    - writes converted FieldSpec YAML to `--out`
+    - prints conversion report (text/json) to stdout
 
 
 ## 3. Argument Merging Logic

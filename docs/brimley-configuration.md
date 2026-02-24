@@ -1,12 +1,12 @@
 # Brimley Configuration
 
-> Version 0.3
+> Version 0.4
 
 Brimley applications are configured via a single YAML file (`brimley.yaml`) located in the project root.
 
 ## 1. The Configuration File: `brimley.yaml`
 
-The configuration file is divided into six sections, mapping directly to the Context:
+The configuration file is divided into seven sections, mapping directly to the Context:
 
 1. **`brimley`**: Framework-level settings (maps to `ctx.settings`).
     
@@ -19,6 +19,8 @@ The configuration file is divided into six sections, mapping directly to the Con
 5. **`mcp`**: MCP runtime settings (mapped to MCP runtime configuration in the application context/runtime).
 
 6. **`auto_reload`**: Watch-mode settings for polling interval, debounce, and file filters.
+
+7. **`execution`**: Runtime execution controls for sync dispatch concurrency, timeouts, and queue behavior.
     
 
 ### Example
@@ -72,6 +74,14 @@ auto_reload:
     - "*.md"
     - "*.yaml"
   exclude_patterns: []      # Optional ignored paths/patterns
+
+# 7. Execution Runtime Controls
+execution:
+  thread_pool_size: 8       # Max worker threads for synchronous execution
+  timeout_seconds: 30.0     # Global timeout budget per invocation
+  queue:
+    max_size: 128           # Max queued invocations when workers are busy
+    on_full: reject         # 'reject' (default) or 'block'
 ```
 
 ## 2. Environment Variable Substitution
@@ -95,6 +105,7 @@ Brimley parses the raw YAML file _as a string_ first to interpolate environmen
 |`databases`|`ctx.databases`|Managed|Connection definitions.|
 |`mcp`|`ctx.mcp` (or runtime MCP settings)|Read-Only|Embedded MCP server behavior and transport settings.|
 |`auto_reload`|`ctx.auto_reload`|Read-Only|Watch-mode interval/debounce/filter settings used by REPL and runtime controller.|
+|`execution`|`ctx.execution`|Read-Only|Synchronous execution thread pool, timeout, and queue controls.|
 
 ### Updated Context Structure
 
@@ -104,6 +115,7 @@ class BrimleyContext(Entity):
     config: AppConfig               # from 'config'
     mcp: MCPSettings                # from 'mcp'
     auto_reload: AutoReloadSettings # from 'auto_reload'
+    execution: ExecutionSettings    # from 'execution'
     app: Dict[str, Any]             # from 'state'
     databases: Dict[str, Any]       # from 'databases'
     
@@ -115,5 +127,11 @@ class BrimleyContext(Entity):
   - `brimley repl --watch|--no-watch` overrides `auto_reload.enabled`.
   - `brimley mcp-serve --watch|--no-watch` overrides `auto_reload.enabled`.
   - `brimley mcp-serve --host/--port` overrides `mcp.host` and `mcp.port`.
+  - Runtime execution behavior is controlled by `execution.*` (no CLI override in 0.4).
+
+  ### Transport Note (0.4)
+
+  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in 0.4.
+  - In hybrid workflows, REPL remains loopback-control-plane oriented and does not share terminal `stdio` with MCP transport.
 
   Precedence: CLI override > config > model default.
