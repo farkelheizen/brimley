@@ -81,3 +81,7 @@ examples/mcp_server/demo.db
 
 # Environment Variables
 .env
+
+# Ignore the symlink and everything inside it
+docs_local
+docs_local/*
