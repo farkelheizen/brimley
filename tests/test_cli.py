@@ -763,3 +763,112 @@ def test_validate_json_format_and_output_file(monkeypatch, tmp_path):
     assert report_file.exists()
     file_payload = json.loads(report_file.read_text())
     assert file_payload["issues"][0]["code"] == "ERR_PARSE_FAILURE"
+
+
+def test_schema_convert_help():
+    result = runner.invoke(app, ["schema-convert", "--help"])
+
+    assert result.exit_code == 0
+    assert "Convert constrained JSON Schema" in result.stdout
+
+
+def test_schema_convert_strict_fails_on_unsupported_keyword(tmp_path):
+    input_file = tmp_path / "schema.json"
+    output_file = tmp_path / "fieldspec.yaml"
+    input_file.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "x-extra": "unsupported",
+                    }
+                },
+            }
+        )
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "schema-convert",
+            "--in",
+            str(input_file),
+            "--out",
+            str(output_file),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "ERR_SCHEMA_UNSUPPORTED_KEYWORD" in _combined_output(result)
+
+
+def test_schema_convert_allow_lossy_writes_output_and_json_report(tmp_path):
+    input_file = tmp_path / "schema.json"
+    output_file = tmp_path / "fieldspec.yaml"
+    input_file.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "properties": {
+                    "amount": {"type": "number"},
+                    "name": {"type": "string", "x-extra": "drop-me"},
+                },
+            }
+        )
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "schema-convert",
+            "--in",
+            str(input_file),
+            "--out",
+            str(output_file),
+            "--allow-lossy",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["summary"]["warnings"] >= 1
+    assert output_file.exists()
+    converted = output_file.read_text()
+    assert "inline:" in converted
+    assert "amount" in converted
+
+
+def test_schema_convert_fail_on_warning_returns_non_zero(tmp_path):
+    input_file = tmp_path / "schema.json"
+    output_file = tmp_path / "fieldspec.yaml"
+    input_file.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "properties": {
+                    "amount": {"type": "number"},
+                },
+            }
+        )
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "schema-convert",
+            "--in",
+            str(input_file),
+            "--out",
+            str(output_file),
+            "--allow-lossy",
+            "--fail-on",
+            "warning",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "WARN_SCHEMA_NUMBER_TO_FLOAT" in _combined_output(result)

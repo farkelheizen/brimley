@@ -9,6 +9,7 @@ from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
 from brimley.discovery.scanner import Scanner
+from brimley.discovery.schema_converter import convert_json_schema_to_fieldspec
 from brimley.core.registry import Registry
 from brimley.execution.execute_helper import execute_function_by_name
 from brimley.cli.build import compile_assets
@@ -115,6 +116,30 @@ def _render_validation_text_report(payload: dict) -> str:
                 f"({issue['namespace']}/{issue['object_kind']}:{issue['name']}) "
                 f"at {issue['source_location']}: {issue['message']}"
             )
+        )
+    return "\n".join(lines)
+
+
+def _render_schema_convert_text_report(payload: dict) -> str:
+    summary = payload["summary"]
+    lines: list[str] = [
+        "Brimley Schema Conversion Report",
+        (
+            "Summary: "
+            f"converted_fields={summary['converted_fields']}, "
+            f"errors={summary['errors']}, warnings={summary['warnings']}"
+        ),
+    ]
+
+    issues = payload["issues"]
+    if not issues:
+        lines.append("No conversion issues.")
+        return "\n".join(lines)
+
+    lines.append("Issues:")
+    for issue in issues:
+        lines.append(
+            f"- [{issue['severity'].upper()}] {issue['code']} at {issue['path']}: {issue['message']}"
         )
     return "\n".join(lines)
 
@@ -512,6 +537,125 @@ def validate(
         has_failures = any(diag.severity in {"warning", "error", "critical"} for diag in scan_result.diagnostics)
     else:
         has_failures = any(diag.severity in {"error", "critical"} for diag in scan_result.diagnostics)
+
+    if has_failures:
+        raise typer.Exit(code=1)
+
+
+@app.command("schema-convert", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def schema_convert(
+    ctx: typer.Context,
+):
+    """Convert constrained JSON Schema to Brimley inline FieldSpec."""
+    input_path: Optional[Path] = None
+    output_path: Optional[Path] = None
+    allow_lossy = False
+    output_format = "text"
+    fail_on = "error"
+
+    tokens = list(ctx.args)
+    extras: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in {"--in", "-i"}:
+            in_value, index = _read_option_value(tokens, index, token)
+            input_path = Path(in_value)
+            continue
+        if token.startswith("--in="):
+            input_path = Path(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token in {"--out", "-o"}:
+            out_value, index = _read_option_value(tokens, index, token)
+            output_path = Path(out_value)
+            continue
+        if token.startswith("--out="):
+            output_path = Path(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token == "--allow-lossy":
+            allow_lossy = True
+            index += 1
+            continue
+        if token == "--format":
+            output_format, index = _read_option_value(tokens, index, token)
+            continue
+        if token.startswith("--format="):
+            output_format = token.split("=", 1)[1]
+            index += 1
+            continue
+        if token == "--fail-on":
+            fail_on, index = _read_option_value(tokens, index, token)
+            continue
+        if token.startswith("--fail-on="):
+            fail_on = token.split("=", 1)[1]
+            index += 1
+            continue
+        if token.startswith("-"):
+            raise typer.BadParameter(f"Unknown option: {token}")
+        extras.append(token)
+        index += 1
+
+    if extras:
+        raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
+
+    if input_path is None:
+        raise typer.BadParameter("Option --in is required.")
+    if output_path is None:
+        raise typer.BadParameter("Option --out is required.")
+
+    output_format = output_format.lower()
+    if output_format not in {"text", "json"}:
+        raise typer.BadParameter("Option --format must be one of: text, json")
+
+    fail_on = fail_on.lower()
+    if fail_on not in {"warning", "error"}:
+        raise typer.BadParameter("Option --fail-on must be one of: warning, error")
+
+    if not input_path.exists():
+        OutputFormatter.log(f"Schema input not found: {input_path}", severity="error")
+        raise typer.Exit(code=1)
+
+    try:
+        schema_payload = yaml.safe_load(input_path.read_text())
+    except Exception as exc:
+        OutputFormatter.log(f"Unable to read schema input: {exc}", severity="error")
+        raise typer.Exit(code=1)
+
+    if not isinstance(schema_payload, dict):
+        OutputFormatter.log("Schema input must be a JSON/YAML object.", severity="error")
+        raise typer.Exit(code=1)
+
+    conversion = convert_json_schema_to_fieldspec(schema_payload, allow_lossy=allow_lossy)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(yaml.safe_dump({"inline": conversion.inline}, sort_keys=False))
+
+    report_payload = {
+        "input": str(input_path),
+        "output": str(output_path),
+        "allow_lossy": allow_lossy,
+        "fail_on": fail_on,
+        "summary": {
+            "converted_fields": conversion.report.converted_fields,
+            "warnings": conversion.report.warnings,
+            "errors": conversion.report.errors,
+        },
+        "issues": [issue.model_dump() for issue in conversion.report.issues],
+    }
+
+    rendered = (
+        json.dumps(report_payload, indent=2)
+        if output_format == "json"
+        else _render_schema_convert_text_report(report_payload)
+    )
+    typer.echo(rendered)
+
+    if fail_on == "warning":
+        has_failures = conversion.report.errors > 0 or conversion.report.warnings > 0
+    else:
+        has_failures = conversion.report.errors > 0
 
     if has_failures:
         raise typer.Exit(code=1)
