@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
+from brimley.core.context import RuntimeErrorRecord
 from brimley.utils.diagnostics import BrimleyDiagnostic
 
 # Create a stderr console for logging
@@ -69,6 +70,55 @@ class OutputFormatter:
             
         error_console.print(table)
         error_console.print() # spacing
+
+    @staticmethod
+    def print_runtime_errors(
+        records: List[RuntimeErrorRecord],
+        total: int,
+        limit: int,
+        offset: int,
+        include_history: bool,
+    ) -> None:
+        """Print persisted runtime errors for REPL `/errors` output."""
+        if not records:
+            return
+
+        title = "Brimley Runtime Errors"
+        if include_history:
+            title = "Brimley Runtime Errors (Including History)"
+
+        table = Table(title=title, border_style="red", header_style="bold red")
+        table.add_column("Severity", style="bold")
+        table.add_column("Error Class")
+        table.add_column("Message")
+        table.add_column("Object")
+        table.add_column("Location")
+        table.add_column("Status")
+
+        for record in records:
+            color = "red"
+            if record.severity == "warning":
+                color = "yellow"
+            elif record.severity == "critical":
+                color = "bold red"
+
+            location = record.file_path
+            if record.line_number is not None:
+                location = f"{location}:{record.line_number}"
+
+            table.add_row(
+                f"[{color}]{record.severity.upper()}[/{color}]",
+                record.error_class,
+                record.message,
+                record.object_name,
+                location,
+                record.status,
+            )
+
+        error_console.print(table)
+        shown = len(records)
+        error_console.print(f"Showing {shown} of {total} runtime errors (offset={offset}, limit={limit}).")
+        error_console.print()
 
     @staticmethod
     def print_data(data: Any) -> None:
