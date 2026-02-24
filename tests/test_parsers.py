@@ -265,8 +265,8 @@ class User:
     pass
 
 @function
-def get_user(user_id: int) -> dict:
-    return {"id": user_id}
+def get_user(user_id: int) -> User:
+    return User()
 ''')
 
     parsed = parse_python_file(f)

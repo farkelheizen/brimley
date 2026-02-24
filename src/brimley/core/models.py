@@ -1,7 +1,90 @@
+import re
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from brimley.core.entity import Entity as BaseEntity, PromptMessage
+
+
+_GENERIC_LIST_PATTERN = re.compile(r"^(?:typing\.)?(?:list|List)\[(.+)\]$")
+_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def normalize_type_expression(
+    type_expr: str,
+    *,
+    allow_void: bool = False,
+    allow_legacy_containers: bool = False,
+) -> str:
+    """Normalize and validate a constrained Brimley type expression."""
+    normalized = type_expr.strip()
+    if not normalized:
+        raise ValueError("Type expression cannot be empty.")
+
+    lowered = normalized.lower()
+    if "|" in normalized or lowered.startswith("optional[") or lowered.startswith("union["):
+        raise ValueError(f"Union types are not supported in v0.4: '{type_expr}'")
+
+    list_match = _GENERIC_LIST_PATTERN.fullmatch(normalized)
+    if list_match:
+        inner = normalize_type_expression(
+            list_match.group(1).strip(),
+            allow_void=False,
+            allow_legacy_containers=allow_legacy_containers,
+        )
+        if inner.endswith("[]"):
+            raise ValueError(f"Only one-dimensional lists are supported in v0.4: '{type_expr}'")
+        return f"{inner}[]"
+
+    if normalized.endswith("[]"):
+        inner = normalize_type_expression(
+            normalized[:-2].strip(),
+            allow_void=False,
+            allow_legacy_containers=allow_legacy_containers,
+        )
+        if inner.endswith("[]"):
+            raise ValueError(f"Only one-dimensional lists are supported in v0.4: '{type_expr}'")
+        return f"{inner}[]"
+
+    canonical: dict[str, str] = {
+        "str": "string",
+        "string": "string",
+        "int": "int",
+        "integer": "int",
+        "float": "float",
+        "number": "float",
+        "bool": "bool",
+        "boolean": "bool",
+        "decimal": "decimal",
+        "date": "date",
+        "datetime": "datetime",
+        "primitive": "primitive",
+        "any": "primitive",
+    }
+
+    if allow_void and lowered in {"void", "none", "nonetype"}:
+        return "void"
+
+    if lowered in canonical:
+        return canonical[lowered]
+
+    if lowered in {"dict", "object", "list", "array", "set", "tuple"}:
+        if allow_legacy_containers:
+            if lowered in {"dict", "object"}:
+                return "dict"
+            if lowered in {"list", "array", "set", "tuple"}:
+                return "list"
+        raise ValueError(
+            f"Unsupported open container type '{type_expr}'. Use primitives/entities and one-dimensional lists only."
+        )
+
+    if "[" in normalized or "]" in normalized:
+        raise ValueError(f"Unsupported generic type expression in v0.4: '{type_expr}'")
+
+    entity_candidate = normalized.rsplit(".", 1)[-1]
+    if not _IDENTIFIER_PATTERN.fullmatch(entity_candidate):
+        raise ValueError(f"Unsupported type expression in v0.4: '{type_expr}'")
+
+    return entity_candidate
 
 class FrameworkSettings(BaseSettings):
     """

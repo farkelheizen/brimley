@@ -1,10 +1,9 @@
 from pathlib import Path
 import ast
-import re
 import sys
 from typing import Any, Union
 from pydantic import ValidationError
-from brimley.core.models import DiscoveredEntity, PythonFunction
+from brimley.core.models import DiscoveredEntity, PythonFunction, normalize_type_expression
 from brimley.discovery.utils import parse_frontmatter
 
 
@@ -70,32 +69,7 @@ def _normalize_for_type_lookup(annotation_name: str, aliases: dict[str, str]) ->
 def _map_annotation_to_return_shape(annotation_name: str | None) -> str:
     if not annotation_name:
         return "void"
-
-    normalized = annotation_name.strip()
-    lower = normalized.lower()
-
-    if lower in {"none", "nonetype"}:
-        return "void"
-    if lower in {"str", "string"}:
-        return "string"
-    if lower in {"int", "integer"}:
-        return "int"
-    if lower in {"float", "number"}:
-        return "float"
-    if lower in {"bool", "boolean"}:
-        return "bool"
-    if lower in {"dict", "object"}:
-        return "dict"
-    if lower in {"list", "array"}:
-        return "list"
-
-    list_match = re.fullmatch(r"(?:typing\.)?(?:list|List)\[(.+)\]", normalized)
-    if list_match:
-        inner = list_match.group(1).strip()
-        inner_shape = _map_annotation_to_return_shape(inner)
-        return f"{inner_shape}[]"
-
-    return normalized.rsplit(".", 1)[-1]
+    return normalize_type_expression(annotation_name, allow_void=True)
 
 
 def _find_brimley_decorators(tree: ast.Module) -> list[tuple[ast.AST, str, dict[str, Any]]]:
@@ -193,21 +167,7 @@ def _map_annotation_to_arg_type(annotation_name: str) -> str:
     """
     Map Python annotation names to Brimley argument type names.
     """
-    base = annotation_name.rsplit(".", 1)[-1].lower()
-
-    if base in {"str", "string"}:
-        return "string"
-    if base in {"int", "integer"}:
-        return "int"
-    if base in {"float", "number"}:
-        return "float"
-    if base in {"bool", "boolean"}:
-        return "bool"
-    if base in {"list", "array"}:
-        return "list"
-    if base in {"dict", "object"}:
-        return "dict"
-    return "any"
+    return normalize_type_expression(annotation_name, allow_void=False)
 
 
 def _extract_annotation_name(annotation: ast.AST | None, aliases: dict[str, str]) -> str | None:
@@ -447,14 +407,25 @@ def parse_python_file(file_path: Path) -> list[Union[PythonFunction, DiscoveredE
                 )
 
             function_name = kwargs.get("name") if isinstance(kwargs.get("name"), str) else node.name
-            arguments = _infer_arguments_from_handler(tree, node.name)
+
+            try:
+                arguments = _infer_arguments_from_handler(tree, node.name)
+            except ValueError as e:
+                raise ValueError(
+                    f"Unsupported argument annotation for function '{node.name}' in {file_path}: {e}"
+                ) from e
 
             mcp = None
             if kwargs.get("mcpType") == "tool":
                 mcp = {"type": "tool"}
 
             return_annotation_name = _extract_annotation_name(node.returns, _build_import_aliases(tree))
-            return_shape = _map_annotation_to_return_shape(return_annotation_name)
+            try:
+                return_shape = _map_annotation_to_return_shape(return_annotation_name)
+            except ValueError as e:
+                raise ValueError(
+                    f"Unsupported return annotation for function '{node.name}' in {file_path}: {e}"
+                ) from e
 
             meta = {
                 "name": function_name,

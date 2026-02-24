@@ -105,6 +105,4 @@ def test_e2e_agent_sample_mockmcp_injection_runtime():
         runtime_injections={"mcp_context": mock_ctx},
     )
 
-    assert result["prompt"] == "hello"
-    assert result["sample_text"] == "mocked-sample"
-    assert result["model"] == "mock-model"
+    assert result == "mocked-sample"

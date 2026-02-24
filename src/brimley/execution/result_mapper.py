@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Union, Type, get_args
 import pydantic
 from pydantic import TypeAdapter, ValidationError
 from brimley.core.context import BrimleyContext
-from brimley.core.models import BrimleyFunction, DiscoveredEntity
+from brimley.core.models import BrimleyFunction, DiscoveredEntity, normalize_type_expression
 from brimley.core.entity import Entity
 from brimley.utils.diagnostics import BrimleyExecutionError
 
@@ -41,13 +41,14 @@ class ResultMapper:
 
     @classmethod
     def _map_by_shorthand(cls, data: Any, shape_str: str, context: BrimleyContext, func: BrimleyFunction) -> Any:
-        # Handle complex list[dict] or List[Any] style strings by converting to [] syntax
-        if "[" in shape_str and not shape_str.endswith("[]"):
-            # Very naive conversion of "list[something]" to "something[]"
-            import re
-            match = re.match(r"list\[(.*)\]", shape_str, re.IGNORECASE)
-            if match:
-                shape_str = f"{match.group(1)}[]"
+        try:
+            shape_str = normalize_type_expression(
+                shape_str,
+                allow_void=True,
+                allow_legacy_containers=True,
+            )
+        except ValueError as e:
+            raise BrimleyExecutionError(str(e), func_name=func.name) from e
 
         is_list = False
         base_type_str = shape_str

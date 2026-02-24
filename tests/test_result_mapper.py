@@ -149,3 +149,10 @@ def test_map_python_entity_missing_handler_raises(context):
 
     with pytest.raises(BrimleyExecutionError, match="missing a valid handler path"):
         ResultMapper.map_result(raw, func, context)
+
+
+def test_map_rejects_union_return_shape(context):
+    func = BrimleyFunction(name="test", type="sql_function", return_shape="string | int")
+
+    with pytest.raises(BrimleyExecutionError, match="Union types are not supported"):
+        ResultMapper.map_result("hello", func, context)

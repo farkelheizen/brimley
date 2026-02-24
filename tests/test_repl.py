@@ -410,7 +410,7 @@ def test_repl_handle_command_json_fallback_supports_complex_object(tmp_path, mon
             type="template_function",
             return_shape="string",
             template_body="{{ args.name }}",
-            arguments={"inline": {"name": "string", "metadata": "dict"}},
+            arguments={"inline": {"name": "string", "metadata": "primitive"}},
         )
     )
 
@@ -437,7 +437,7 @@ def test_repl_handle_command_preserves_object_payload_into_argument_resolver(tmp
             type="template_function",
             return_shape="string",
             template_body="{{ args.name }}",
-            arguments={"inline": {"name": "string", "metadata": "dict"}},
+            arguments={"inline": {"name": "string", "metadata": "primitive"}},
         )
     )
 
@@ -471,7 +471,7 @@ def test_repl_handle_command_preserves_file_payload_into_argument_resolver(tmp_p
             type="template_function",
             return_shape="string",
             template_body="{{ args.name }}",
-            arguments={"inline": {"name": "string", "metadata": "dict"}},
+            arguments={"inline": {"name": "string", "metadata": "primitive"}},
         )
     )
 
