@@ -70,6 +70,7 @@ class BrimleyREPL:
         self.prompt_session = PromptSession()
         self.mcp_server = None
         self.mcp_server_thread = None
+        self._mcp_tool_schema_signatures: dict[str, str] = {}
         self.auto_reload_watcher: Optional[PollingWatcher] = None
         self.auto_reload_thread: Optional[threading.Thread] = None
         self._auto_reload_stop_event = threading.Event()
@@ -91,7 +92,9 @@ class BrimleyREPL:
             scan_result = BrimleyScanResult()
 
         if scan_result.diagnostics:
-             OutputFormatter.print_diagnostics(scan_result.diagnostics)
+            OutputFormatter.print_diagnostics(scan_result.diagnostics)
+
+        self.context.sync_runtime_error_set(scan_result.diagnostics, source="discovery")
 
         # Register everything into context
         self.context.functions.register_all(scan_result.functions)
@@ -112,7 +115,14 @@ class BrimleyREPL:
 
         adapter = BrimleyMCPAdapter(registry=self.context.functions, context=self.context)
         tools = adapter.discover_tools()
+        schema_signatures_getter = getattr(adapter, "get_tool_schema_signatures", None)
+        schema_signatures = (
+            schema_signatures_getter(tools)
+            if callable(schema_signatures_getter)
+            else {}
+        )
         if not tools:
+            self._mcp_tool_schema_signatures = {}
             return
 
         if not adapter.is_fastmcp_available():
@@ -129,6 +139,7 @@ class BrimleyREPL:
             return
 
         self.mcp_server = server
+        self._mcp_tool_schema_signatures = schema_signatures
 
         if hasattr(server, "run"):
             host = self.context.mcp.host
@@ -249,6 +260,7 @@ class BrimleyREPL:
             "exit": self._cmd_quit,
             "help": self._cmd_help,
             "reload": self._cmd_reload,
+            "errors": self._cmd_errors,
             "settings": self._cmd_settings,
             "config": self._cmd_config,
             "state": self._cmd_state,
@@ -329,6 +341,7 @@ class BrimleyREPL:
             return None
 
         result = self.reload_handler()
+        self.context.sync_runtime_error_set(result.diagnostics, source="reload")
         self.auto_reload_watcher.complete_reload(success=result.status == ReloadCommandStatus.SUCCESS)
         message = format_reload_command_message(result)
         severity = "success" if result.status == ReloadCommandStatus.SUCCESS else "error"
@@ -346,6 +359,7 @@ class BrimleyREPL:
             ("/functions", "Lists all registered functions and their types."),
             ("/entities", "Lists all registered entities."),
             ("/databases", "Lists configured database connections."),
+            ("/errors [--limit N] [--offset N] [--history]", "Lists persisted runtime diagnostics."),
             ("/reload", "Triggers one immediate reload cycle."),
             ("/help", "Lists available admin commands."),
             ("/quit", "Exits the REPL."),
@@ -359,6 +373,7 @@ class BrimleyREPL:
     def _cmd_reload(self, args) -> bool:
         OutputFormatter.log("Reload requested.", severity="info")
         result = self.reload_handler()
+        self.context.sync_runtime_error_set(result.diagnostics, source="reload")
 
         message = format_reload_command_message(result)
         severity = "success" if result.status == ReloadCommandStatus.SUCCESS else "error"
@@ -367,6 +382,68 @@ class BrimleyREPL:
         if result.diagnostics:
             OutputFormatter.print_diagnostics(result.diagnostics)
 
+        return True
+
+    def _parse_errors_args(self, args: list[str]) -> tuple[int, int, bool]:
+        limit = 50
+        offset = 0
+        include_history = False
+        index = 0
+
+        while index < len(args):
+            token = args[index]
+
+            if token in {"--limit", "-l"}:
+                if index + 1 >= len(args):
+                    raise ValueError("Missing value for --limit.")
+                limit = int(args[index + 1])
+                index += 2
+                continue
+
+            if token in {"--offset", "-o"}:
+                if index + 1 >= len(args):
+                    raise ValueError("Missing value for --offset.")
+                offset = int(args[index + 1])
+                index += 2
+                continue
+
+            if token == "--history":
+                include_history = True
+                index += 1
+                continue
+
+            raise ValueError(f"Unknown /errors argument: {token}")
+
+        if limit <= 0:
+            raise ValueError("--limit must be greater than 0.")
+        if offset < 0:
+            raise ValueError("--offset must be 0 or greater.")
+
+        return limit, offset, include_history
+
+    def _cmd_errors(self, args) -> bool:
+        try:
+            limit, offset, include_history = self._parse_errors_args(args)
+        except ValueError as exc:
+            OutputFormatter.log(str(exc), severity="error")
+            return True
+
+        records, total = self.context.get_runtime_errors(
+            include_resolved=include_history,
+            limit=limit,
+            offset=offset,
+        )
+        if total == 0:
+            OutputFormatter.log("No runtime errors in current set.", severity="info")
+            return True
+
+        OutputFormatter.print_runtime_errors(
+            records,
+            total=total,
+            limit=limit,
+            offset=offset,
+            include_history=include_history,
+        )
         return True
 
     def _run_reload_cycle(self) -> ReloadCommandResult:
@@ -400,10 +477,17 @@ class BrimleyREPL:
 
         adapter = BrimleyMCPAdapter(registry=self.context.functions, context=self.context)
         tools = adapter.discover_tools()
+        schema_signatures_getter = getattr(adapter, "get_tool_schema_signatures", None)
+        schema_signatures = (
+            schema_signatures_getter(tools)
+            if callable(schema_signatures_getter)
+            else {}
+        )
 
         if not tools:
             if self.mcp_server is not None or self.mcp_server_thread is not None:
                 self._shutdown_mcp_server()
+            self._mcp_tool_schema_signatures = {}
             return
 
         if not adapter.is_fastmcp_available():
@@ -417,10 +501,24 @@ class BrimleyREPL:
             self._initialize_mcp_server()
             return
 
+        schema_changed = (
+            bool(self._mcp_tool_schema_signatures)
+            and schema_signatures != self._mcp_tool_schema_signatures
+        )
+        if schema_changed:
+            OutputFormatter.log(
+                "MCP tool schema changed; restarting embedded MCP server to apply updated schema.",
+                severity="info",
+            )
+            self._shutdown_mcp_server()
+            self._initialize_mcp_server()
+            return
+
         if self.mcp_server is not None and self._supports_tool_reset(self.mcp_server):
             try:
                 self._clear_server_tools(self.mcp_server)
                 adapter.register_tools(mcp_server=self.mcp_server)
+                self._mcp_tool_schema_signatures = schema_signatures
                 OutputFormatter.log("Embedded MCP tools refreshed.", severity="success")
             except Exception as exc:
                 OutputFormatter.log(f"Unable to refresh embedded MCP tools in place: {exc}", severity="warning")

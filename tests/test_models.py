@@ -7,6 +7,7 @@ from brimley.core.models import (
     SqlFunction, 
     TemplateFunction,
     AutoReloadSettings,
+    normalize_type_expression,
 )
 from brimley.core.entity import PromptMessage
 
@@ -214,3 +215,27 @@ def test_discovered_entity_defaults_to_legacy_entity_type():
 
     assert entity.type == "entity"
     assert entity.handler is None
+
+
+def test_normalize_type_expression_canonicalizes_supported_types():
+    assert normalize_type_expression("str") == "string"
+    assert normalize_type_expression("int") == "int"
+    assert normalize_type_expression("number") == "float"
+    assert normalize_type_expression("List[str]") == "string[]"
+    assert normalize_type_expression("typing.List[MyEntity]") == "MyEntity[]"
+
+
+def test_normalize_type_expression_rejects_unions_and_nested_lists():
+    with pytest.raises(ValueError, match="Union types are not supported"):
+        normalize_type_expression("Optional[str]")
+
+    with pytest.raises(ValueError, match="Union types are not supported"):
+        normalize_type_expression("str | int")
+
+    with pytest.raises(ValueError, match="one-dimensional lists"):
+        normalize_type_expression("list[list[int]]")
+
+
+def test_normalize_type_expression_rejects_open_containers_by_default():
+    with pytest.raises(ValueError, match="Unsupported open container type"):
+        normalize_type_expression("dict")

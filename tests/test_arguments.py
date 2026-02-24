@@ -66,6 +66,22 @@ def test_resolve_shorthand_missing_required(context):
     with pytest.raises(ValueError, match="Missing required argument"):
         ArgumentResolver.resolve(func, {}, context)
 
+
+def test_resolve_rejects_union_type_expressions(context):
+    args_def = {"inline": {"maybe_name": "Optional[string]"}}
+    func = create_func(args_def)
+
+    with pytest.raises(ValueError, match="Unsupported type expression"):
+        ArgumentResolver.resolve(func, {"maybe_name": "alice"}, context)
+
+
+def test_resolve_rejects_nested_list_type_expressions(context):
+    args_def = {"inline": {"matrix": {"type": "list[list[int]]"}}}
+    func = create_func(args_def)
+
+    with pytest.raises(ValueError, match="Unsupported type expression"):
+        ArgumentResolver.resolve(func, {"matrix": [[1, 2]]}, context)
+
 # -----------------------------------------------------------------------------
 # 2. Complex Mode Tests (Defaults)
 # -----------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 # Brimley High-Level Design
-> Version 0.3
+> Version 0.4
 
 ## 1. Executive Summary
 
@@ -78,6 +78,14 @@ Defined in [CLI & REPL Harness](brimley-cli-and-repl-harness.md):
 - **`invoke`**: Single-shot execution for scripts/pipes.
     
 - **`repl`**: Interactive loop with state persistence and multi-line input support.
+
+- **`mcp-serve`**: Non-REPL MCP hosting with optional host-managed watch lifecycle.
+
+- **`build`**: Generate shim modules for SQL/template runtime reflection discovery.
+
+- **`validate`**: Emit diagnostics reports with configurable fail thresholds for CI/local checks.
+
+- **`schema-convert`**: Convert constrained JSON Schema subsets into inline FieldSpec migration output.
 
 - **`auto_reload`**: Optional watch-mode orchestration for dynamic updates, available in REPL and via host-managed runtime controller.
 

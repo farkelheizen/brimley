@@ -76,3 +76,32 @@ def test_context_auto_reload_partial_config_applies_defaults():
 def test_context_auto_reload_invalid_interval_raises_validation_error():
     with pytest.raises(ValidationError):
         BrimleyContext(config_dict={"auto_reload": {"interval_ms": 99}})
+
+
+def test_context_execution_defaults_apply():
+    ctx = BrimleyContext()
+
+    assert ctx.execution.thread_pool_size == 8
+    assert ctx.execution.timeout_seconds == 30.0
+    assert ctx.execution.queue.max_size == 128
+    assert ctx.execution.queue.on_full == "reject"
+
+
+def test_context_execution_config_is_loaded():
+    ctx = BrimleyContext(
+        config_dict={
+            "execution": {
+                "thread_pool_size": 3,
+                "timeout_seconds": 2.25,
+                "queue": {
+                    "max_size": 16,
+                    "on_full": "block",
+                },
+            }
+        }
+    )
+
+    assert ctx.execution.thread_pool_size == 3
+    assert ctx.execution.timeout_seconds == 2.25
+    assert ctx.execution.queue.max_size == 16
+    assert ctx.execution.queue.on_full == "block"

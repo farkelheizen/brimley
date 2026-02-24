@@ -1,8 +1,8 @@
 # Brimley Python Functions
 
-> Version 0.3
+> Version 0.4
 
-Python Functions are native Python callables registered with the `@function` decorator. In Brimley 0.3, this is the primary Python discovery model.
+Python Functions are native Python callables registered with the `@function` decorator. In Brimley 0.4, this is the primary Python discovery model.
 
 ## 1. Decorator-Based Registration
 
@@ -53,7 +53,7 @@ For each discovered Python function, Brimley derives:
 - `arguments` from signature and annotations
 - `return_shape` from return annotation
 
-Legacy YAML-frontmatter Python parsing may still be supported during transition, but decorator-based registration is the canonical 0.3 path.
+Legacy YAML-frontmatter Python parsing may still be supported during transition, but decorator-based registration is the canonical 0.4 path.
 
 ## 4. `reload=True/False` Behavior
 

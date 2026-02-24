@@ -34,7 +34,7 @@ def load_config(path: Path) -> Dict[str, Any]:
         # But this is core config loader.
         return {}
 
-    allowed_keys = {"brimley", "config", "mcp", "auto_reload", "state", "databases"}
+    allowed_keys = {"brimley", "config", "mcp", "auto_reload", "execution", "state", "databases"}
     filtered_config = {k: v for k, v in full_config.items() if k in allowed_keys}
 
     return filtered_config

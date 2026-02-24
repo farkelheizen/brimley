@@ -11,7 +11,7 @@ Context.__module__ = "mcp.server.fastmcp"
 
 
 @function(name="agent_sample", mcpType="tool")
-async def agent_sample(prompt: str, mcp_ctx: Context) -> dict:
+async def agent_sample(prompt: str, mcp_ctx: Context) -> str:
     """Samples a model response from the provided prompt using MCP context."""
     if hasattr(mcp_ctx, "sample"):
         sample = await mcp_ctx.sample(messages=prompt)
@@ -30,9 +30,4 @@ async def agent_sample(prompt: str, mcp_ctx: Context) -> dict:
         model = sample.model
         stop_reason = sample.stop_reason
     
-    return {
-        "prompt": prompt,
-        "sample_text": sample_text,
-        "model": model,
-        "stop_reason": stop_reason,
-    }
+    return sample_text

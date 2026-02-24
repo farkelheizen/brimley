@@ -29,6 +29,7 @@ class ExternalMCPRefreshAdapter:
         self.get_server = get_server
         self.set_server = set_server
         self.server_factory = server_factory
+        self._schema_signatures: dict[str, str] = {}
 
     def refresh(self) -> Any | None:
         """Refresh MCP tools for the external host server and return active server.
@@ -42,9 +43,11 @@ class ExternalMCPRefreshAdapter:
 
         adapter = BrimleyMCPAdapter(registry=self.context.functions, context=self.context)
         tools = adapter.discover_tools()
+        schema_signatures = adapter.get_tool_schema_signatures(tools)
         current_server = self.get_server()
 
         if not tools:
+            self._schema_signatures = {}
             return current_server
 
         if not adapter.is_fastmcp_available():
@@ -54,13 +57,28 @@ class ExternalMCPRefreshAdapter:
             next_server = adapter.register_tools()
             if next_server is not None:
                 self.set_server(next_server)
+            self._schema_signatures = schema_signatures
             return next_server
+
+        if self._schema_signatures and schema_signatures != self._schema_signatures:
+            if self.server_factory is None:
+                raise RuntimeError(
+                    "client_action_required: MCP tool schema changed; restart or reinitialize provider to apply schema updates"
+                )
+
+            next_server = self.server_factory()
+            refreshed = adapter.register_tools(mcp_server=next_server)
+            if refreshed is not None:
+                self.set_server(refreshed)
+            self._schema_signatures = schema_signatures
+            return refreshed
 
         if self._supports_clear_tools(current_server):
             self._clear_tools(current_server)
             refreshed = adapter.register_tools(mcp_server=current_server)
             if refreshed is not None:
                 self.set_server(refreshed)
+            self._schema_signatures = schema_signatures
             return refreshed
 
         if self.server_factory is not None:
@@ -68,11 +86,13 @@ class ExternalMCPRefreshAdapter:
             refreshed = adapter.register_tools(mcp_server=next_server)
             if refreshed is not None:
                 self.set_server(refreshed)
+            self._schema_signatures = schema_signatures
             return refreshed
 
         refreshed = adapter.register_tools(mcp_server=current_server)
         if refreshed is not None:
             self.set_server(refreshed)
+        self._schema_signatures = schema_signatures
         return refreshed
 
     def _supports_clear_tools(self, server: Any) -> bool:

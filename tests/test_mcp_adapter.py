@@ -455,3 +455,36 @@ def test_register_tools_raises_value_error_for_invalid_server_shape():
         assert False, "Expected ValueError for invalid MCP server"
     except ValueError as exc:
         assert "MCP server" in str(exc)
+
+
+def test_get_tool_schema_signatures_changes_when_argument_schema_changes():
+    context = BrimleyContext()
+    context.functions.register(
+        TemplateFunction(
+            name="hello_tool",
+            type="template_function",
+            return_shape="string",
+            template_body="Hello",
+            mcp={"type": "tool"},
+            arguments={
+                "inline": {
+                    "name": {"type": "string", "default": "world"},
+                }
+            },
+        )
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    initial = adapter.get_tool_schema_signatures()
+
+    func = context.functions.get("hello_tool")
+    func.arguments = {
+        "inline": {
+            "name": {"type": "string", "default": "developer"},
+        }
+    }
+    updated = adapter.get_tool_schema_signatures()
+
+    assert initial.keys() == {"hello_tool"}
+    assert updated.keys() == {"hello_tool"}
+    assert initial["hello_tool"] != updated["hello_tool"]

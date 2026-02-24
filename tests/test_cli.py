@@ -4,6 +4,7 @@ import typer
 from types import SimpleNamespace
 from typer.testing import CliRunner
 from brimley.cli.main import app, _resolve_optional_bool_flag
+from brimley.utils.diagnostics import BrimleyDiagnostic
 from pathlib import Path
 
 runner = CliRunner()
@@ -633,3 +634,241 @@ def test_mcp_serve_watch_mode_exits_when_no_tools_before_starting_watcher(tmp_pa
     assert result.exit_code == 0
     assert "No MCP tools discovered" in _combined_output(result)
     assert FakeRuntimeController.started == 0
+
+
+def test_validate_help():
+    result = runner.invoke(app, ["validate", "--help"])
+
+    assert result.exit_code == 0
+    assert "Validate Brimley artifacts" in result.stdout
+
+
+def test_validate_default_threshold_fails_on_error(monkeypatch, tmp_path):
+    class FakeScanner:
+        def __init__(self, root_dir):
+            self.root_dir = root_dir
+
+        def scan(self):
+            return SimpleNamespace(
+                diagnostics=[
+                    BrimleyDiagnostic(
+                        file_path="broken.md",
+                        error_code="ERR_PARSE_FAILURE",
+                        message="bad frontmatter",
+                        severity="error",
+                    )
+                ]
+            )
+
+    monkeypatch.setattr("brimley.cli.main.Scanner", FakeScanner)
+
+    result = runner.invoke(app, ["validate", "--root", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert "Brimley Validation Report" in result.stdout
+    assert "ERR_PARSE_FAILURE" in result.stdout
+
+
+def test_validate_default_threshold_ignores_warning(monkeypatch, tmp_path):
+    class FakeScanner:
+        def __init__(self, root_dir):
+            self.root_dir = root_dir
+
+        def scan(self):
+            return SimpleNamespace(
+                diagnostics=[
+                    BrimleyDiagnostic(
+                        file_path="warn.md",
+                        error_code="WARN_NAME_PROXIMITY",
+                        message="name is too close",
+                        severity="warning",
+                    )
+                ]
+            )
+
+    monkeypatch.setattr("brimley.cli.main.Scanner", FakeScanner)
+
+    result = runner.invoke(app, ["validate", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert "WARN_NAME_PROXIMITY" in result.stdout
+
+
+def test_validate_fail_on_warning_exits_non_zero(monkeypatch, tmp_path):
+    class FakeScanner:
+        def __init__(self, root_dir):
+            self.root_dir = root_dir
+
+        def scan(self):
+            return SimpleNamespace(
+                diagnostics=[
+                    BrimleyDiagnostic(
+                        file_path="warn.md",
+                        error_code="WARN_NAME_PROXIMITY",
+                        message="name is too close",
+                        severity="warning",
+                    )
+                ]
+            )
+
+    monkeypatch.setattr("brimley.cli.main.Scanner", FakeScanner)
+
+    result = runner.invoke(app, ["validate", "--root", str(tmp_path), "--fail-on", "warning"])
+
+    assert result.exit_code == 1
+    assert "WARN_NAME_PROXIMITY" in result.stdout
+
+
+def test_validate_json_format_and_output_file(monkeypatch, tmp_path):
+    class FakeScanner:
+        def __init__(self, root_dir):
+            self.root_dir = root_dir
+
+        def scan(self):
+            return SimpleNamespace(
+                diagnostics=[
+                    BrimleyDiagnostic(
+                        file_path="broken.sql",
+                        error_code="ERR_PARSE_FAILURE",
+                        message="bad sql metadata",
+                        severity="error",
+                        line_number=12,
+                        suggestion="Fix frontmatter",
+                    )
+                ]
+            )
+
+    monkeypatch.setattr("brimley.cli.main.Scanner", FakeScanner)
+    report_file = tmp_path / "reports" / "validate.json"
+
+    result = runner.invoke(
+        app,
+        [
+            "validate",
+            "--root",
+            str(tmp_path),
+            "--format",
+            "json",
+            "--output",
+            str(report_file),
+        ],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["summary"]["errors"] == 1
+    assert payload["issues"][0]["object_kind"] == "sql_function"
+    assert payload["issues"][0]["source_location"] == "broken.sql:12"
+    assert payload["issues"][0]["remediation_hint"] == "Fix frontmatter"
+    assert report_file.exists()
+    file_payload = json.loads(report_file.read_text())
+    assert file_payload["issues"][0]["code"] == "ERR_PARSE_FAILURE"
+
+
+def test_schema_convert_help():
+    result = runner.invoke(app, ["schema-convert", "--help"])
+
+    assert result.exit_code == 0
+    assert "Convert constrained JSON Schema" in result.stdout
+
+
+def test_schema_convert_strict_fails_on_unsupported_keyword(tmp_path):
+    input_file = tmp_path / "schema.json"
+    output_file = tmp_path / "fieldspec.yaml"
+    input_file.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "x-extra": "unsupported",
+                    }
+                },
+            }
+        )
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "schema-convert",
+            "--in",
+            str(input_file),
+            "--out",
+            str(output_file),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "ERR_SCHEMA_UNSUPPORTED_KEYWORD" in _combined_output(result)
+
+
+def test_schema_convert_allow_lossy_writes_output_and_json_report(tmp_path):
+    input_file = tmp_path / "schema.json"
+    output_file = tmp_path / "fieldspec.yaml"
+    input_file.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "properties": {
+                    "amount": {"type": "number"},
+                    "name": {"type": "string", "x-extra": "drop-me"},
+                },
+            }
+        )
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "schema-convert",
+            "--in",
+            str(input_file),
+            "--out",
+            str(output_file),
+            "--allow-lossy",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["summary"]["warnings"] >= 1
+    assert output_file.exists()
+    converted = output_file.read_text()
+    assert "inline:" in converted
+    assert "amount" in converted
+
+
+def test_schema_convert_fail_on_warning_returns_non_zero(tmp_path):
+    input_file = tmp_path / "schema.json"
+    output_file = tmp_path / "fieldspec.yaml"
+    input_file.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "properties": {
+                    "amount": {"type": "number"},
+                },
+            }
+        )
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "schema-convert",
+            "--in",
+            str(input_file),
+            "--out",
+            str(output_file),
+            "--allow-lossy",
+            "--fail-on",
+            "warning",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "WARN_SCHEMA_NUMBER_TO_FLOAT" in _combined_output(result)

@@ -194,3 +194,60 @@ def test_external_mcp_refresh_noops_without_tools_even_if_fastmcp_missing(monkey
 
     assert refreshed is state["server"]
     assert state["server"].tools == []
+
+
+def test_external_mcp_refresh_reinitializes_server_on_schema_change(monkeypatch):
+    _mock_fastmcp(monkeypatch)
+
+    context = BrimleyContext()
+    _register_tool_function(context)
+    tool_func = context.functions.get("hello_tool")
+    tool_func.arguments = {"inline": {"name": {"type": "string", "default": "world"}}}
+
+    first_server = _HostServerWithClear()
+    second_server = _HostServer()
+    state = {"server": first_server}
+
+    adapter = ExternalMCPRefreshAdapter(
+        context=context,
+        get_server=lambda: state["server"],
+        set_server=lambda next_server: state.__setitem__("server", next_server),
+        server_factory=lambda: second_server,
+    )
+
+    initial = adapter.refresh()
+    assert initial is first_server
+
+    tool_func.arguments = {"inline": {"name": {"type": "string", "default": "developer"}}}
+    refreshed = adapter.refresh()
+
+    assert refreshed is second_server
+    assert state["server"] is second_server
+    assert first_server.clear_calls == 1
+    assert len(second_server.tools) == 1
+
+
+def test_external_mcp_refresh_raises_client_action_required_when_schema_changes_without_reinit_path(monkeypatch):
+    _mock_fastmcp(monkeypatch)
+
+    context = BrimleyContext()
+    _register_tool_function(context)
+    tool_func = context.functions.get("hello_tool")
+    tool_func.arguments = {"inline": {"name": {"type": "string", "default": "world"}}}
+
+    server = _HostServerWithClear()
+    state = {"server": server}
+
+    adapter = ExternalMCPRefreshAdapter(
+        context=context,
+        get_server=lambda: state["server"],
+        set_server=lambda next_server: state.__setitem__("server", next_server),
+    )
+
+    adapter.refresh()
+    tool_func.arguments = {"inline": {"name": {"type": "string", "default": "developer"}}}
+
+    with pytest.raises(RuntimeError) as exc_info:
+        adapter.refresh()
+
+    assert "client_action_required" in str(exc_info.value)

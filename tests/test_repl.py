@@ -3,6 +3,7 @@ from typer.testing import CliRunner
 from brimley.cli.main import app
 from brimley.cli.repl import BrimleyREPL
 from brimley.core.models import TemplateFunction
+from brimley.discovery.scanner import BrimleyScanResult
 from brimley.mcp.mock import MockMCPContext
 from brimley.runtime.reload_contracts import ReloadCommandResult, ReloadCommandStatus, ReloadSummary
 from brimley.runtime.reload_contracts import ReloadDomain
@@ -204,6 +205,126 @@ def test_repl_admin_help(tmp_path):
     assert "/state" in result.stdout
     assert "/functions" in result.stdout
     assert "/reload" in result.stdout
+    assert "/errors" in result.stdout
+
+
+def test_repl_errors_command_reports_empty_set(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    logs = []
+
+    def fake_log(message, severity="info"):
+        logs.append((severity, message))
+
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", fake_log)
+
+    should_continue = repl.handle_admin_command("/errors")
+
+    assert should_continue is True
+    assert any("no runtime errors" in message.lower() for _, message in logs)
+
+
+def test_repl_errors_command_parses_pagination_and_history_args(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path)
+    repl.context.sync_runtime_error_set(
+        [
+            BrimleyDiagnostic(
+                file_path="broken_a.md",
+                error_code="ERR_PARSE_FAILURE",
+                message="bad frontmatter",
+                severity="error",
+            ),
+            BrimleyDiagnostic(
+                file_path="broken_b.md",
+                error_code="ERR_RESERVED_NAME",
+                message="reserved",
+                severity="warning",
+            ),
+        ],
+        source="reload",
+    )
+
+    captured = {}
+
+    def fake_print_runtime_errors(records, total, limit, offset, include_history):
+        captured["records"] = records
+        captured["total"] = total
+        captured["limit"] = limit
+        captured["offset"] = offset
+        captured["include_history"] = include_history
+
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.print_runtime_errors", fake_print_runtime_errors)
+
+    should_continue = repl.handle_admin_command("/errors --limit 1 --offset 1 --history")
+
+    assert should_continue is True
+    assert captured["limit"] == 1
+    assert captured["offset"] == 1
+    assert captured["include_history"] is True
+    assert captured["total"] == 2
+    assert len(captured["records"]) == 1
+
+
+def test_repl_reload_cycle_updates_runtime_error_set_lifecycle(tmp_path):
+    responses = [
+        ReloadCommandResult(
+            status=ReloadCommandStatus.FAILURE,
+            summary=ReloadSummary(functions=0, entities=0, tools=0),
+            diagnostics=[
+                BrimleyDiagnostic(
+                    file_path="broken.md",
+                    error_code="ERR_PARSE_FAILURE",
+                    message="bad frontmatter",
+                    severity="error",
+                )
+            ],
+        ),
+        ReloadCommandResult(
+            status=ReloadCommandStatus.SUCCESS,
+            summary=ReloadSummary(functions=1, entities=0, tools=0),
+            diagnostics=[],
+        ),
+    ]
+
+    repl = BrimleyREPL(tmp_path, reload_handler=lambda: responses.pop(0))
+
+    assert repl.handle_admin_command("/reload") is True
+    active_records, active_total = repl.context.get_runtime_errors()
+    assert active_total == 1
+    assert active_records[0].error_class == "ERR_PARSE_FAILURE"
+
+    assert repl.handle_admin_command("/reload") is True
+    current_records, current_total = repl.context.get_runtime_errors()
+    assert current_total == 0
+    assert current_records == []
+
+    history_records, history_total = repl.context.get_runtime_errors(include_resolved=True)
+    assert history_total == 1
+    assert history_records[0].status == "resolved"
+
+
+def test_repl_load_syncs_runtime_errors_from_discovery(tmp_path, monkeypatch):
+    diagnostic = BrimleyDiagnostic(
+        file_path="broken.md",
+        error_code="ERR_PARSE_FAILURE",
+        message="bad frontmatter",
+        severity="error",
+    )
+
+    class FakeScanner:
+        def __init__(self, root_dir):
+            self.root_dir = root_dir
+
+        def scan(self):
+            return BrimleyScanResult(functions=[], entities=[], diagnostics=[diagnostic])
+
+    monkeypatch.setattr("brimley.cli.repl.Scanner", FakeScanner)
+
+    repl = BrimleyREPL(tmp_path)
+    repl.load()
+
+    active_records, active_total = repl.context.get_runtime_errors()
+    assert active_total == 1
+    assert active_records[0].error_class == "ERR_PARSE_FAILURE"
 
 def test_repl_admin_settings(tmp_path):
     (tmp_path / "funcs").mkdir()
@@ -410,7 +531,7 @@ def test_repl_handle_command_json_fallback_supports_complex_object(tmp_path, mon
             type="template_function",
             return_shape="string",
             template_body="{{ args.name }}",
-            arguments={"inline": {"name": "string", "metadata": "dict"}},
+            arguments={"inline": {"name": "string", "metadata": "primitive"}},
         )
     )
 
@@ -437,7 +558,7 @@ def test_repl_handle_command_preserves_object_payload_into_argument_resolver(tmp
             type="template_function",
             return_shape="string",
             template_body="{{ args.name }}",
-            arguments={"inline": {"name": "string", "metadata": "dict"}},
+            arguments={"inline": {"name": "string", "metadata": "primitive"}},
         )
     )
 
@@ -471,7 +592,7 @@ def test_repl_handle_command_preserves_file_payload_into_argument_resolver(tmp_p
             type="template_function",
             return_shape="string",
             template_body="{{ args.name }}",
-            arguments={"inline": {"name": "string", "metadata": "dict"}},
+            arguments={"inline": {"name": "string", "metadata": "primitive"}},
         )
     )
 
@@ -1131,7 +1252,71 @@ Hello V2 {{ args.name }}
         assert refresh_calls["initialize"] == 0
 
 
-def test_repl_run_reload_cycle_failure_preserves_existing_registries(tmp_path):
+def test_repl_reload_schema_change_restarts_embedded_mcp_server(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+
+    class FakeServer:
+        def __init__(self):
+            self.clear_calls = 0
+
+        def clear_tools(self):
+            self.clear_calls += 1
+
+    fake_server = FakeServer()
+    repl.mcp_server = fake_server
+
+    calls = {"shutdown": 0, "initialize": 0, "register": 0}
+    schema_state = {"value": "v1"}
+
+    monkeypatch.setattr(repl, "_shutdown_mcp_server", lambda: calls.__setitem__("shutdown", calls["shutdown"] + 1))
+    monkeypatch.setattr(repl, "_initialize_mcp_server", lambda: calls.__setitem__("initialize", calls["initialize"] + 1))
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [object()]
+
+        def is_fastmcp_available(self):
+            return True
+
+        def get_tool_schema_signatures(self, tools=None):
+            return {"hello_tool": schema_state["value"]}
+
+        def register_tools(self, mcp_server=None):
+            calls["register"] += 1
+            return mcp_server
+
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr(
+        repl.reload_engine,
+        "apply_reload_with_policy",
+        lambda _context, _scan: ReloadApplicationResult(
+            summary=ReloadSummary(functions=1, entities=len(repl.context.entities), tools=1),
+            blocked_domains=[],
+            diagnostics=[],
+        ),
+    )
+
+    first_result = repl._run_reload_cycle()
+    assert first_result.status == ReloadCommandStatus.SUCCESS
+    assert fake_server.clear_calls == 1
+    assert calls["register"] == 1
+    assert calls["shutdown"] == 0
+    assert calls["initialize"] == 0
+
+    schema_state["value"] = "v2"
+    second_result = repl._run_reload_cycle()
+
+    assert second_result.status == ReloadCommandStatus.SUCCESS
+    assert calls["shutdown"] == 1
+    assert calls["initialize"] == 1
+    assert fake_server.clear_calls == 1
+    assert calls["register"] == 1
+
+
+def test_repl_run_reload_cycle_failure_does_not_preserve_stale_memory_only_functions(tmp_path):
     repl = BrimleyREPL(tmp_path)
     repl.context.functions.register(
         TemplateFunction(
@@ -1155,7 +1340,7 @@ type: template_function
 
     assert result.status == ReloadCommandStatus.FAILURE
     assert len(result.diagnostics) > 0
-    assert "existing_tool" in repl.context.functions
+    assert "existing_tool" not in repl.context.functions
 
 
 def test_repl_run_reload_cycle_success_swaps_registries(tmp_path):
@@ -1309,7 +1494,6 @@ Hello
 
     logs = []
     monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
-
     existing_file.unlink()
 
     no_reload_result = repl._auto_reload_poll_once(now=0.00)

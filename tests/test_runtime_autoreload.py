@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 
 from brimley.runtime.controller import BrimleyRuntimeController
 from brimley.execution.execute_helper import execute_function_by_name
@@ -146,6 +147,8 @@ def test_runtime_autoreload_failed_reload_keeps_active_tool_set(tmp_path: Path):
     assert failure_result.status == ReloadCommandStatus.FAILURE
     assert "hello" in runtime.context.functions
     assert any("[functions]" in diag.message for diag in failure_result.diagnostics)
+    with pytest.raises(KeyError, match="quarantined"):
+        execute_function_by_name(runtime.context, "hello", {})
 
     runtime.stop_auto_reload()
 
@@ -236,6 +239,8 @@ def test_runtime_autoreload_failed_watched_update_does_not_invoke_mcp_refresh(tm
     assert failure_result.status == ReloadCommandStatus.FAILURE
     assert refresh_calls["count"] == 1
     assert "hello" in runtime.context.functions
+    with pytest.raises(KeyError, match="quarantined"):
+        execute_function_by_name(runtime.context, "hello", {})
 
     runtime.stop_auto_reload()
 

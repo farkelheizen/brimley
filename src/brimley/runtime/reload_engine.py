@@ -19,6 +19,7 @@ from brimley.runtime.reload_contracts import (
     ReloadDomain,
     ReloadSummary,
     evaluate_domain_swap_policy,
+    has_critical_diagnostics,
 )
 from brimley.utils.diagnostics import BrimleyDiagnostic
 
@@ -106,9 +107,25 @@ class PartitionedReloadEngine:
         if decisions[ReloadDomain.ENTITIES].can_swap:
             context.entities = self._build_entities_registry(context, partitions.entities)
 
-        if decisions[ReloadDomain.FUNCTIONS].can_swap:
+        functions_has_critical = has_critical_diagnostics(diagnostics_by_domain[ReloadDomain.FUNCTIONS])
+        function_partial_swap = (
+            not decisions[ReloadDomain.FUNCTIONS].can_swap
+            and decisions[ReloadDomain.ENTITIES].can_swap
+            and functions_has_critical
+        )
+
+        if decisions[ReloadDomain.FUNCTIONS].can_swap or function_partial_swap:
             self._rehydrate_python_modules(context, partitions.functions)
-            context.functions = self._build_functions_registry(partitions.functions)
+            next_functions = self._build_functions_registry(partitions.functions)
+            if function_partial_swap:
+                for name, reason in self._quarantined_function_reasons(
+                    context,
+                    next_functions,
+                    diagnostics_by_domain[ReloadDomain.FUNCTIONS],
+                ).items():
+                    next_functions.mark_quarantined(name, reason)
+
+            context.functions = next_functions
 
         tools_count = (
             len(partitions.mcp_tools)
@@ -279,3 +296,54 @@ class PartitionedReloadEngine:
             )
             for diag in diagnostics
         ]
+
+    def _quarantined_function_reasons(
+        self,
+        context: BrimleyContext,
+        next_functions: Registry[BrimleyFunction],
+        diagnostics: List[BrimleyDiagnostic],
+    ) -> Dict[str, str]:
+        relative_diag_paths = self._diagnostic_relative_paths(context, diagnostics)
+        if not relative_diag_paths:
+            return {}
+
+        quarantined: Dict[str, str] = {}
+        for function in context.functions:
+            canonical_id = getattr(function, "canonical_id", None)
+            if not isinstance(canonical_id, str) or not canonical_id.startswith("function:"):
+                continue
+
+            _, function_path, _ = canonical_id.split(":", 2)
+            if function_path.lower() not in relative_diag_paths:
+                continue
+
+            if function.name in next_functions:
+                continue
+
+            quarantined[function.name] = "changed object failed validation during reload"
+
+        return quarantined
+
+    def _diagnostic_relative_paths(
+        self,
+        context: BrimleyContext,
+        diagnostics: List[BrimleyDiagnostic],
+    ) -> set[str]:
+        root_dir_value = None
+        if isinstance(context.app, dict):
+            root_dir_value = context.app.get("root_dir")
+
+        if not isinstance(root_dir_value, str):
+            return set()
+
+        root_path = Path(root_dir_value).expanduser().resolve()
+        relative_paths: set[str] = set()
+        for diag in diagnostics:
+            try:
+                diag_path = Path(diag.file_path).expanduser().resolve()
+                relative = diag_path.relative_to(root_path).as_posix().lower()
+                relative_paths.add(relative)
+            except Exception:
+                continue
+
+        return relative_paths

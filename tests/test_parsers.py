@@ -4,6 +4,7 @@ from brimley.discovery.utils import parse_frontmatter
 from brimley.discovery.sql_parser import parse_sql_file
 from brimley.discovery.template_parser import parse_template_file
 from brimley.discovery.python_parser import parse_python_file, _scan_for_reload_hazards
+from brimley.discovery.schema_converter import convert_json_schema_to_fieldspec
 from brimley.core.models import DiscoveredEntity, SqlFunction, TemplateFunction, PythonFunction
 
 # -----------------------------------------------------------------------------
@@ -265,8 +266,8 @@ class User:
     pass
 
 @function
-def get_user(user_id: int) -> dict:
-    return {"id": user_id}
+def get_user(user_id: int) -> User:
+    return User()
 ''')
 
     parsed = parse_python_file(f)
@@ -457,3 +458,76 @@ def greet() -> str:
     hazards = _scan_for_reload_hazards(tree)
 
     assert hazards == []
+
+
+def test_schema_converter_converts_supported_object_schema_to_inline_fieldspec():
+    schema = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "Display name"},
+            "age": {"type": "integer", "minimum": 0},
+            "tags": {"type": "array", "items": {"type": "string"}},
+            "birthday": {"type": "string", "format": "date"},
+        },
+        "required": ["name", "age"],
+    }
+
+    result = convert_json_schema_to_fieldspec(schema)
+
+    assert result.report.errors == 0
+    assert result.report.warnings == 0
+    assert result.inline["name"]["type"] == "string"
+    assert result.inline["name"]["description"] == "Display name"
+    assert result.inline["age"]["type"] == "int"
+    assert result.inline["age"]["min"] == 0
+    assert result.inline["tags"]["type"] == "string[]"
+    assert result.inline["tags"]["required"] is False
+    assert result.inline["birthday"]["type"] == "date"
+
+
+def test_schema_converter_strict_mode_errors_on_unknown_property_keyword():
+    schema = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "x-extra": "not-supported"},
+        },
+    }
+
+    result = convert_json_schema_to_fieldspec(schema)
+
+    assert result.report.errors == 1
+    assert result.report.warnings == 0
+    assert result.report.issues[0].code == "ERR_SCHEMA_UNSUPPORTED_KEYWORD"
+
+
+def test_schema_converter_allow_lossy_downgrades_unknown_keyword_to_warning():
+    schema = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "x-extra": "not-supported"},
+        },
+    }
+
+    result = convert_json_schema_to_fieldspec(schema, allow_lossy=True)
+
+    assert result.report.errors == 0
+    assert result.report.warnings == 1
+    assert result.inline["name"]["type"] == "string"
+    assert result.report.issues[0].code == "WARN_SCHEMA_DROPPED_KEYWORD"
+
+
+def test_schema_converter_emits_tier2_warning_for_number_to_float_mapping():
+    schema = {
+        "type": "object",
+        "properties": {
+            "amount": {"type": "number"},
+        },
+        "required": ["amount"],
+    }
+
+    result = convert_json_schema_to_fieldspec(schema)
+
+    assert result.report.errors == 0
+    assert result.report.warnings == 1
+    assert result.inline["amount"]["type"] == "float"
+    assert result.report.issues[0].code == "WARN_SCHEMA_NUMBER_TO_FLOAT"

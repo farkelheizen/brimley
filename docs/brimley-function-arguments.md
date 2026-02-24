@@ -1,9 +1,9 @@
 # Brimley Function Arguments
-> Version 0.3
+> Version 0.4
 
 This specification defines argument inference and validation rules for Brimley functions.
 
-In 0.3, Python function signatures are the primary source for argument discovery.
+In 0.4, Python function signatures are the primary source for argument discovery.
 
 ## 1. Global Structure
 
@@ -12,7 +12,7 @@ Internally, Brimley stores arguments in an `arguments` object that may include:
 | **Key**      | **Type** | **Description**                                                                                                                               |
 | ------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `entity_ref` | `string` | A reference to a named Entity (e.g., `User`). Inherits all properties of that Entity as arguments.  The Entity must be dictionary-compatable. |
-| `inline`     | `dict`   | Manual argument definitions. Supports **Shorthand**, **Complex**, or **JSON Schema** modes.                                                   |
+| `inline`     | `dict`   | Manual argument definitions. Supports **Shorthand** or **Complex FieldSpec** modes in runtime authoring.                                      |
 
 For Python functions, this structure is typically inferred from type hints and `Annotated` metadata.
 
@@ -47,25 +47,10 @@ from brimley import function
 def list_orders(limit: int = 10) -> list[dict]:
     return []
 ```
-### C. Standard Mode (JSON Schema)
+### C. JSON Schema Runtime Note (v0.4)
 
-- **Trigger:** The `inline` dictionary contains the `properties` key.
-- **Use Case:** Strict industry-standard compliance and copy-pasting existing schemas.
-
-```python
-from brimley import function
-
-@function(
-    arguments={
-        "inline": {
-            "properties": {"customer_id": {"type": "integer"}},
-            "required": ["customer_id"],
-        }
-    }
-)
-def get_orders(customer_id: int) -> list[dict]:
-    return []
-```
+- Direct JSON Schema authoring is **not** supported as a first-class runtime argument mode in v0.4.
+- For migration scenarios, use `brimley schema-convert` to convert supported JSON Schema subsets into Brimley `inline` FieldSpec, then use the converted FieldSpec as runtime source.
 
 ---
 
@@ -98,10 +83,10 @@ def audit_action(
 
 ## 4. Supported Primitive Types
 
-Brimley maps the following shorthand keywords to their respective data types and JSON Schema formats.
+Brimley maps the following shorthand keywords to their runtime data types.
 
 
-| **Shorthand**   | **JSON Schema Type**         | **Python Type** | **SQL Equivalent**    |
+| **Shorthand**   | **Mapped Schema Type**       | **Python Type** | **SQL Equivalent**    |
 | --------------- | ---------------------------- | --------------- | --------------------- |
 | **`int`**       | `integer`                    | `int`           | `BIGINT`              |
 | **`float`**     | `number`                     | `float`         | `DOUBLE` / `FLOAT8`   |
@@ -119,7 +104,7 @@ Brimley maps the following shorthand keywords to their respective data types and
 Any primitive or Entity reference can be turned into a list/table by appending `[]`.
 - **`int[]`**: A list of integers.
 - **`User[]`**: A collection of objects matching the `User` Entity.
-The exception would be for the `entity_ref` argument.  When defined, this must be a string that points to a named dictionary-compatible JSON schema entity.
+The exception is `entity_ref`: it must be a string that points to a named dictionary-compatible Entity.
 
 ---
 

@@ -1,6 +1,8 @@
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Dict, Optional, Union
 from pydantic import BaseModel, Field
-from brimley.core.models import BrimleyFunction
+from brimley.core.models import BrimleyFunction, normalize_type_expression
 from brimley.core.context import BrimleyContext
 
 class ArgumentDef(BaseModel):
@@ -72,18 +74,24 @@ class ArgumentResolver:
         # Spec: "Standard Mode... contains properties key"
         
         if "properties" in inline:
-            # TODO: Standard JSON Schema mode
-            # For this step, we interpret keys directly if 'properties' isn't top level
-             pass
+            raise ValueError(
+                "JSON Schema argument mode is not supported in v0.4 runtime authoring. "
+                "Use constrained inline FieldSpec definitions instead."
+            )
         else:
             # Iterate keys -> Shorthand or Complex
             for name, spec in inline.items():
                 
                 # A. Shorthand: "name": "int"
                 if isinstance(spec, str):
+                    try:
+                        normalized_type = normalize_type_expression(spec)
+                    except ValueError as e:
+                        raise ValueError(f"Unsupported type expression for argument '{name}': {e}") from e
+
                     defs.append(ArgumentDef(
                         name=name,
-                        type=spec,
+                        type=normalized_type,
                         required=True # Shorthand implies required
                     ))
                 
@@ -91,6 +99,11 @@ class ArgumentResolver:
                 elif isinstance(spec, dict):
                     # Extract logic
                     arg_type = spec.get("type", "string")
+                    try:
+                        normalized_type = normalize_type_expression(str(arg_type))
+                    except ValueError as e:
+                        raise ValueError(f"Unsupported type expression for argument '{name}': {e}") from e
+
                     default = spec.get("default")
                     from_ctx = spec.get("from_context")
                     # It's required if no default and no context and not marked optional?
@@ -99,7 +112,7 @@ class ArgumentResolver:
                     
                     defs.append(ArgumentDef(
                         name=name,
-                        type=arg_type,
+                        type=normalized_type,
                         required=required,
                         default=default,
                         from_context=from_ctx
@@ -137,6 +150,12 @@ class ArgumentResolver:
         """
         Simple casting logic.
         """
+        if type_name.endswith("[]"):
+            if not isinstance(value, (list, tuple)):
+                raise ValueError(f"Expected a list for type '{type_name}'.")
+            item_type = type_name[:-2]
+            return [cls._cast_value(item, item_type) for item in value]
+
         if type_name == "int" or type_name == "integer":
             return int(value)
         elif type_name == "str" or type_name == "string":
@@ -147,5 +166,19 @@ class ArgumentResolver:
             return bool(value)
         elif type_name == "float" or type_name == "number":
             return float(value)
+        elif type_name == "decimal":
+            return Decimal(value)
+        elif type_name == "date":
+            if isinstance(value, date) and not isinstance(value, datetime):
+                return value
+            if isinstance(value, str):
+                return date.fromisoformat(value)
+            raise ValueError("Expected ISO date string for type 'date'.")
+        elif type_name == "datetime":
+            if isinstance(value, datetime):
+                return value
+            if isinstance(value, str):
+                return datetime.fromisoformat(value)
+            raise ValueError("Expected ISO datetime string for type 'datetime'.")
         # primitive / any
         return value

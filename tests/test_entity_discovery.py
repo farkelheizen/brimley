@@ -30,6 +30,8 @@ class UserProfile:
     assert isinstance(entity, DiscoveredEntity)
     assert entity.name == "UserProfile"
     assert entity.type == "python_entity"
+    assert entity.canonical_id is not None
+    assert entity.canonical_id == "entity:models/user_profile.py:UserProfile"
     
     # 4. Test Registration in Context
     ctx = BrimleyContext()
