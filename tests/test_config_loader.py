@@ -101,3 +101,23 @@ auto_reload:
     assert config["auto_reload"]["debounce_ms"] == 400
     assert config["auto_reload"]["include_patterns"] == ["*.py", "*.sql"]
     assert config["auto_reload"]["exclude_patterns"] == [".venv/*"]
+
+
+def test_load_config_includes_execution_section(tmp_path):
+    config_file = tmp_path / "brimley.yaml"
+    content = """
+execution:
+  thread_pool_size: 4
+  timeout_seconds: 5.5
+  queue:
+    max_size: 32
+    on_full: reject
+"""
+    config_file.write_text(content)
+
+    config = load_config(config_file)
+    assert "execution" in config
+    assert config["execution"]["thread_pool_size"] == 4
+    assert config["execution"]["timeout_seconds"] == 5.5
+    assert config["execution"]["queue"]["max_size"] == 32
+    assert config["execution"]["queue"]["on_full"] == "reject"

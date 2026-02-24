@@ -3,7 +3,14 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from brimley.core.entity import Entity, ContentBlock, PromptMessage
 from brimley.core.registry import Registry
-from brimley.core.models import BrimleyFunction, FrameworkSettings, AppConfig, MCPSettings, AutoReloadSettings
+from brimley.core.models import (
+    BrimleyFunction,
+    FrameworkSettings,
+    AppConfig,
+    MCPSettings,
+    AutoReloadSettings,
+    ExecutionSettings,
+)
 from brimley.utils.diagnostics import BrimleyDiagnostic
 
 
@@ -40,6 +47,9 @@ class BrimleyContext(Entity):
 
     # Auto Reload Runtime Settings (Maps to top-level 'auto_reload' section)
     auto_reload: AutoReloadSettings = Field(default_factory=AutoReloadSettings)
+
+    # Execution Runtime Settings (Maps to top-level 'execution' section)
+    execution: ExecutionSettings = Field(default_factory=ExecutionSettings)
     
     # Application State: Mutable storage for request/session data
     app: Dict[str, Any] = Field(default_factory=dict)
@@ -78,6 +88,8 @@ class BrimleyContext(Entity):
                 data['mcp'] = MCPSettings(**config_dict.get('mcp', {}))
             if 'auto_reload' not in data:
                 data['auto_reload'] = AutoReloadSettings(**config_dict.get('auto_reload', {}))
+            if 'execution' not in data:
+                data['execution'] = ExecutionSettings(**config_dict.get('execution', {}))
             if 'app' not in data:
                 data['app'] = config_dict.get('state', {})
             if 'databases' not in data:

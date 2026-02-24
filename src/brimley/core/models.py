@@ -128,6 +128,25 @@ class AutoReloadSettings(BaseModel):
     exclude_patterns: List[str] = Field(default_factory=list)
 
 
+class ExecutionQueueSettings(BaseModel):
+    """Queue configuration for bounded synchronous execution dispatch."""
+
+    model_config = ConfigDict(extra='ignore')
+
+    max_size: int = Field(default=128, ge=0)
+    on_full: Literal["reject", "block"] = "reject"
+
+
+class ExecutionSettings(BaseModel):
+    """Global execution runtime settings (the `execution` section in brimley.yaml)."""
+
+    model_config = ConfigDict(extra='ignore')
+
+    thread_pool_size: int = Field(default=8, ge=1)
+    timeout_seconds: float = Field(default=30.0, gt=0)
+    queue: ExecutionQueueSettings = Field(default_factory=ExecutionQueueSettings)
+
+
 class MCPConfig(BaseModel):
     """
     MCP metadata for exposing a Brimley function as an MCP tool.
@@ -147,6 +166,7 @@ class BrimleyFunction(BaseEntity):
     canonical_id: Optional[str] = None
     arguments: Optional[Dict[str, Any]] = None
     mcp: Optional[MCPConfig] = None
+    timeout_seconds: Optional[float] = Field(default=None, gt=0)
     return_shape: Union[str, Dict[str, Any]]
 
 class PythonFunction(BrimleyFunction):
