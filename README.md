@@ -22,11 +22,14 @@ Writing tools for AI agents shouldn't require restarting your server every time 
 
 ### 1. Installation
 
-Brimley is lightweight by default, but to serve tools to an LLM, you'll want the FastMCP integration.
+Brimley is lightweight by default. To serve tools to an LLM, install FastMCP alongside Brimley.
 
 ```
-# Install Brimley with FastMCP transport support
-pip install "brimley[fastmcp]"
+# Install Brimley
+pip install brimley
+
+# Install FastMCP transport support
+pip install fastmcp
 ```
 
 ### 2. Project Initialization & Configuration
@@ -34,7 +37,7 @@ pip install "brimley[fastmcp]"
 Brimley uses a `brimley.yaml` configuration file at your project root. This file does more than just name your project—it manages three critical layers of your environment out-of-the-box:
 
 1. **Immutable Config:** Read-only settings (like URLs or emails) injected into your tools.
-2. **Mutable State:** In-memory variables that persist across tool calls while the daemon runs.
+2. **Mutable State:** In-memory variables that persist across tool calls while the REPL/session is running.
 3. **Database Pools:** Connection managers that automatically wire up to your SQL tools.
 
 ```
@@ -50,7 +53,7 @@ state:
     tools_called: 0
 
 # 3. Database connection pools (automatically linked to .sql tools)
-connections:
+databases:
     default:
         type: sqlite
         url: "sqlite:///app.db"
@@ -77,7 +80,7 @@ def get_weather(location: str) -> str:
 
 ### 4. Test in the REPL
 
-Before handing the tool to an AI, test it yourself using Brimley's interactive terminal. You'll specify your project root directly in the command. (When you run this command, Brimley will automatically start a background daemon if one isn't already running).
+Before handing the tool to an AI, test it yourself using Brimley's interactive terminal. You'll specify your project root directly in the command.
 
 ```
 brimley repl --root .
@@ -159,40 +162,41 @@ Contact us at: {{ args.support_email }}
 
 Brimley 0.4 seamlessly delegates the networking layer to [FastMCP](https://github.com/jlowin/fastmcp).
 
-When you are ready to deploy your tools natively in Python or connect them to an MCP client like Claude Desktop, you simply pass the `BrimleyProvider` to FastMCP. Brimley handles the hot-reloading execution, and FastMCP handles the standard input/output.
+When you are ready to deploy your tools natively in Python or connect them to an MCP client like Claude Desktop, use Brimley's MCP adapter with a FastMCP server. Brimley handles discovery/execution and tool registration, while FastMCP handles transport and server lifecycle.
 
 **Important:** logic-only changes can hot-reload; MCP schema-shape changes (argument/signature/default/requiredness) require provider reinitialization or process restart so clients receive updated schemas.
 
 ```
-# server.py
-from fastmcp import FastMCP
-from brimley.mcp.fastmcp_provider import BrimleyProvider
+from pathlib import Path
 
-# Initialize FastMCP
-mcp = FastMCP("My Brimley Server")
+from brimley.config.loader import load_config
+from brimley.core.context import BrimleyContext
+from brimley.discovery.scanner import Scanner
+from brimley.mcp.adapter import BrimleyMCPAdapter
 
-# Attach Brimley as the tool provider, pointing to your project root
-provider = BrimleyProvider(root=".")
-mcp.add_provider(provider)
+root_dir = Path(".")
+config = load_config(root_dir / "brimley.yaml")
+context = BrimleyContext(config_dict=config)
 
-if __name__ == "__main__":
-        # Run the server
-        mcp.run()
+scan_result = Scanner(root_dir).scan()
+context.functions.register_all(scan_result.functions)
+
+adapter = BrimleyMCPAdapter(context.functions, context)
+mcp_server = adapter.register_tools()
+mcp_server.run(transport="sse", host="127.0.0.1", port=8000)
 ```
 
 ### Hybrid Mode: Starting FastMCP via the REPL
 
-Brimley operates as a background daemon when running the REPL. If there isn't a daemon running, the `brimley repl` command seamlessly creates one.
+In 0.4, REPL and embedded FastMCP run in the same process. The REPL keeps interactive terminal control, while embedded FastMCP is served over SSE in a background thread.
 
-In this mode, the daemon owns MCP `stdio`; the REPL client talks only to the daemon over loopback API.
-
-To instruct the daemon to also spin up FastMCP on `stdio` so your LLM can connect simultaneously, simply pass the `--mcp` flag:
+To start REPL with embedded MCP, pass the `--mcp` flag:
 
 ```
 brimley repl --root . --mcp
 ```
 
-The LLM and the human developer are now targeting the exact same hot-reloaded code session, completely isolated from each other's I/O streams!
+The LLM and the human developer are now targeting the exact same hot-reloaded code session while avoiding terminal `stdio` conflicts.
 
 ### Validate Before You Ship
 
@@ -213,3 +217,8 @@ See [Embedded Deployments & Port Management](docs/brimley-embedded-deployments-a
 ### Migration Note (JSON Schema)
 
 In v0.4, Brimley runtime authoring is FieldSpec-first (Python hints + Brimley metadata). Direct JSON Schema runtime authoring is no longer first-class; use the conversion utility path during migration.
+
+### Release/Planning Notes
+
+- [What’s New in 0.4](docs/brimley-0.4-whats-new.md)
+- [What’s Next in 0.5](docs/brimley-0.5-what-next.md)
