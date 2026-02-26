@@ -36,9 +36,10 @@ brimley2/
 │       ├── infrastructure/ # Database connection management
 │       │   ├── __init__.py
 │       │   └── database.py
-│       ├── mcp/            # MCP adapter and FastMCP integration
+│       ├── mcp/            # MCP provider-first integration + compatibility adapter shim
 │       │   ├── __init__.py
-│       │   └── adapter.py
+│       │   ├── adapter.py
+│       │   └── fastmcp_provider.py
 │       ├── runtime/        # Auto-reload contracts, watcher, and host controller
 │       │   ├── __init__.py
 │       │   ├── controller.py

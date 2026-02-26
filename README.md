@@ -168,20 +168,36 @@ When you are ready to deploy your tools natively in Python or connect them to an
 
 ```
 # server.py
+from pathlib import Path
+
 from fastmcp import FastMCP
+from brimley.config.loader import load_config
+from brimley.core.context import BrimleyContext
+from brimley.discovery.scanner import Scanner
 from brimley.mcp.fastmcp_provider import BrimleyProvider
 
 # Initialize FastMCP
 mcp = FastMCP("My Brimley Server")
 
-# Attach Brimley as the tool provider, pointing to your project root
-provider = BrimleyProvider(root=".")
-mcp.add_provider(provider)
+# Build Brimley context from project root and attach provider
+root = Path(".")
+context = BrimleyContext(config_dict=load_config(root / "brimley.yaml"))
+scan_result = Scanner(root).scan()
+context.functions.register_all(scan_result.functions)
+
+provider = BrimleyProvider(context.functions, context)
+provider.register_tools(mcp_server=mcp)
 
 if __name__ == "__main__":
         # Run the server
         mcp.run()
 ```
+
+### 0.5 Migration Notes
+
+- `BrimleyProvider` is the canonical MCP integration path.
+- `BrimleyMCPAdapter` remains as a compatibility shim during migration.
+- For host-managed refresh/reinit, prefer `ProviderMCPRefreshManager`; `ExternalMCPRefreshAdapter` remains compatibility naming.
 
 ### Hybrid Mode: Starting FastMCP via the REPL
 

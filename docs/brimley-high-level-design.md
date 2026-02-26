@@ -43,7 +43,7 @@ Defined in [Discovery & Loader](brimley-discovery-and-loader-specification.md), 
     
 - **Parsing (Zero-Execution AST for Python)**: Parsing Python files with `ast.parse()` to discover `@function` and `@entity` markers without importing or executing user modules.
 
-- **Compatibility**: Supporting transitional legacy Python YAML frontmatter where decorators are not yet present.
+- **Compatibility**: Python discovery is decorator-only in 0.5; legacy Python YAML frontmatter fallback is removed.
     
 - **Validation**: Enforcing [Naming Conventions](brimley-naming-conventions.md) and schema requirements.
     
@@ -99,7 +99,7 @@ Defined in [MCP Integration](brimley-model-context-protocol-integration.md), thi
 
 - **Embedded Hosting**: REPL can host FastMCP over SSE without conflicting with interactive terminal input.
 
-- **Adapter Reuse**: MCP tool registration is modular so external apps can attach Brimley tools to existing FastMCP servers.
+- **Provider-First Integration**: MCP tool registration uses `BrimleyProvider` as canonical integration surface, with adapter naming retained only as a compatibility shim.
     
 
 ## 4. Data Flow

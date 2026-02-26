@@ -49,7 +49,7 @@ In the example above:
 
 ### Agentic Python Tools (Context Passthrough)
 
-For Python tools, Brimley passes FastMCP invocation context through the MCP adapter into runtime injections. This allows handlers to declare `mcp.server.fastmcp.Context` directly in their function signature.
+For Python tools, Brimley passes FastMCP invocation context through the provider execution path into runtime injections. This allows handlers to declare `mcp.server.fastmcp.Context` directly in their function signature.
 
 ```python
 from brimley import function
@@ -152,7 +152,7 @@ brimley mcp-serve --root . --host 127.0.0.1 --port 8000
 
 Long-term, you may not want to run the Brimley REPL, but rather embed Brimley's functions directly into an existing AI framework (like LangGraph) or an existing FastMCP server.
 
-Brimley provides an adapter for this exact use case:
+Brimley provides a provider-first integration surface for this use case:
 
 ```
 from pathlib import Path
@@ -160,7 +160,7 @@ from pathlib import Path
 from brimley.config.loader import load_config
 from brimley.core.context import BrimleyContext
 from brimley.discovery.scanner import Scanner
-from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.mcp.fastmcp_provider import BrimleyProvider
 
 # 1. Load your Brimley environment
 root_dir = Path(".")
@@ -170,17 +170,17 @@ context = BrimleyContext(config_dict=config)
 scan_result = Scanner(root_dir).scan()
 context.functions.register_all(scan_result.functions)
 
-# 2. Initialize the Adapter
-adapter = BrimleyMCPAdapter(context.functions, context)
+# 2. Initialize the Provider
+provider = BrimleyProvider(context.functions, context)
 
 # 3. Create a FastMCP instance and register tools
-mcp_server = adapter.register_tools()
+mcp_server = provider.register_tools()
 
 # 4. Run it standalone
 mcp_server.run(transport="sse", host="127.0.0.1", port=8000)
 
 # Optional: register on an existing FastMCP server
-# adapter.register_tools(mcp_server=existing_server)
+# provider.register_tools(mcp_server=existing_server)
 ```
 
 Minimal embedding snippet:
@@ -189,18 +189,18 @@ Minimal embedding snippet:
 from pathlib import Path
 
 from brimley.runtime import BrimleyRuntimeController
-from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
+from brimley.runtime.mcp_refresh_adapter import ProviderMCPRefreshManager
 
 runtime = BrimleyRuntimeController(root_dir=Path("."))
 runtime.load_initial()
 
-refresh_adapter = ExternalMCPRefreshAdapter(
+refresh_manager = ProviderMCPRefreshManager(
   context=runtime.context,
   get_server=lambda: current_server,
   set_server=lambda server: set_current_server(server),
 )
 
-runtime.mcp_refresh = refresh_adapter.refresh
+runtime.mcp_refresh = refresh_manager.refresh
 runtime.start_auto_reload(background=True)
 ```
 
@@ -212,19 +212,26 @@ For non-REPL hosting, use `BrimleyRuntimeController` to watch files and refresh 
 from pathlib import Path
 
 from brimley.runtime import BrimleyRuntimeController
-from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
+from brimley.runtime.mcp_refresh_adapter import ProviderMCPRefreshManager
 
 runtime = BrimleyRuntimeController(root_dir=Path("."))
 runtime.load_initial()
 
-refresh_adapter = ExternalMCPRefreshAdapter(
+refresh_manager = ProviderMCPRefreshManager(
   context=runtime.context,
   get_server=lambda: current_server,
   set_server=lambda server: set_current_server(server),
 )
 
-runtime.mcp_refresh = refresh_adapter.refresh
+runtime.mcp_refresh = refresh_manager.refresh
 runtime.start_auto_reload(background=True)
 ```
 
 This keeps external-host MCP tools aligned with Brimley function changes while preserving existing runtime domains when reload failures occur.
+
+## 0.5 Migration Note (Adapter → Provider)
+
+- `BrimleyProvider` is the canonical MCP integration surface in 0.5.
+- `BrimleyMCPAdapter` remains available as a compatibility shim during transition.
+- `ProviderMCPRefreshManager` is the canonical host-managed refresh manager; `ExternalMCPRefreshAdapter` is compatibility naming.
+- Migration path: replace direct adapter/legacy refresh-manager imports with provider/manager imports shown above.

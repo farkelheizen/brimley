@@ -32,7 +32,7 @@ Use this when Brimley is a subsystem inside your app.
 
 - Your app owns HTTP server lifecycle and process model.
 - Brimley runtime controller/watcher manages discovery and registry refresh.
-- `ExternalMCPRefreshAdapter` coordinates MCP tool refresh/reinit against your host-managed server instance.
+- `ProviderMCPRefreshManager` coordinates MCP tool refresh/reinit against your host-managed server instance (`ExternalMCPRefreshAdapter` remains compatibility naming).
 
 ## 2. Port Ownership Model
 
@@ -116,18 +116,18 @@ brimley repl --root . --mcp
 from pathlib import Path
 
 from brimley.runtime import BrimleyRuntimeController
-from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
+from brimley.runtime.mcp_refresh_adapter import ProviderMCPRefreshManager
 
 runtime = BrimleyRuntimeController(root_dir=Path("."))
 runtime.load_initial()
 
-refresh_adapter = ExternalMCPRefreshAdapter(
+refresh_manager = ProviderMCPRefreshManager(
     context=runtime.context,
     get_server=lambda: current_server,
     set_server=lambda server: set_current_server(server),
 )
 
-runtime.mcp_refresh = refresh_adapter.refresh
+runtime.mcp_refresh = refresh_manager.refresh
 runtime.start_auto_reload(background=True)
 ```
 
