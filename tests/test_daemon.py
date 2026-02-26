@@ -3,9 +3,13 @@ import os
 from brimley.runtime.daemon import (
     DaemonMetadata,
     DaemonState,
+    acquire_repl_client_slot,
     daemon_metadata_path,
     probe_daemon_state,
+    release_repl_client_slot,
+    repl_client_metadata_path,
     recover_stale_daemon_metadata,
+    shutdown_daemon_lifecycle,
     write_daemon_metadata,
 )
 
@@ -91,3 +95,45 @@ def test_recover_stale_daemon_metadata_is_noop_for_running(tmp_path):
 
     assert recovered is False
     assert metadata_file.exists() is True
+
+
+def test_acquire_repl_client_slot_succeeds_when_slot_missing(tmp_path):
+    acquired = acquire_repl_client_slot(tmp_path)
+
+    assert acquired is True
+    assert repl_client_metadata_path(tmp_path).exists() is True
+
+
+def test_acquire_repl_client_slot_fails_when_active_pid_exists(tmp_path, monkeypatch):
+    acquire_repl_client_slot(tmp_path)
+    monkeypatch.setattr("brimley.runtime.daemon.is_process_alive", lambda pid: True)
+
+    acquired = acquire_repl_client_slot(tmp_path)
+
+    assert acquired is False
+
+
+def test_release_repl_client_slot_removes_file(tmp_path):
+    acquire_repl_client_slot(tmp_path)
+    metadata_file = repl_client_metadata_path(tmp_path)
+
+    release_repl_client_slot(tmp_path)
+
+    assert metadata_file.exists() is False
+
+
+def test_shutdown_daemon_lifecycle_removes_daemon_and_client_metadata(tmp_path):
+    daemon_metadata = DaemonMetadata(
+        pid=os.getpid(),
+        port=8123,
+        started_at="2026-02-25T00:00:00Z",
+    )
+    daemon_file = write_daemon_metadata(tmp_path, daemon_metadata)
+    acquire_repl_client_slot(tmp_path)
+    client_file = repl_client_metadata_path(tmp_path)
+
+    removed = shutdown_daemon_lifecycle(tmp_path)
+
+    assert removed is True
+    assert daemon_file.exists() is False
+    assert client_file.exists() is False

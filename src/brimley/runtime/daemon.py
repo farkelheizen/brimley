@@ -34,9 +34,21 @@ class DaemonProbeResult(BaseModel):
     reason: str
 
 
+class ReplClientMetadata(BaseModel):
+    """Persisted active REPL client metadata."""
+
+    pid: int = Field(gt=0)
+    attached_at: str
+
+
 def daemon_metadata_path(root_dir: Path) -> Path:
     """Return the daemon metadata file path for a project root."""
     return root_dir / ".brimley" / "daemon.json"
+
+
+def repl_client_metadata_path(root_dir: Path) -> Path:
+    """Return the active REPL client metadata file path for a project root."""
+    return root_dir / ".brimley" / "repl_client.json"
 
 
 def write_daemon_metadata(root_dir: Path, metadata: DaemonMetadata) -> Path:
@@ -112,3 +124,46 @@ def recover_stale_daemon_metadata(root_dir: Path) -> bool:
     if metadata_file.exists():
         metadata_file.unlink()
     return True
+
+
+def acquire_repl_client_slot(root_dir: Path) -> bool:
+    """Acquire single-active-client slot; returns False when active client already exists."""
+    metadata_file = repl_client_metadata_path(root_dir)
+    metadata_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if metadata_file.exists():
+        try:
+            payload = json.loads(metadata_file.read_text(encoding="utf-8"))
+            existing = ReplClientMetadata.model_validate(payload)
+            if is_process_alive(existing.pid):
+                return False
+        except (OSError, json.JSONDecodeError, ValidationError):
+            pass
+
+    metadata = ReplClientMetadata(pid=os.getpid(), attached_at="active")
+    metadata_file.write_text(metadata.model_dump_json(indent=2), encoding="utf-8")
+    return True
+
+
+def release_repl_client_slot(root_dir: Path) -> None:
+    """Release active REPL client slot metadata if present."""
+    metadata_file = repl_client_metadata_path(root_dir)
+    if metadata_file.exists():
+        metadata_file.unlink()
+
+
+def shutdown_daemon_lifecycle(root_dir: Path) -> bool:
+    """Remove daemon and active-client metadata and return whether anything was removed."""
+    removed = False
+    daemon_file = daemon_metadata_path(root_dir)
+    client_file = repl_client_metadata_path(root_dir)
+
+    if daemon_file.exists():
+        daemon_file.unlink()
+        removed = True
+
+    if client_file.exists():
+        client_file.unlink()
+        removed = True
+
+    return removed

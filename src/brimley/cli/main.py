@@ -17,7 +17,14 @@ from brimley.cli.formatter import OutputFormatter
 from brimley.cli.repl import BrimleyREPL
 from brimley.mcp.adapter import BrimleyMCPAdapter
 from brimley.runtime import BrimleyRuntimeController
-from brimley.runtime.daemon import DaemonState, probe_daemon_state, recover_stale_daemon_metadata
+from brimley.runtime.daemon import (
+    DaemonState,
+    acquire_repl_client_slot,
+    probe_daemon_state,
+    recover_stale_daemon_metadata,
+    release_repl_client_slot,
+    shutdown_daemon_lifecycle,
+)
 from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
 
 app = typer.Typer(name="brimley", help="Brimley CLI Interface", rich_markup_mode=None)
@@ -156,6 +163,7 @@ def repl(
     no_mcp = False
     watch = False
     no_watch = False
+    shutdown_daemon = False
 
     tokens = list(ctx.args)
     extras: list[str] = []
@@ -186,6 +194,10 @@ def repl(
             no_watch = True
             index += 1
             continue
+        if token == "--shutdown-daemon":
+            shutdown_daemon = True
+            index += 1
+            continue
         if token.startswith("-"):
             raise typer.BadParameter(f"Unknown option: {token}")
         extras.append(token)
@@ -195,6 +207,14 @@ def repl(
         effective_root = Path(extras.pop(0))
     if extras:
         raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
+
+    if shutdown_daemon:
+        removed = shutdown_daemon_lifecycle(effective_root)
+        if removed:
+            OutputFormatter.log("Daemon shutdown requested: cleared daemon/client lifecycle metadata.", severity="info")
+        else:
+            OutputFormatter.log("Daemon shutdown requested: no daemon metadata found.", severity="info")
+        raise typer.Exit(code=0)
 
     daemon_probe = probe_daemon_state(effective_root)
     if daemon_probe.state == DaemonState.RUNNING and daemon_probe.metadata is not None:
@@ -214,14 +234,24 @@ def repl(
     else:
         OutputFormatter.log("No daemon metadata found. Continuing REPL bootstrap.", severity="info")
 
+    if not acquire_repl_client_slot(effective_root):
+        OutputFormatter.log(
+            "Another REPL client is already attached to this daemon. Use --shutdown-daemon if recovery is required.",
+            severity="error",
+        )
+        raise typer.Exit(code=1)
+
     mcp_enabled_override = _resolve_optional_bool_flag(mcp, no_mcp, "mcp")
     auto_reload_enabled_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
-    repl_session = BrimleyREPL(
-        effective_root,
-        mcp_enabled_override=mcp_enabled_override,
-        auto_reload_enabled_override=auto_reload_enabled_override,
-    )
-    repl_session.start()
+    try:
+        repl_session = BrimleyREPL(
+            effective_root,
+            mcp_enabled_override=mcp_enabled_override,
+            auto_reload_enabled_override=auto_reload_enabled_override,
+        )
+        repl_session.start()
+    finally:
+        release_repl_client_slot(effective_root)
 
 
 @app.command("mcp-serve", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})

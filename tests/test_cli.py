@@ -351,6 +351,78 @@ def test_repl_recovers_stale_daemon_metadata(monkeypatch, tmp_path):
     assert "Recovered stale daemon metadata" in output
 
 
+def test_repl_rejects_when_client_slot_already_active(monkeypatch, tmp_path):
+    captured = {"started": False}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
+            captured["root_dir"] = root_dir
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+    monkeypatch.setattr("brimley.cli.main.acquire_repl_client_slot", lambda root_dir: False)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)])
+    output = _combined_output(result)
+
+    assert result.exit_code == 1
+    assert captured["started"] is False
+    assert "already attached" in output.lower()
+
+
+def test_repl_releases_client_slot_after_session(monkeypatch, tmp_path):
+    calls = {"release": 0}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
+            self.root_dir = root_dir
+
+        def start(self):
+            return None
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+    monkeypatch.setattr("brimley.cli.main.acquire_repl_client_slot", lambda root_dir: True)
+
+    def fake_release(root_dir):
+        calls["release"] += 1
+
+    monkeypatch.setattr("brimley.cli.main.release_repl_client_slot", fake_release)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert calls["release"] == 1
+
+
+def test_repl_shutdown_daemon_flag_runs_shutdown_and_exits(monkeypatch, tmp_path):
+    captured = {"started": False, "shutdown": 0}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
+            self.root_dir = root_dir
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+
+    def fake_shutdown(root_dir):
+        captured["shutdown"] += 1
+        return True
+
+    monkeypatch.setattr("brimley.cli.main.shutdown_daemon_lifecycle", fake_shutdown)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--shutdown-daemon"])
+    output = _combined_output(result)
+
+    assert result.exit_code == 0
+    assert captured["shutdown"] == 1
+    assert captured["started"] is False
+    assert "shutdown requested" in output.lower()
+
+
 def test_repl_with_dot_root_from_cwd(monkeypatch, tmp_path):
     captured = {}
 
