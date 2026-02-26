@@ -309,3 +309,35 @@ When watch mode is enabled, the REPL starts a background polling watcher and tri
 - Preserves currently active runtime domains when reload fails in downstream domains.
 
 `/reload` remains available even when watch mode is disabled.
+
+## Rogue Process Quick Triage
+
+If REPL/MCP startup fails or port `8000` appears busy, run this quick sequence:
+
+1. Check running Brimley/FastMCP processes:
+    ```bash
+    ps aux | grep -Ei 'brimley|fastmcp' | grep -v grep
+    ```
+
+2. Check listening ports:
+    ```bash
+    lsof -nP -iTCP -sTCP:LISTEN | grep -Ei '8000|brimley|python'
+    ```
+
+3. Graceful daemon shutdown:
+    ```bash
+    poetry run brimley repl --root . --shutdown-daemon
+    ```
+
+4. Force-kill stale classes if needed:
+    ```bash
+    pkill -f 'brimley.cli.main repl-daemon'
+    pkill -f '/.venv/bin/pytest'
+    ```
+
+5. Remove stale lifecycle files:
+    ```bash
+    rm -f .brimley/daemon.json .brimley/repl_client.json
+    ```
+
+For full operator guidance and safety notes, see [Embedded Deployments & Port Management](brimley-embedded-deployments-and-port-management.md).

@@ -135,6 +135,77 @@ runtime.start_auto_reload(background=True)
 
 ## 7. Related Specs
 
+## 8. Rogue Process Triage (Check + Kill)
+
+Use this runbook when REPL/MCP startup fails due to stale daemon state or occupied ports.
+
+### 8.1 Check running Brimley/FastMCP processes
+
+```bash
+ps aux | grep -Ei 'brimley|fastmcp' | grep -v grep
+```
+
+Typical findings:
+- `python ... -m brimley.cli.main repl-daemon ...` (daemonized REPL runtime)
+- `python ... brimley/.venv/bin/pytest ...` (test processes that may still be active)
+- `python ... brimley mcp-serve ...` (dedicated MCP server)
+
+### 8.2 Check listening ports (especially 8000)
+
+```bash
+lsof -nP -iTCP -sTCP:LISTEN | grep -Ei '8000|brimley|python'
+```
+
+If port `8000` is already bound, hybrid REPL or `mcp-serve` can fail to start.
+
+### 8.3 Preferred shutdown (graceful)
+
+From the project root:
+
+```bash
+poetry run brimley repl --root . --shutdown-daemon
+```
+
+This clears daemon/client lifecycle metadata and requests daemon shutdown when reachable.
+
+### 8.4 Force-kill rogue processes
+
+Kill by specific PID:
+
+```bash
+kill <PID>
+```
+
+If it does not terminate:
+
+```bash
+kill -9 <PID>
+```
+
+Or kill common stale classes directly:
+
+```bash
+pkill -f 'brimley.cli.main repl-daemon'
+pkill -f '/.venv/bin/pytest'
+```
+
+### 8.5 Clean stale lifecycle metadata
+
+If process is gone but daemon/client state remains, remove stale files:
+
+```bash
+rm -f .brimley/daemon.json .brimley/repl_client.json
+```
+
+### 8.6 Verify clean state
+
+```bash
+ps aux | grep -Ei 'brimley|fastmcp' | grep -v grep
+lsof -nP -iTCP -sTCP:LISTEN | grep -Ei '8000|brimley|python'
+```
+
+Then restart desired mode (`repl --mcp` or `mcp-serve`).
+
 - [MCP Integration](brimley-model-context-protocol-integration.md)
 - [CLI & REPL Harness](brimley-cli-and-repl-harness.md)
 - [Configuration](brimley-configuration.md)
