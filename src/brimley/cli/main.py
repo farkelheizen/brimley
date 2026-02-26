@@ -17,6 +17,7 @@ from brimley.cli.formatter import OutputFormatter
 from brimley.cli.repl import BrimleyREPL
 from brimley.mcp.adapter import BrimleyMCPAdapter
 from brimley.runtime import BrimleyRuntimeController
+from brimley.runtime.daemon import DaemonState, probe_daemon_state, recover_stale_daemon_metadata
 from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
 
 app = typer.Typer(name="brimley", help="Brimley CLI Interface", rich_markup_mode=None)
@@ -194,6 +195,24 @@ def repl(
         effective_root = Path(extras.pop(0))
     if extras:
         raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
+
+    daemon_probe = probe_daemon_state(effective_root)
+    if daemon_probe.state == DaemonState.RUNNING and daemon_probe.metadata is not None:
+        OutputFormatter.log(
+            (
+                "Detected running daemon metadata "
+                f"(pid={daemon_probe.metadata.pid}, port={daemon_probe.metadata.port})."
+            ),
+            severity="info",
+        )
+    elif daemon_probe.state == DaemonState.STALE:
+        recovered = recover_stale_daemon_metadata(effective_root)
+        if recovered:
+            OutputFormatter.log("Recovered stale daemon metadata. Continuing REPL bootstrap.", severity="warning")
+        else:
+            OutputFormatter.log(f"Stale daemon metadata detected: {daemon_probe.reason}", severity="warning")
+    else:
+        OutputFormatter.log("No daemon metadata found. Continuing REPL bootstrap.", severity="info")
 
     mcp_enabled_override = _resolve_optional_bool_flag(mcp, no_mcp, "mcp")
     auto_reload_enabled_override = _resolve_optional_bool_flag(watch, no_watch, "watch")

@@ -4,6 +4,7 @@ import typer
 from types import SimpleNamespace
 from typer.testing import CliRunner
 from brimley.cli.main import app, _resolve_optional_bool_flag
+from brimley.runtime.daemon import DaemonMetadata, DaemonProbeResult, DaemonState
 from brimley.utils.diagnostics import BrimleyDiagnostic
 from pathlib import Path
 
@@ -282,6 +283,72 @@ def test_repl_flag_default_uses_config_or_default(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert captured["override"] is None
     assert captured["started"] is True
+
+
+def test_repl_logs_running_daemon_metadata(monkeypatch, tmp_path):
+    captured = {}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
+            captured["root_dir"] = root_dir
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+    monkeypatch.setattr(
+        "brimley.cli.main.probe_daemon_state",
+        lambda root_dir: DaemonProbeResult(
+            state=DaemonState.RUNNING,
+            metadata=DaemonMetadata(pid=1234, port=9010, started_at="2026-02-25T00:00:00Z"),
+            metadata_path=str(root_dir / ".brimley" / "daemon.json"),
+            reason="Daemon process is alive.",
+        ),
+    )
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)])
+    output = _combined_output(result)
+
+    assert result.exit_code == 0
+    assert captured["started"] is True
+    assert "Detected running daemon metadata" in output
+
+
+def test_repl_recovers_stale_daemon_metadata(monkeypatch, tmp_path):
+    captured = {}
+    recover_calls = {"count": 0}
+
+    class DummyREPL:
+        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
+            captured["root_dir"] = root_dir
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
+    monkeypatch.setattr(
+        "brimley.cli.main.probe_daemon_state",
+        lambda root_dir: DaemonProbeResult(
+            state=DaemonState.STALE,
+            metadata=None,
+            metadata_path=str(root_dir / ".brimley" / "daemon.json"),
+            reason="Daemon process pid=1234 is not alive.",
+        ),
+    )
+
+    def fake_recover(root_dir):
+        recover_calls["count"] += 1
+        return True
+
+    monkeypatch.setattr("brimley.cli.main.recover_stale_daemon_metadata", fake_recover)
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path)])
+    output = _combined_output(result)
+
+    assert result.exit_code == 0
+    assert captured["started"] is True
+    assert recover_calls["count"] == 1
+    assert "Recovered stale daemon metadata" in output
 
 
 def test_repl_with_dot_root_from_cwd(monkeypatch, tmp_path):
