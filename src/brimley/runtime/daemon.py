@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import time
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
@@ -57,6 +60,36 @@ def write_daemon_metadata(root_dir: Path, metadata: DaemonMetadata) -> Path:
     metadata_file.parent.mkdir(parents=True, exist_ok=True)
     metadata_file.write_text(metadata.model_dump_json(indent=2), encoding="utf-8")
     return metadata_file
+
+
+def utc_now_iso() -> str:
+    """Return an ISO-8601 UTC timestamp."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+def allocate_ephemeral_port(host: str = "127.0.0.1") -> int:
+    """Allocate an available ephemeral TCP port bound to host."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((host, 0))
+        return int(sock.getsockname()[1])
+
+
+def wait_for_daemon_running(
+    root_dir: Path,
+    expected_pid: int | None = None,
+    timeout_seconds: float = 2.0,
+    poll_interval_seconds: float = 0.05,
+) -> DaemonProbeResult:
+    """Poll daemon metadata until running (and optionally pid-matching) or timeout."""
+    deadline = time.time() + timeout_seconds
+    latest_probe = probe_daemon_state(root_dir)
+    while time.time() < deadline:
+        latest_probe = probe_daemon_state(root_dir)
+        if latest_probe.state == DaemonState.RUNNING and latest_probe.metadata is not None:
+            if expected_pid is None or latest_probe.metadata.pid == expected_pid:
+                return latest_probe
+        time.sleep(poll_interval_seconds)
+    return latest_probe
 
 
 def is_process_alive(pid: int) -> bool:

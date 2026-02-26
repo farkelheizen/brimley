@@ -1,6 +1,8 @@
 import typer
 import yaml
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -18,12 +20,17 @@ from brimley.cli.repl import BrimleyREPL
 from brimley.mcp.fastmcp_provider import BrimleyProvider
 from brimley.runtime import BrimleyRuntimeController
 from brimley.runtime.daemon import (
+    DaemonMetadata,
     DaemonState,
+    allocate_ephemeral_port,
     acquire_repl_client_slot,
     probe_daemon_state,
     recover_stale_daemon_metadata,
     release_repl_client_slot,
     shutdown_daemon_lifecycle,
+    utc_now_iso,
+    wait_for_daemon_running,
+    write_daemon_metadata,
 )
 from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
 
@@ -60,6 +67,50 @@ def _read_option_value(tokens: list[str], index: int, option_name: str) -> tuple
     if index + 1 >= len(tokens):
         raise typer.BadParameter(f"Option {option_name} requires a value.")
     return tokens[index + 1], index + 2
+
+
+def _build_repl_daemon_command(
+    root_dir: Path,
+    mcp_enabled_override: Optional[bool],
+    auto_reload_enabled_override: Optional[bool],
+) -> list[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "brimley.cli.main",
+        "repl-daemon",
+        "--root",
+        str(root_dir),
+    ]
+
+    if mcp_enabled_override is True:
+        command.append("--mcp")
+    elif mcp_enabled_override is False:
+        command.append("--no-mcp")
+
+    if auto_reload_enabled_override is True:
+        command.append("--watch")
+    elif auto_reload_enabled_override is False:
+        command.append("--no-watch")
+
+    return command
+
+
+def _launch_repl_daemon_process(
+    root_dir: Path,
+    mcp_enabled_override: Optional[bool],
+    auto_reload_enabled_override: Optional[bool],
+) -> subprocess.Popen:
+    command = _build_repl_daemon_command(
+        root_dir=root_dir,
+        mcp_enabled_override=mcp_enabled_override,
+        auto_reload_enabled_override=auto_reload_enabled_override,
+    )
+    env = os.environ.copy()
+    src_dir = Path(__file__).resolve().parents[2]
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{src_dir}:{existing_pythonpath}" if existing_pythonpath else str(src_dir)
+    return subprocess.Popen(command, env=env)
 
 
 def _derive_namespace_from_diagnostic(diagnostic) -> str:
@@ -245,6 +296,152 @@ def repl(
 
     mcp_enabled_override = _resolve_optional_bool_flag(mcp, no_mcp, "mcp")
     auto_reload_enabled_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
+    force_daemon_bootstrap = os.environ.get("BRIMLEY_FORCE_DAEMON_BOOTSTRAP", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    compatibility_inprocess_mode = (
+        (not sys.stdin.isatty()) or ("PYTEST_CURRENT_TEST" in os.environ)
+    ) and not force_daemon_bootstrap
+    if compatibility_inprocess_mode:
+        OutputFormatter.log(
+            "Non-interactive REPL session detected; using compatibility in-process mode.",
+            severity="info",
+        )
+
+    bootstrap_daemon = daemon_probe.state != DaemonState.RUNNING and not compatibility_inprocess_mode
+    daemon_process: Optional[subprocess.Popen] = None
+
+    try:
+        if bootstrap_daemon:
+            OutputFormatter.log("Bootstrapping daemon process for REPL session...", severity="info")
+            daemon_process = _launch_repl_daemon_process(
+                root_dir=effective_root,
+                mcp_enabled_override=mcp_enabled_override,
+                auto_reload_enabled_override=auto_reload_enabled_override,
+            )
+            daemon_probe_after_bootstrap = wait_for_daemon_running(
+                root_dir=effective_root,
+                expected_pid=daemon_process.pid,
+                timeout_seconds=2.0,
+            )
+
+            if (
+                daemon_probe_after_bootstrap.state != DaemonState.RUNNING
+                or daemon_probe_after_bootstrap.metadata is None
+            ):
+                try:
+                    daemon_process.terminate()
+                except Exception:
+                    pass
+                OutputFormatter.log(
+                    "Daemon bootstrap failed: daemon metadata did not reach running state.",
+                    severity="error",
+                )
+                raise typer.Exit(code=1)
+
+            OutputFormatter.log(
+                (
+                    "Daemon bootstrap complete "
+                    f"(pid={daemon_probe_after_bootstrap.metadata.pid}, "
+                    f"port={daemon_probe_after_bootstrap.metadata.port})."
+                ),
+                severity="success",
+            )
+            try:
+                daemon_process.wait()
+            except KeyboardInterrupt:
+                OutputFormatter.log("REPL interrupted; stopping daemon process.", severity="info")
+                try:
+                    daemon_process.terminate()
+                except Exception:
+                    pass
+                try:
+                    daemon_process.wait(timeout=1)
+                except Exception:
+                    pass
+        else:
+            OutputFormatter.log(
+                "Daemon attach RPC is not yet implemented; running compatibility in-process REPL session.",
+                severity="warning",
+            )
+            repl_session = BrimleyREPL(
+                effective_root,
+                mcp_enabled_override=mcp_enabled_override,
+                auto_reload_enabled_override=auto_reload_enabled_override,
+            )
+            repl_session.start()
+    finally:
+        release_repl_client_slot(effective_root)
+
+
+@app.command("repl-daemon", hidden=True, context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def repl_daemon(
+    ctx: typer.Context,
+):
+    """Start internal daemon process for REPL runtime ownership."""
+    effective_root = Path(".")
+    mcp = False
+    no_mcp = False
+    watch = False
+    no_watch = False
+
+    tokens = list(ctx.args)
+    extras: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in ("--root", "-r"):
+            root_value, index = _read_option_value(tokens, index, token)
+            effective_root = Path(root_value)
+            continue
+        if token.startswith("--root="):
+            effective_root = Path(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token == "--mcp":
+            mcp = True
+            index += 1
+            continue
+        if token == "--no-mcp":
+            no_mcp = True
+            index += 1
+            continue
+        if token == "--watch":
+            watch = True
+            index += 1
+            continue
+        if token == "--no-watch":
+            no_watch = True
+            index += 1
+            continue
+        if token.startswith("-"):
+            raise typer.BadParameter(f"Unknown option: {token}")
+        extras.append(token)
+        index += 1
+
+    if extras and effective_root == Path("."):
+        effective_root = Path(extras.pop(0))
+    if extras:
+        raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
+
+    mcp_enabled_override = _resolve_optional_bool_flag(mcp, no_mcp, "mcp")
+    auto_reload_enabled_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
+
+    daemon_port = allocate_ephemeral_port()
+    metadata = DaemonMetadata(
+        pid=os.getpid(),
+        port=daemon_port,
+        started_at=utc_now_iso(),
+    )
+    write_daemon_metadata(effective_root, metadata)
+    OutputFormatter.log(
+        f"Daemon process started (pid={metadata.pid}, control_port={metadata.port}).",
+        severity="info",
+    )
+
     try:
         repl_session = BrimleyREPL(
             effective_root,
@@ -253,7 +450,7 @@ def repl(
         )
         repl_session.start()
     finally:
-        release_repl_client_slot(effective_root)
+        shutdown_daemon_lifecycle(effective_root)
 
 
 @app.command("mcp-serve", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})

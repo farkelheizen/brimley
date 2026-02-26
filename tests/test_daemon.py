@@ -3,6 +3,7 @@ import os
 from brimley.runtime.daemon import (
     DaemonMetadata,
     DaemonState,
+    allocate_ephemeral_port,
     acquire_repl_client_slot,
     daemon_metadata_path,
     probe_daemon_state,
@@ -10,6 +11,7 @@ from brimley.runtime.daemon import (
     repl_client_metadata_path,
     recover_stale_daemon_metadata,
     shutdown_daemon_lifecycle,
+    wait_for_daemon_running,
     write_daemon_metadata,
 )
 
@@ -137,3 +139,25 @@ def test_shutdown_daemon_lifecycle_removes_daemon_and_client_metadata(tmp_path):
     assert removed is True
     assert daemon_file.exists() is False
     assert client_file.exists() is False
+
+
+def test_allocate_ephemeral_port_returns_valid_port():
+    port = allocate_ephemeral_port()
+
+    assert isinstance(port, int)
+    assert 1 <= port <= 65535
+
+
+def test_wait_for_daemon_running_returns_running_probe(tmp_path):
+    metadata = DaemonMetadata(
+        pid=os.getpid(),
+        port=8123,
+        started_at="2026-02-25T00:00:00Z",
+    )
+    write_daemon_metadata(tmp_path, metadata)
+
+    probe = wait_for_daemon_running(tmp_path, expected_pid=os.getpid(), timeout_seconds=0.2, poll_interval_seconds=0.01)
+
+    assert probe.state == DaemonState.RUNNING
+    assert probe.metadata is not None
+    assert probe.metadata.pid == os.getpid()
