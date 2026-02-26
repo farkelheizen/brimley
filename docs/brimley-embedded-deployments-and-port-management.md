@@ -1,5 +1,5 @@
 # Brimley Embedded Deployments & Port Management
-> Version 0.4
+> Version 0.5
 
 This guide covers practical deployment patterns when embedding Brimley into host applications, with special focus on MCP transport ownership, port allocation, and reload behavior.
 
@@ -9,14 +9,15 @@ This guide covers practical deployment patterns when embedding Brimley into host
 
 Use this for local development when a human and an MCP client should target the same runtime session.
 
-- REPL client owns interactive terminal I/O.
-- Embedded FastMCP server runs over SSE (HTTP).
+- REPL runs as a thin client (terminal I/O only).
+- Brimley daemon process owns runtime state and embedded FastMCP hosting.
 - MCP clients connect to configured host/port (default `127.0.0.1:8000`).
 
 Notes:
-- In 0.4, REPL startup paths use SSE to avoid `stdio` conflicts with interactive terminal control.
+- In 0.5, hybrid mode keeps MCP server runtime in daemon process context to avoid REPL/MCP stdio conflicts.
 - Logic-only tool changes can refresh in place.
 - MCP schema-shape changes require provider reinitialization/restart so clients can reconnect with updated schemas.
+- Use `/detach` to disconnect thin client while keeping daemon running; use `repl --shutdown-daemon` (or daemon-side `/quit`) for shutdown.
 
 ### B. Dedicated MCP Server (`brimley mcp-serve`)
 
@@ -93,6 +94,7 @@ Before starting an embedded deployment:
 - Confirm target host:port is free.
 - Confirm only one server instance is binding that endpoint.
 - Confirm REPL mode is not competing with another MCP process on the same port.
+- Confirm daemon lifecycle intent (detach vs shutdown) is clear for operators.
 - Confirm your host has a defined reinit/restart path for schema-shape updates.
 - Confirm client reconnection behavior is documented for operators/users.
 

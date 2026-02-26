@@ -3,7 +3,7 @@ import json
 import typer
 from types import SimpleNamespace
 from typer.testing import CliRunner
-from brimley.cli.main import app, _resolve_optional_bool_flag
+from brimley.cli.main import app, _resolve_optional_bool_flag, _run_repl_thin_client_loop
 from brimley.runtime.daemon import DaemonMetadata, DaemonProbeResult, DaemonState
 from brimley.utils.diagnostics import BrimleyDiagnostic
 from pathlib import Path
@@ -28,6 +28,48 @@ def _stub_thin_client_loop(monkeypatch, captured: dict | None = None) -> None:
             captured["thin_port"] = daemon_port
 
     monkeypatch.setattr("brimley.cli.main._run_repl_thin_client_loop", _fake_loop)
+
+
+def test_thin_client_quit_forwards_shutdown_rpc(monkeypatch, tmp_path):
+    prompts = iter(["/quit"])
+    rpc_calls: list[str] = []
+
+    monkeypatch.setattr(
+        "brimley.cli.main.typer.prompt",
+        lambda *args, **kwargs: next(prompts),
+    )
+    monkeypatch.setattr(
+        "brimley.cli.main.send_repl_rpc_command",
+        lambda host, port, command, timeout_seconds=5.0: (
+            rpc_calls.append(command)
+            or SimpleNamespace(ok=True, continue_session=False, output="", error=None)
+        ),
+    )
+
+    _run_repl_thin_client_loop(tmp_path, "127.0.0.1", 9010)
+
+    assert rpc_calls == ["/quit"]
+
+
+def test_thin_client_detach_does_not_send_rpc(monkeypatch, tmp_path):
+    prompts = iter(["/detach"])
+    rpc_calls: list[str] = []
+
+    monkeypatch.setattr(
+        "brimley.cli.main.typer.prompt",
+        lambda *args, **kwargs: next(prompts),
+    )
+    monkeypatch.setattr(
+        "brimley.cli.main.send_repl_rpc_command",
+        lambda host, port, command, timeout_seconds=5.0: (
+            rpc_calls.append(command)
+            or SimpleNamespace(ok=True, continue_session=True, output="", error=None)
+        ),
+    )
+
+    _run_repl_thin_client_loop(tmp_path, "127.0.0.1", 9010)
+
+    assert rpc_calls == []
 
 def test_invoke_help():
     result = runner.invoke(app, ["invoke", "--help"])
