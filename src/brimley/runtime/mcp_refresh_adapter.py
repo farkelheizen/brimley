@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 from brimley.core.context import BrimleyContext
-from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.mcp.fastmcp_provider import BrimleyProvider
 
 
 class ExternalMCPRefreshAdapter:
@@ -41,7 +41,7 @@ class ExternalMCPRefreshAdapter:
         4. Fallback: register tools onto existing server (best effort).
         """
 
-        adapter = BrimleyMCPAdapter(registry=self.context.functions, context=self.context)
+        adapter = BrimleyProvider(registry=self.context.functions, context=self.context)
         tools = adapter.discover_tools()
         schema_signatures = adapter.get_tool_schema_signatures(tools)
         current_server = self.get_server()

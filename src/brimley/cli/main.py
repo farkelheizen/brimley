@@ -15,7 +15,7 @@ from brimley.execution.execute_helper import execute_function_by_name
 from brimley.cli.build import compile_assets
 from brimley.cli.formatter import OutputFormatter
 from brimley.cli.repl import BrimleyREPL
-from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.mcp.fastmcp_provider import BrimleyProvider
 from brimley.runtime import BrimleyRuntimeController
 from brimley.runtime.daemon import (
     DaemonState,
@@ -26,6 +26,8 @@ from brimley.runtime.daemon import (
     shutdown_daemon_lifecycle,
 )
 from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
+
+BrimleyMCPAdapter = BrimleyProvider
 
 app = typer.Typer(name="brimley", help="Brimley CLI Interface", rich_markup_mode=None)
 

@@ -16,7 +16,7 @@ from brimley.discovery.scanner import Scanner, BrimleyScanResult
 from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
 from brimley.cli.formatter import OutputFormatter
-from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.mcp.fastmcp_provider import BrimleyProvider
 from brimley.mcp.mock import MockMCPContext
 from brimley.runtime.reload_contracts import (
     ReloadCommandResult,
@@ -26,6 +26,8 @@ from brimley.runtime.reload_contracts import (
 )
 from brimley.runtime.polling_watcher import PollingWatcher
 from brimley.runtime.reload_engine import PartitionedReloadEngine
+
+BrimleyMCPAdapter = BrimleyProvider
 
 class BrimleyREPL:
     def __init__(
