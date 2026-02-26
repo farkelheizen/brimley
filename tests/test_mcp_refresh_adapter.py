@@ -2,7 +2,7 @@ import pytest
 
 from brimley.core.context import BrimleyContext
 from brimley.core.models import TemplateFunction
-from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
+from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter, ProviderMCPRefreshManager
 
 
 class _HostServer:
@@ -251,3 +251,7 @@ def test_external_mcp_refresh_raises_client_action_required_when_schema_changes_
         adapter.refresh()
 
     assert "client_action_required" in str(exc_info.value)
+
+
+def test_external_refresh_adapter_is_compatibility_shim():
+    assert issubclass(ExternalMCPRefreshAdapter, ProviderMCPRefreshManager)

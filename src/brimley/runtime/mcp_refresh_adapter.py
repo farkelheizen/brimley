@@ -6,8 +6,8 @@ from brimley.core.context import BrimleyContext
 from brimley.mcp.fastmcp_provider import BrimleyProvider
 
 
-class ExternalMCPRefreshAdapter:
-    """Refresh adapter for host-managed FastMCP server lifecycles."""
+class ProviderMCPRefreshManager:
+    """Canonical provider-led refresh manager for host-managed FastMCP lifecycles."""
 
     def __init__(
         self,
@@ -16,7 +16,7 @@ class ExternalMCPRefreshAdapter:
         set_server: Callable[[Any], None],
         server_factory: Optional[Callable[[], Any]] = None,
     ) -> None:
-        """Initialize external refresh adapter.
+        """Initialize provider refresh manager.
 
         Args:
             context: Active runtime context that contains function registry.
@@ -35,7 +35,7 @@ class ExternalMCPRefreshAdapter:
         """Refresh MCP tools for the external host server and return active server.
 
         Strategy order:
-        1. If no current server, create/register tools via Brimley adapter.
+        1. If no current server, create/register tools via Brimley provider.
         2. If server supports tool reset (`clear_tools` or `reset_tools`), refresh in place.
         3. If server cannot reset but `server_factory` is provided, create and swap server.
         4. Fallback: register tools onto existing server (best effort).
@@ -107,3 +107,7 @@ class ExternalMCPRefreshAdapter:
         reset_tools = getattr(server, "reset_tools", None)
         if callable(reset_tools):
             reset_tools()
+
+
+class ExternalMCPRefreshAdapter(ProviderMCPRefreshManager):
+    """Compatibility shim for legacy adapter naming; provider manager is canonical."""
