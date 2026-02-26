@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "brimley"
-version = "0.4.0"
+version = "0.5.0"
 description = "A lightweight, file-based function execution engine."
 authors = ["Bill Spratley"]
 readme = "README.md"

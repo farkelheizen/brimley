@@ -128,6 +128,4 @@ PYTHONPATH=src poetry run brimley mcp-serve --root .
 - [Discovery & loader spec](docs/brimley-discovery-and-loader-specification.md)
 - [MCP integration](docs/brimley-model-context-protocol-integration.md)
 
-## Status Notes
 
-- Package metadata in `pyproject.toml` may still show pre-release semantic versioning while docs track the 0.5 architecture convergence baseline.
