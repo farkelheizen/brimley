@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
 
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
@@ -121,9 +123,18 @@ def _run_repl_thin_client_loop(root_dir: Path, daemon_host: str, daemon_port: in
     )
     OutputFormatter.log("Brimley REPL thin client. Type '/help' for admin commands or '/quit' to exit.", severity="info")
 
+    prompt_session: Optional[PromptSession] = None
+    if sys.stdin.isatty():
+        history_file = root_dir / ".brimley" / "repl_client_history"
+        history_file.parent.mkdir(parents=True, exist_ok=True)
+        prompt_session = PromptSession(history=FileHistory(str(history_file)))
+
     while True:
         try:
-            command_line = typer.prompt("brimley >", prompt_suffix=" ", default="", show_default=False)
+            if prompt_session is not None:
+                command_line = prompt_session.prompt("brimley > ")
+            else:
+                command_line = typer.prompt("brimley >", prompt_suffix=" ", default="", show_default=False)
             if not command_line:
                 continue
 

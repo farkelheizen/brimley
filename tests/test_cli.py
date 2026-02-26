@@ -71,6 +71,35 @@ def test_thin_client_detach_does_not_send_rpc(monkeypatch, tmp_path):
 
     assert rpc_calls == []
 
+
+def test_thin_client_uses_prompt_history_in_tty(monkeypatch, tmp_path):
+    captured = {}
+    rpc_calls: list[str] = []
+
+    class FakePromptSession:
+        def __init__(self, history=None):
+            captured["history"] = history
+
+        def prompt(self, prompt_text):
+            captured["prompt_text"] = prompt_text
+            return "/detach"
+
+    monkeypatch.setattr("brimley.cli.main.sys.stdin", SimpleNamespace(isatty=lambda: True))
+    monkeypatch.setattr("brimley.cli.main.PromptSession", FakePromptSession)
+    monkeypatch.setattr(
+        "brimley.cli.main.send_repl_rpc_command",
+        lambda host, port, command, timeout_seconds=5.0: (
+            rpc_calls.append(command)
+            or SimpleNamespace(ok=True, continue_session=True, output="", error=None)
+        ),
+    )
+
+    _run_repl_thin_client_loop(tmp_path, "127.0.0.1", 9010)
+
+    assert captured["prompt_text"] == "brimley > "
+    assert captured["history"].__class__.__name__ == "FileHistory"
+    assert rpc_calls == []
+
 def test_invoke_help():
     result = runner.invoke(app, ["invoke", "--help"])
     assert result.exit_code == 0
