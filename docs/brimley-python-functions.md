@@ -53,7 +53,7 @@ For each discovered Python function, Brimley derives:
 - `arguments` from signature and annotations
 - `return_shape` from return annotation
 
-Legacy YAML-frontmatter Python parsing may still be supported during transition, but decorator-based registration is the canonical 0.4 path.
+Legacy YAML-frontmatter Python parsing is removed in 0.5; decorator-based registration is required.
 
 ## 4. `reload=True/False` Behavior
 

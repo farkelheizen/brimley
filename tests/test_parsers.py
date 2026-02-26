@@ -280,7 +280,7 @@ def get_user(user_id: int) -> User:
     assert len(entity_items) == 1
 
 
-def test_parse_python_file_infers_handler_and_arguments_for_legacy_frontmatter(tmp_path, monkeypatch):
+def test_parse_python_file_ignores_legacy_frontmatter_when_no_decorators(tmp_path, monkeypatch):
     root = tmp_path / "project"
     pkg = root / "pkg"
     pkg.mkdir(parents=True)
@@ -301,16 +301,7 @@ def summarize(name: str, retries: int = 2, enabled: bool = True) -> str:
     monkeypatch.syspath_prepend(str(root))
     parsed = parse_python_file(f)
 
-    assert len(parsed) == 1
-    func = parsed[0]
-    assert isinstance(func, PythonFunction)
-    assert func.handler == "pkg.legacy.summarize"
-    assert func.arguments is not None
-    assert func.arguments["inline"] == {
-        "name": "string",
-        "retries": {"type": "int", "default": 2},
-        "enabled": {"type": "bool", "default": True},
-    }
+    assert parsed == []
 
 
 def test_parse_python_file_annotated_appstate_and_config_mark_from_context(tmp_path):
