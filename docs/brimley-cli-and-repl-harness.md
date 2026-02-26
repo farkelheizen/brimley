@@ -1,5 +1,5 @@
-# Brimley 0.4 CLI & REPL Harness
-> Version 0.4
+# Brimley 0.5 CLI & REPL Harness
+> Version 0.5
 
 The CLI is the primary interface for invoking and testing functions. It is designed to be "pipe-friendly" for automation while providing a rich interactive environment for developers.
 
@@ -37,9 +37,9 @@ Used for single-shot execution.
     4. **Output:** Print _only_ the function result to `STDOUT`. All system logs or errors must go to `STDERR`.
         
 
-### `brimley [ROOT_DIR] repl [--mcp|--no-mcp] [--watch|--no-watch]`
+### `brimley [ROOT_DIR] repl [--mcp|--no-mcp] [--watch|--no-watch] [--shutdown-daemon]`
 
-Used for an interactive, stateful session.
+Used for an interactive, stateful thin-client session.
 
 - **MCP Flags:**
     - `--mcp`: force embedded MCP startup if tool functions are present.
@@ -51,13 +51,12 @@ Used for an interactive, stateful session.
     - `--no-watch`: force auto-reload watcher off.
     - No flag: use configuration/default (`auto_reload.enabled` from `brimley.yaml`).
 
-- **Startup:**
-    
-    - Print: `[SYSTEM] Scanning [ROOT_DIR]...`
-        
-    - Print: `[SYSTEM] Loaded [N] functions: [name1], [name2]...` (or show the "Wall of Shame" if errors occur).
-        
-- **Prompt:** `brimley >` 
+- **Runtime Ownership:**
+    - `repl` is a thin client that launches/attaches to a daemon runtime for command execution.
+    - The daemon owns runtime state, watcher lifecycle, and embedded MCP hosting.
+    - `--shutdown-daemon` clears daemon lifecycle metadata and requests daemon shutdown.
+
+- **Prompt:** `brimley >`
 
 - **Admin Commands:**
     - The REPL supports meta-commands prefixed with `/` for observability.
@@ -65,7 +64,8 @@ Used for an interactive, stateful session.
     
 - **Interactive Parsing Logic:**
     
-    - **`exit` | `quit`**: Terminate the session.
+    - **`exit` | `quit`**: terminate daemon session and exit thin client.
+    - **`/detach`**: detach thin client while leaving daemon running.
         
     - **`reset`**: Clear `context.app` and re-scan `ROOT_DIR`.
         
@@ -89,7 +89,7 @@ Used for an interactive, stateful session.
 
 ### `brimley [ROOT_DIR] mcp-serve [--watch|--no-watch] [--host HOST] [--port PORT]`
 
-Runs Brimley as a non-REPL MCP server using FastMCP over SSE.
+Runs Brimley as a dedicated, non-REPL MCP server using FastMCP over SSE.
 
 - **Watch Flags:**
     - `--watch`: enable host-managed auto-reload watcher lifecycle.
@@ -309,3 +309,35 @@ When watch mode is enabled, the REPL starts a background polling watcher and tri
 - Preserves currently active runtime domains when reload fails in downstream domains.
 
 `/reload` remains available even when watch mode is disabled.
+
+## Rogue Process Quick Triage
+
+If REPL/MCP startup fails or port `8000` appears busy, run this quick sequence:
+
+1. Check running Brimley/FastMCP processes:
+    ```bash
+    ps aux | grep -Ei 'brimley|fastmcp' | grep -v grep
+    ```
+
+2. Check listening ports:
+    ```bash
+    lsof -nP -iTCP -sTCP:LISTEN | grep -Ei '8000|brimley|python'
+    ```
+
+3. Graceful daemon shutdown:
+    ```bash
+    poetry run brimley repl --root . --shutdown-daemon
+    ```
+
+4. Force-kill stale classes if needed:
+    ```bash
+    pkill -f 'brimley.cli.main repl-daemon'
+    pkill -f '/.venv/bin/pytest'
+    ```
+
+5. Remove stale lifecycle files:
+    ```bash
+    rm -f .brimley/daemon.json .brimley/repl_client.json
+    ```
+
+For full operator guidance and safety notes, see [Embedded Deployments & Port Management](brimley-embedded-deployments-and-port-management.md).

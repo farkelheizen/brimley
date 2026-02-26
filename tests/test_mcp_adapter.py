@@ -108,6 +108,7 @@ def test_create_tool_wrapper_executes_through_dispatcher_with_context_injection(
     )
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
     wrapper = adapter.create_tool_wrapper(func)
 
     result = wrapper(name="Developer")
@@ -132,6 +133,7 @@ def test_create_tool_wrapper_applies_default_arguments():
     )
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
     wrapper = adapter.create_tool_wrapper(func)
 
     result = wrapper()
@@ -155,6 +157,7 @@ def test_create_tool_wrapper_accepts_ctx_kwarg_and_forwards_runtime_injections()
     )
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
     wrapper = adapter.create_tool_wrapper(func)
 
     captured: dict[str, object] = {}
@@ -197,6 +200,7 @@ def test_create_tool_wrapper_ctx_parameter_uses_resolved_context_annotation(monk
         pass
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
     monkeypatch.setattr(adapter, "_resolve_fastmcp_context_type", lambda: FakeContextType)
 
     wrapper = adapter.create_tool_wrapper(func)
@@ -223,6 +227,7 @@ def test_create_tool_object_for_template_function_like_hello_md(monkeypatch):
     )
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
 
     # Mock fastmcp import
     class FakeToolsModule:
@@ -241,8 +246,8 @@ def test_create_tool_object_for_template_function_like_hello_md(monkeypatch):
     class FakeModule:
         tools = FakeToolsModule
 
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
 
     tool = adapter.create_tool_object(func)
 
@@ -262,7 +267,7 @@ def test_is_fastmcp_available_true_when_spec_exists(monkeypatch):
     context = BrimleyContext()
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
 
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: object())
 
     assert adapter.is_fastmcp_available() is True
 
@@ -271,7 +276,7 @@ def test_is_fastmcp_available_false_when_spec_missing(monkeypatch):
     context = BrimleyContext()
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
 
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: None)
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: None)
 
     assert adapter.is_fastmcp_available() is False
 
@@ -280,7 +285,7 @@ def test_require_fastmcp_raises_clear_error_when_missing(monkeypatch):
     context = BrimleyContext()
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
 
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: None)
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: None)
 
     try:
         adapter.require_fastmcp()
@@ -300,8 +305,8 @@ def test_require_fastmcp_returns_class_when_available(monkeypatch):
     context = BrimleyContext()
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
 
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.import_module", lambda _: FakeModule())
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.import_module", lambda _: FakeModule())
 
     resolved = adapter.require_fastmcp()
     assert resolved is FakeFastMCP
@@ -349,8 +354,8 @@ def test_register_tools_uses_supplied_external_server(monkeypatch):
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
     server = _FakeMCPServer()
 
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
 
     returned = adapter.register_tools(server)
 
@@ -425,8 +430,8 @@ def test_register_tools_raises_value_error_on_tool_registration_failure(monkeypa
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
 
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
 
     try:
         adapter.register_tools(FailingServer())

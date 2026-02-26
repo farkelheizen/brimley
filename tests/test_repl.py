@@ -878,7 +878,7 @@ Hello
     assert repl.mcp_server_thread is None
 
 
-def test_repl_startup_warns_when_fastmcp_unavailable_with_tools(tmp_path, monkeypatch):
+def test_repl_startup_warns_when_fastmcp_unavailable_with_tools(tmp_path, monkeypatch, capsys):
     (tmp_path / "tool.md").write_text("""---
 name: hello_tool
 type: template_function
@@ -901,10 +901,11 @@ Hello
 
     monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
 
-    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp"], input="/quit\n")
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+    repl.load()
+    captured = capsys.readouterr()
+    output = f"{captured.out}{captured.err}".lower()
 
-    assert result.exit_code == 0
-    output = _combined_output(result).lower()
     assert "fastmcp" in output
     assert "skipping embedded mcp" in output
 

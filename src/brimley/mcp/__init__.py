@@ -1,4 +1,5 @@
 from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.mcp.fastmcp_provider import BrimleyProvider
 from brimley.mcp.mock import (
 	MockMCPContext,
 	MockMCPMessage,
@@ -8,6 +9,7 @@ from brimley.mcp.mock import (
 )
 
 __all__ = [
+	"BrimleyProvider",
 	"BrimleyMCPAdapter",
 	"MockMCPContext",
 	"MockMCPMessage",

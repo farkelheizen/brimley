@@ -4,7 +4,6 @@ import sys
 from typing import Any, Union
 from pydantic import ValidationError
 from brimley.core.models import DiscoveredEntity, PythonFunction, normalize_type_expression
-from brimley.discovery.utils import parse_frontmatter
 
 
 INJECTED_TYPE_NAMES = {
@@ -321,68 +320,11 @@ def _infer_module_name(file_path: Path) -> str:
     return file_path.stem
 
 
-def _infer_handler_name(tree: ast.Module, configured_name: str | None) -> str | None:
-    """
-    Infer the Python callable name when `handler` is omitted.
-    """
-    function_names = [
-        node.name
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    ]
-
-    if configured_name and configured_name in function_names:
-        return configured_name
-
-    if len(function_names) == 1:
-        return function_names[0]
-
-    return None
-
-def _parse_legacy_frontmatter_python(tree: ast.Module, file_path: Path) -> list[Union[PythonFunction, DiscoveredEntity]]:
-    """Legacy fallback parser for YAML frontmatter in module docstring."""
-    docstring = ast.get_docstring(tree)
-    if not docstring:
-        return []
-
-    try:
-        meta, _ = parse_frontmatter(docstring)
-    except ValueError as e:
-        raise ValueError(f"Frontmatter parsing error in {file_path}: {e}")
-
-    if not meta or meta.get("type") != "python_function":
-        return []
-
-    handler = meta.get("handler")
-    module_name = _infer_module_name(file_path)
-
-    if isinstance(handler, str) and "." not in handler:
-        meta["handler"] = f"{module_name}.{handler}"
-    elif not handler:
-        inferred_handler_name = _infer_handler_name(tree, meta.get("name"))
-        if inferred_handler_name:
-            meta["handler"] = f"{module_name}.{inferred_handler_name}"
-
-    if not meta.get("arguments"):
-        handler_path = meta.get("handler")
-        if isinstance(handler_path, str):
-            handler_name = handler_path.rsplit(".", 1)[-1]
-            inferred_arguments = _infer_arguments_from_handler(tree, handler_name)
-            if inferred_arguments:
-                meta["arguments"] = inferred_arguments
-
-    try:
-        return [PythonFunction(**meta)]
-    except ValidationError as e:
-        raise ValueError(f"Validation error in {file_path}: {e}")
-
-
 def parse_python_file(file_path: Path) -> list[Union[PythonFunction, DiscoveredEntity]]:
     """
     Parse a Python file via AST without importing/executing it.
 
-    Returns discovered Brimley objects from decorators. For transition
-    compatibility, falls back to legacy YAML-frontmatter Python functions.
+    Returns discovered Brimley objects from decorators only.
     """
     try:
         content = file_path.read_text(encoding="utf-8")
@@ -461,4 +403,4 @@ def parse_python_file(file_path: Path) -> list[Union[PythonFunction, DiscoveredE
     if parsed_items:
         return parsed_items
 
-    return _parse_legacy_frontmatter_python(tree, file_path)
+    return []

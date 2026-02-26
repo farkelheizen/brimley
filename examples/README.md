@@ -1,6 +1,6 @@
 # Brimley Examples
 
-> Version 0.4
+> Version 0.5
 
 This directory contains example Brimley functions and configuration to demonstrate the engine's capabilities with Python, SQL, and Template functions.
 
@@ -9,7 +9,7 @@ This directory contains example Brimley functions and configuration to demonstra
 Before running the examples, you must initialize the local SQLite database used by the SQL examples.
 
 ```bash
-python3 setup_db.py
+poetry run python setup_db.py
 ```
 
 This will create `data.db` and seed it with sample user data.

@@ -1,6 +1,6 @@
 # Brimley Context
 
-> Version 0.4
+> Version 0.5
 
 The `BrimleyContext` is the central nervous system of a Brimley application.
 

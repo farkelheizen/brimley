@@ -1,12 +1,12 @@
 # Brimley Project Structure & Dependencies
-> Version 0.4
+> Version 0.5
 
-This document outlines the directory structure and required libraries for the initial Python implementation of Brimley.
+This document outlines the directory structure and required libraries for the current Python implementation of Brimley.
 
 ## 1. Current Directory Layout
 
 ```
-brimley2/
+brimley/
 ├── src/                    # Source Code
 │   └── brimley/            # Core Library
 │       ├── __init__.py
@@ -36,14 +36,17 @@ brimley2/
 │       ├── infrastructure/ # Database connection management
 │       │   ├── __init__.py
 │       │   └── database.py
-│       ├── mcp/            # MCP adapter and FastMCP integration
+│       ├── mcp/            # MCP provider-first integration + compatibility adapter shim
 │       │   ├── __init__.py
-│       │   └── adapter.py
-│       ├── runtime/        # Auto-reload contracts, watcher, and host controller
+│       │   ├── adapter.py
+│       │   └── fastmcp_provider.py
+│       ├── runtime/        # Daemon lifecycle, RPC bridge, auto-reload contracts, watcher, and host controller
 │       │   ├── __init__.py
 │       │   ├── controller.py
+│       │   ├── daemon.py
 │       │   ├── mcp_refresh_adapter.py
 │       │   ├── polling_watcher.py
+│       │   ├── repl_rpc.py
 │       │   ├── reload_contracts.py
 │       │   └── reload_engine.py
 │       └── utils/          # Diagnostics & Helpers

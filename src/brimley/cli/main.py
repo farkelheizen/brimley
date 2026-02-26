@@ -1,9 +1,13 @@
 import typer
 import yaml
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
 
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
@@ -15,9 +19,25 @@ from brimley.execution.execute_helper import execute_function_by_name
 from brimley.cli.build import compile_assets
 from brimley.cli.formatter import OutputFormatter
 from brimley.cli.repl import BrimleyREPL
-from brimley.mcp.adapter import BrimleyMCPAdapter
+from brimley.mcp.fastmcp_provider import BrimleyProvider
 from brimley.runtime import BrimleyRuntimeController
+from brimley.runtime.daemon import (
+    DaemonMetadata,
+    DaemonState,
+    allocate_ephemeral_port,
+    acquire_repl_client_slot,
+    probe_daemon_state,
+    recover_stale_daemon_metadata,
+    release_repl_client_slot,
+    shutdown_daemon_lifecycle,
+    utc_now_iso,
+    wait_for_daemon_running,
+    write_daemon_metadata,
+)
 from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
+from brimley.runtime.repl_rpc import ReplRPCDaemon, send_repl_rpc_command
+
+BrimleyMCPAdapter = BrimleyProvider
 
 app = typer.Typer(name="brimley", help="Brimley CLI Interface", rich_markup_mode=None)
 
@@ -50,6 +70,102 @@ def _read_option_value(tokens: list[str], index: int, option_name: str) -> tuple
     if index + 1 >= len(tokens):
         raise typer.BadParameter(f"Option {option_name} requires a value.")
     return tokens[index + 1], index + 2
+
+
+def _build_repl_daemon_command(
+    root_dir: Path,
+    mcp_enabled_override: Optional[bool],
+    auto_reload_enabled_override: Optional[bool],
+) -> list[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "brimley.cli.main",
+        "repl-daemon",
+        "--root",
+        str(root_dir),
+    ]
+
+    if mcp_enabled_override is True:
+        command.append("--mcp")
+    elif mcp_enabled_override is False:
+        command.append("--no-mcp")
+
+    if auto_reload_enabled_override is True:
+        command.append("--watch")
+    elif auto_reload_enabled_override is False:
+        command.append("--no-watch")
+
+    return command
+
+
+def _launch_repl_daemon_process(
+    root_dir: Path,
+    mcp_enabled_override: Optional[bool],
+    auto_reload_enabled_override: Optional[bool],
+) -> subprocess.Popen:
+    command = _build_repl_daemon_command(
+        root_dir=root_dir,
+        mcp_enabled_override=mcp_enabled_override,
+        auto_reload_enabled_override=auto_reload_enabled_override,
+    )
+    env = os.environ.copy()
+    src_dir = Path(__file__).resolve().parents[2]
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{src_dir}:{existing_pythonpath}" if existing_pythonpath else str(src_dir)
+    return subprocess.Popen(command, env=env)
+
+
+def _run_repl_thin_client_loop(root_dir: Path, daemon_host: str, daemon_port: int) -> None:
+    OutputFormatter.log(
+        f"Attached thin client to daemon control API at {daemon_host}:{daemon_port}.",
+        severity="success",
+    )
+    OutputFormatter.log("Brimley REPL thin client. Type '/help' for admin commands or '/quit' to exit.", severity="info")
+
+    prompt_session: Optional[PromptSession] = None
+    if sys.stdin.isatty():
+        history_file = root_dir / ".brimley" / "repl_client_history"
+        history_file.parent.mkdir(parents=True, exist_ok=True)
+        prompt_session = PromptSession(history=FileHistory(str(history_file)))
+
+    while True:
+        try:
+            if prompt_session is not None:
+                command_line = prompt_session.prompt("brimley > ")
+            else:
+                command_line = typer.prompt("brimley >", prompt_suffix=" ", default="", show_default=False)
+            if not command_line:
+                continue
+
+            stripped = command_line.strip()
+            if stripped in {"/detach"}:
+                OutputFormatter.log("Detaching thin client. Daemon remains running.", severity="info")
+                break
+
+            if stripped in {"quit", "exit", "/quit", "/exit"}:
+                response = send_repl_rpc_command(daemon_host, daemon_port, "/quit")
+                if response.output:
+                    typer.echo(response.output, nl=False)
+                if not response.ok:
+                    OutputFormatter.log(response.error or "Daemon command failed.", severity="error")
+                else:
+                    OutputFormatter.log("Daemon session terminated.", severity="info")
+                break
+
+            response = send_repl_rpc_command(daemon_host, daemon_port, stripped)
+            if response.output:
+                typer.echo(response.output, nl=False)
+            if not response.ok:
+                OutputFormatter.log(response.error or "Daemon command failed.", severity="error")
+                continue
+            if not response.continue_session:
+                OutputFormatter.log("Daemon session ended by remote command.", severity="warning")
+                break
+
+        except (KeyboardInterrupt, EOFError):
+            OutputFormatter.log("\nDetaching thin client. Daemon remains running.", severity="info")
+            break
 
 
 def _derive_namespace_from_diagnostic(diagnostic) -> str:
@@ -155,6 +271,196 @@ def repl(
     no_mcp = False
     watch = False
     no_watch = False
+    shutdown_daemon = False
+
+    tokens = list(ctx.args)
+    extras: list[str] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in ("--root", "-r"):
+            root_value, index = _read_option_value(tokens, index, token)
+            effective_root = Path(root_value)
+            continue
+        if token.startswith("--root="):
+            effective_root = Path(token.split("=", 1)[1])
+            index += 1
+            continue
+        if token == "--mcp":
+            mcp = True
+            index += 1
+            continue
+        if token == "--no-mcp":
+            no_mcp = True
+            index += 1
+            continue
+        if token == "--watch":
+            watch = True
+            index += 1
+            continue
+        if token == "--no-watch":
+            no_watch = True
+            index += 1
+            continue
+        if token == "--shutdown-daemon":
+            shutdown_daemon = True
+            index += 1
+            continue
+        if token.startswith("-"):
+            raise typer.BadParameter(f"Unknown option: {token}")
+        extras.append(token)
+        index += 1
+
+    if extras and effective_root == Path("."):
+        effective_root = Path(extras.pop(0))
+    if extras:
+        raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
+
+    if shutdown_daemon:
+        probe = probe_daemon_state(effective_root)
+        if probe.state == DaemonState.RUNNING and probe.metadata is not None:
+            try:
+                send_repl_rpc_command(probe.metadata.host, probe.metadata.port, "/quit", timeout_seconds=1.0)
+            except Exception:
+                pass
+        removed = shutdown_daemon_lifecycle(effective_root)
+        if removed:
+            OutputFormatter.log("Daemon shutdown requested: cleared daemon/client lifecycle metadata.", severity="info")
+        else:
+            OutputFormatter.log("Daemon shutdown requested: no daemon metadata found.", severity="info")
+        raise typer.Exit(code=0)
+
+    daemon_probe = probe_daemon_state(effective_root)
+    if daemon_probe.state == DaemonState.RUNNING and daemon_probe.metadata is not None:
+        OutputFormatter.log(
+            (
+                "Detected running daemon metadata "
+                f"(pid={daemon_probe.metadata.pid}, port={daemon_probe.metadata.port})."
+            ),
+            severity="info",
+        )
+    elif daemon_probe.state == DaemonState.STALE:
+        recovered = recover_stale_daemon_metadata(effective_root)
+        if recovered:
+            OutputFormatter.log("Recovered stale daemon metadata. Continuing REPL bootstrap.", severity="warning")
+        else:
+            OutputFormatter.log(f"Stale daemon metadata detected: {daemon_probe.reason}", severity="warning")
+    else:
+        OutputFormatter.log("No daemon metadata found. Continuing REPL bootstrap.", severity="info")
+
+    if not acquire_repl_client_slot(effective_root):
+        OutputFormatter.log(
+            "Another REPL client is already attached to this daemon. Use --shutdown-daemon if recovery is required.",
+            severity="error",
+        )
+        raise typer.Exit(code=1)
+
+    mcp_enabled_override = _resolve_optional_bool_flag(mcp, no_mcp, "mcp")
+    auto_reload_enabled_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
+    require_daemon_owned_mcp = mcp_enabled_override is True
+    force_daemon_bootstrap = os.environ.get("BRIMLEY_FORCE_DAEMON_BOOTSTRAP", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    compatibility_inprocess_mode = (
+        (not sys.stdin.isatty()) or ("PYTEST_CURRENT_TEST" in os.environ)
+    ) and not force_daemon_bootstrap and not require_daemon_owned_mcp
+    if compatibility_inprocess_mode:
+        OutputFormatter.log(
+            "Non-interactive REPL session detected; using compatibility in-process mode.",
+            severity="info",
+        )
+
+    if daemon_probe.state == DaemonState.RUNNING and daemon_probe.metadata is not None:
+        if mcp_enabled_override is not None:
+            OutputFormatter.log(
+                "Daemon already running; MCP mode flags are ignored on attach. Restart daemon to change MCP mode.",
+                severity="warning",
+            )
+        if auto_reload_enabled_override is not None:
+            OutputFormatter.log(
+                "Daemon already running; watch mode flags are ignored on attach. Restart daemon to change watcher mode.",
+                severity="warning",
+            )
+
+    bootstrap_daemon = daemon_probe.state != DaemonState.RUNNING and not compatibility_inprocess_mode
+    daemon_process: Optional[subprocess.Popen] = None
+
+    try:
+        if bootstrap_daemon:
+            OutputFormatter.log("Bootstrapping daemon process for REPL session...", severity="info")
+            daemon_process = _launch_repl_daemon_process(
+                root_dir=effective_root,
+                mcp_enabled_override=mcp_enabled_override,
+                auto_reload_enabled_override=auto_reload_enabled_override,
+            )
+            daemon_probe_after_bootstrap = wait_for_daemon_running(
+                root_dir=effective_root,
+                expected_pid=daemon_process.pid,
+                timeout_seconds=2.0,
+            )
+
+            if (
+                daemon_probe_after_bootstrap.state != DaemonState.RUNNING
+                or daemon_probe_after_bootstrap.metadata is None
+            ):
+                try:
+                    daemon_process.terminate()
+                except Exception:
+                    pass
+                OutputFormatter.log(
+                    "Daemon bootstrap failed: daemon metadata did not reach running state.",
+                    severity="error",
+                )
+                raise typer.Exit(code=1)
+
+            OutputFormatter.log(
+                (
+                    "Daemon bootstrap complete "
+                    f"(pid={daemon_probe_after_bootstrap.metadata.pid}, "
+                    f"port={daemon_probe_after_bootstrap.metadata.port})."
+                ),
+                severity="success",
+            )
+            _run_repl_thin_client_loop(
+                effective_root,
+                daemon_probe_after_bootstrap.metadata.host,
+                daemon_probe_after_bootstrap.metadata.port,
+            )
+        else:
+            if daemon_probe.state == DaemonState.RUNNING and daemon_probe.metadata is not None:
+                _run_repl_thin_client_loop(
+                    effective_root,
+                    daemon_probe.metadata.host,
+                    daemon_probe.metadata.port,
+                )
+            else:
+                OutputFormatter.log(
+                    "Daemon attach RPC is not yet implemented; running compatibility in-process REPL session.",
+                    severity="warning",
+                )
+                repl_session = BrimleyREPL(
+                    effective_root,
+                    mcp_enabled_override=mcp_enabled_override,
+                    auto_reload_enabled_override=auto_reload_enabled_override,
+                )
+                repl_session.start()
+    finally:
+        release_repl_client_slot(effective_root)
+
+
+@app.command("repl-daemon", hidden=True, context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def repl_daemon(
+    ctx: typer.Context,
+):
+    """Start internal daemon process for REPL runtime ownership."""
+    effective_root = Path(".")
+    mcp = False
+    no_mcp = False
+    watch = False
+    no_watch = False
 
     tokens = list(ctx.args)
     extras: list[str] = []
@@ -197,12 +503,41 @@ def repl(
 
     mcp_enabled_override = _resolve_optional_bool_flag(mcp, no_mcp, "mcp")
     auto_reload_enabled_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
-    repl_session = BrimleyREPL(
-        effective_root,
-        mcp_enabled_override=mcp_enabled_override,
-        auto_reload_enabled_override=auto_reload_enabled_override,
+
+    daemon_port = allocate_ephemeral_port()
+    metadata = DaemonMetadata(
+        pid=os.getpid(),
+        port=daemon_port,
+        started_at=utc_now_iso(),
     )
-    repl_session.start()
+    write_daemon_metadata(effective_root, metadata)
+    OutputFormatter.log(
+        f"Daemon process started (pid={metadata.pid}, control_port={metadata.port}).",
+        severity="info",
+    )
+
+    repl_session: Optional[BrimleyREPL] = None
+    try:
+        repl_session = BrimleyREPL(
+            effective_root,
+            mcp_enabled_override=mcp_enabled_override,
+            auto_reload_enabled_override=auto_reload_enabled_override,
+        )
+        repl_session.load()
+        repl_session.start_auto_reload()
+        rpc_daemon = ReplRPCDaemon(host=metadata.host, port=metadata.port, repl_session=repl_session)
+        rpc_daemon.serve_forever()
+    finally:
+        if repl_session is not None:
+            try:
+                repl_session.stop_auto_reload()
+            except Exception:
+                pass
+            try:
+                repl_session._shutdown_mcp_server()
+            except Exception:
+                pass
+        shutdown_daemon_lifecycle(effective_root)
 
 
 @app.command("mcp-serve", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})

@@ -85,3 +85,8 @@ examples/mcp_server/demo.db
 # Ignore the symlink and everything inside it
 docs_local
 docs_local/*
+
+# Brimley runtime metadata
+**/.brimley/daemon.json
+**/.brimley/repl_client.json
+**/.brimley/repl_client_history

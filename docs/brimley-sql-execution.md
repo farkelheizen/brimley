@@ -1,6 +1,6 @@
 # Brimley SQL Execution
 
-> Version 0.4
+> Version 0.5
 
 This document specifies how Brimley executes `SqlFunction` definitions using SQLAlchemy. It covers configuration, connection management, parameter binding, and result formatting.
 
@@ -28,7 +28,7 @@ For SQLite URLs that use relative filesystem paths (for example `sqlite:///./bri
 
 Brimley uses **SQLAlchemy** as its database abstraction layer.
 
-- **Initialization**: At startup, the context hydration process reads `ctx.settings.databases` (the config dicts).
+- **Initialization**: At startup, the context hydration process reads the database config definitions and hydrates `ctx.databases`.
     
 - **Engine Creation**: It iterates through these definitions and creates a SQLAlchemy `Engine` for each.
     

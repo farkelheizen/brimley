@@ -2,7 +2,7 @@ import pytest
 
 from brimley.core.context import BrimleyContext
 from brimley.core.models import TemplateFunction
-from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
+from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter, ProviderMCPRefreshManager
 
 
 class _HostServer:
@@ -63,8 +63,8 @@ def _mock_fastmcp(monkeypatch) -> None:
         tools = FakeToolsModule
         FastMCP = FakeFastMCP
 
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: object())
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: object())
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.import_module", lambda name: FakeModule() if name == "fastmcp" else __import__(name))
 
 
 def test_external_mcp_refresh_creates_server_when_missing(monkeypatch):
@@ -159,7 +159,7 @@ def test_external_mcp_refresh_falls_back_to_register_on_existing_server(monkeypa
 
 
 def test_external_mcp_refresh_raises_clear_error_when_fastmcp_missing(monkeypatch):
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: None)
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: None)
 
     context = BrimleyContext()
     _register_tool_function(context)
@@ -179,7 +179,7 @@ def test_external_mcp_refresh_raises_clear_error_when_fastmcp_missing(monkeypatc
 
 
 def test_external_mcp_refresh_noops_without_tools_even_if_fastmcp_missing(monkeypatch):
-    monkeypatch.setattr("brimley.mcp.adapter.importlib.util.find_spec", lambda _: None)
+    monkeypatch.setattr("brimley.mcp.fastmcp_provider.importlib.util.find_spec", lambda _: None)
 
     context = BrimleyContext()
     state = {"server": _HostServer()}
@@ -251,3 +251,7 @@ def test_external_mcp_refresh_raises_client_action_required_when_schema_changes_
         adapter.refresh()
 
     assert "client_action_required" in str(exc_info.value)
+
+
+def test_external_refresh_adapter_is_compatibility_shim():
+    assert issubclass(ExternalMCPRefreshAdapter, ProviderMCPRefreshManager)
