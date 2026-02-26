@@ -362,16 +362,6 @@ def test_repl_flag_default_uses_config_or_default(monkeypatch, tmp_path):
 
 def test_repl_logs_running_daemon_metadata(monkeypatch, tmp_path):
     _stub_thin_client_loop(monkeypatch)
-    captured = {}
-
-    class DummyREPL:
-        def __init__(self, root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None):
-            captured["root_dir"] = root_dir
-
-        def start(self):
-            captured["started"] = True
-
-    monkeypatch.setattr("brimley.cli.main.BrimleyREPL", DummyREPL)
     monkeypatch.setattr(
         "brimley.cli.main.probe_daemon_state",
         lambda root_dir: DaemonProbeResult(
@@ -387,6 +377,66 @@ def test_repl_logs_running_daemon_metadata(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert "Detected running daemon metadata" in output
+
+
+def test_repl_mcp_bootstraps_daemon_in_noninteractive_mode(monkeypatch, tmp_path):
+    captured = {}
+    monkeypatch.setattr("brimley.cli.main.sys.stdin", SimpleNamespace(isatty=lambda: False))
+    monkeypatch.delenv("BRIMLEY_FORCE_DAEMON_BOOTSTRAP", raising=False)
+    _stub_thin_client_loop(monkeypatch, captured)
+
+    class FakeProcess:
+        pid = 5252
+
+    monkeypatch.setattr(
+        "brimley.cli.main._launch_repl_daemon_process",
+        lambda root_dir, mcp_enabled_override=None, auto_reload_enabled_override=None: (
+            captured.update(
+                {
+                    "root_dir": root_dir,
+                    "mcp_override": mcp_enabled_override,
+                    "watch_override": auto_reload_enabled_override,
+                }
+            )
+            or FakeProcess()
+        ),
+    )
+    monkeypatch.setattr(
+        "brimley.cli.main.wait_for_daemon_running",
+        lambda root_dir, expected_pid=None, timeout_seconds=2.0: DaemonProbeResult(
+            state=DaemonState.RUNNING,
+            metadata=DaemonMetadata(pid=expected_pid or 5252, port=9010, started_at="2026-02-25T00:00:00Z"),
+            metadata_path=str(root_dir / ".brimley" / "daemon.json"),
+            reason="Daemon process is alive.",
+        ),
+    )
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp"])
+
+    assert result.exit_code == 0
+    assert captured["mcp_override"] is True
+    assert captured["thin_host"] == "127.0.0.1"
+    assert captured["thin_port"] == 9010
+
+
+def test_repl_attach_warns_flags_ignored_for_running_daemon(monkeypatch, tmp_path):
+    _stub_thin_client_loop(monkeypatch)
+    monkeypatch.setattr(
+        "brimley.cli.main.probe_daemon_state",
+        lambda root_dir: DaemonProbeResult(
+            state=DaemonState.RUNNING,
+            metadata=DaemonMetadata(pid=1234, port=9010, started_at="2026-02-25T00:00:00Z"),
+            metadata_path=str(root_dir / ".brimley" / "daemon.json"),
+            reason="Daemon process is alive.",
+        ),
+    )
+
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path), "--mcp", "--watch"])
+    output = _combined_output(result).lower()
+
+    assert result.exit_code == 0
+    assert "mcp mode flags are ignored on attach" in output
+    assert "watch mode flags are ignored on attach" in output
 
 
 def test_repl_recovers_stale_daemon_metadata(monkeypatch, tmp_path):

@@ -128,8 +128,18 @@ def _run_repl_thin_client_loop(root_dir: Path, daemon_host: str, daemon_port: in
                 continue
 
             stripped = command_line.strip()
-            if stripped in {"quit", "exit", "/quit", "/exit"}:
+            if stripped in {"/detach"}:
                 OutputFormatter.log("Detaching thin client. Daemon remains running.", severity="info")
+                break
+
+            if stripped in {"quit", "exit", "/quit", "/exit"}:
+                response = send_repl_rpc_command(daemon_host, daemon_port, "/quit")
+                if response.output:
+                    typer.echo(response.output, nl=False)
+                if not response.ok:
+                    OutputFormatter.log(response.error or "Daemon command failed.", severity="error")
+                else:
+                    OutputFormatter.log("Daemon session terminated.", severity="info")
                 break
 
             response = send_repl_rpc_command(daemon_host, daemon_port, stripped)
@@ -336,6 +346,7 @@ def repl(
 
     mcp_enabled_override = _resolve_optional_bool_flag(mcp, no_mcp, "mcp")
     auto_reload_enabled_override = _resolve_optional_bool_flag(watch, no_watch, "watch")
+    require_daemon_owned_mcp = mcp_enabled_override is True
     force_daemon_bootstrap = os.environ.get("BRIMLEY_FORCE_DAEMON_BOOTSTRAP", "").strip().lower() in {
         "1",
         "true",
@@ -344,12 +355,24 @@ def repl(
     }
     compatibility_inprocess_mode = (
         (not sys.stdin.isatty()) or ("PYTEST_CURRENT_TEST" in os.environ)
-    ) and not force_daemon_bootstrap
+    ) and not force_daemon_bootstrap and not require_daemon_owned_mcp
     if compatibility_inprocess_mode:
         OutputFormatter.log(
             "Non-interactive REPL session detected; using compatibility in-process mode.",
             severity="info",
         )
+
+    if daemon_probe.state == DaemonState.RUNNING and daemon_probe.metadata is not None:
+        if mcp_enabled_override is not None:
+            OutputFormatter.log(
+                "Daemon already running; MCP mode flags are ignored on attach. Restart daemon to change MCP mode.",
+                severity="warning",
+            )
+        if auto_reload_enabled_override is not None:
+            OutputFormatter.log(
+                "Daemon already running; watch mode flags are ignored on attach. Restart daemon to change watcher mode.",
+                severity="warning",
+            )
 
     bootstrap_daemon = daemon_probe.state != DaemonState.RUNNING and not compatibility_inprocess_mode
     daemon_process: Optional[subprocess.Popen] = None
