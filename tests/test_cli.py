@@ -19,6 +19,16 @@ def _force_repl_tty(monkeypatch) -> None:
     monkeypatch.setattr("brimley.cli.main.sys.stdin", SimpleNamespace(isatty=lambda: True))
     monkeypatch.setenv("BRIMLEY_FORCE_DAEMON_BOOTSTRAP", "1")
 
+
+def _stub_thin_client_loop(monkeypatch, captured: dict | None = None) -> None:
+    def _fake_loop(root_dir, daemon_host, daemon_port):
+        if captured is not None:
+            captured["thin_root_dir"] = root_dir
+            captured["thin_host"] = daemon_host
+            captured["thin_port"] = daemon_port
+
+    monkeypatch.setattr("brimley.cli.main._run_repl_thin_client_loop", _fake_loop)
+
 def test_invoke_help():
     result = runner.invoke(app, ["invoke", "--help"])
     assert result.exit_code == 0
@@ -233,6 +243,7 @@ Hello {{ args.name }}""")
 def test_repl_flag_mcp_enables_embedded(monkeypatch, tmp_path):
     _force_repl_tty(monkeypatch)
     captured = {}
+    _stub_thin_client_loop(monkeypatch, captured)
 
     class FakeProcess:
         pid = 4242
@@ -272,6 +283,7 @@ def test_repl_flag_mcp_enables_embedded(monkeypatch, tmp_path):
 def test_repl_flag_no_mcp_disables_embedded(monkeypatch, tmp_path):
     _force_repl_tty(monkeypatch)
     captured = {}
+    _stub_thin_client_loop(monkeypatch, captured)
 
     class FakeProcess:
         pid = 4242
@@ -311,6 +323,7 @@ def test_repl_flag_no_mcp_disables_embedded(monkeypatch, tmp_path):
 def test_repl_flag_default_uses_config_or_default(monkeypatch, tmp_path):
     _force_repl_tty(monkeypatch)
     captured = {}
+    _stub_thin_client_loop(monkeypatch, captured)
 
     class FakeProcess:
         pid = 4242
@@ -348,6 +361,7 @@ def test_repl_flag_default_uses_config_or_default(monkeypatch, tmp_path):
 
 
 def test_repl_logs_running_daemon_metadata(monkeypatch, tmp_path):
+    _stub_thin_client_loop(monkeypatch)
     captured = {}
 
     class DummyREPL:
@@ -372,13 +386,13 @@ def test_repl_logs_running_daemon_metadata(monkeypatch, tmp_path):
     output = _combined_output(result)
 
     assert result.exit_code == 0
-    assert captured["started"] is True
     assert "Detected running daemon metadata" in output
 
 
 def test_repl_recovers_stale_daemon_metadata(monkeypatch, tmp_path):
     _force_repl_tty(monkeypatch)
     captured = {}
+    _stub_thin_client_loop(monkeypatch, captured)
     recover_calls = {"count": 0}
     monkeypatch.setattr(
         "brimley.cli.main.probe_daemon_state",
@@ -396,10 +410,6 @@ def test_repl_recovers_stale_daemon_metadata(monkeypatch, tmp_path):
 
     class FakeProcess:
         pid = 4343
-
-        def wait(self):
-            captured["waited"] = True
-            return 0
 
     monkeypatch.setattr(
         "brimley.cli.main._launch_repl_daemon_process",
@@ -423,7 +433,6 @@ def test_repl_recovers_stale_daemon_metadata(monkeypatch, tmp_path):
     output = _combined_output(result)
 
     assert result.exit_code == 0
-    assert captured["waited"] is True
     assert recover_calls["count"] == 1
     assert "Recovered stale daemon metadata" in output
 
@@ -451,6 +460,7 @@ def test_repl_rejects_when_client_slot_already_active(monkeypatch, tmp_path):
 
 def test_repl_releases_client_slot_after_session(monkeypatch, tmp_path):
     _force_repl_tty(monkeypatch)
+    _stub_thin_client_loop(monkeypatch)
     calls = {"release": 0}
 
     class FakeProcess:
@@ -515,13 +525,10 @@ def test_repl_shutdown_daemon_flag_runs_shutdown_and_exits(monkeypatch, tmp_path
 def test_repl_with_dot_root_from_cwd(monkeypatch, tmp_path):
     _force_repl_tty(monkeypatch)
     captured = {}
+    _stub_thin_client_loop(monkeypatch, captured)
 
     class FakeProcess:
         pid = 4242
-
-        def wait(self):
-            captured["waited"] = True
-            return 0
 
     monkeypatch.setattr(
         "brimley.cli.main._launch_repl_daemon_process",
@@ -543,13 +550,13 @@ def test_repl_with_dot_root_from_cwd(monkeypatch, tmp_path):
     result = runner.invoke(app, ["repl", "--root", "."])
 
     assert result.exit_code == 0
-    assert captured["waited"] is True
     assert str(captured["root_dir"]) == "."
 
 
 def test_repl_flag_watch_enables_auto_reload(monkeypatch, tmp_path):
     _force_repl_tty(monkeypatch)
     captured = {}
+    _stub_thin_client_loop(monkeypatch, captured)
 
     class FakeProcess:
         pid = 4242
@@ -589,6 +596,7 @@ def test_repl_flag_watch_enables_auto_reload(monkeypatch, tmp_path):
 def test_repl_flag_no_watch_disables_auto_reload(monkeypatch, tmp_path):
     _force_repl_tty(monkeypatch)
     captured = {}
+    _stub_thin_client_loop(monkeypatch, captured)
 
     class FakeProcess:
         pid = 4242
@@ -628,6 +636,7 @@ def test_repl_flag_no_watch_disables_auto_reload(monkeypatch, tmp_path):
 def test_repl_flag_watch_default_uses_config_or_default(monkeypatch, tmp_path):
     _force_repl_tty(monkeypatch)
     captured = {}
+    _stub_thin_client_loop(monkeypatch, captured)
 
     class FakeProcess:
         pid = 4242

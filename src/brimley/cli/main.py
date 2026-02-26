@@ -33,6 +33,7 @@ from brimley.runtime.daemon import (
     write_daemon_metadata,
 )
 from brimley.runtime.mcp_refresh_adapter import ExternalMCPRefreshAdapter
+from brimley.runtime.repl_rpc import ReplRPCDaemon, send_repl_rpc_command
 
 BrimleyMCPAdapter = BrimleyProvider
 
@@ -111,6 +112,39 @@ def _launch_repl_daemon_process(
     existing_pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{src_dir}:{existing_pythonpath}" if existing_pythonpath else str(src_dir)
     return subprocess.Popen(command, env=env)
+
+
+def _run_repl_thin_client_loop(root_dir: Path, daemon_host: str, daemon_port: int) -> None:
+    OutputFormatter.log(
+        f"Attached thin client to daemon control API at {daemon_host}:{daemon_port}.",
+        severity="success",
+    )
+    OutputFormatter.log("Brimley REPL thin client. Type '/help' for admin commands or '/quit' to exit.", severity="info")
+
+    while True:
+        try:
+            command_line = typer.prompt("brimley >", prompt_suffix=" ", default="", show_default=False)
+            if not command_line:
+                continue
+
+            stripped = command_line.strip()
+            if stripped in {"quit", "exit", "/quit", "/exit"}:
+                OutputFormatter.log("Detaching thin client. Daemon remains running.", severity="info")
+                break
+
+            response = send_repl_rpc_command(daemon_host, daemon_port, stripped)
+            if response.output:
+                typer.echo(response.output, nl=False)
+            if not response.ok:
+                OutputFormatter.log(response.error or "Daemon command failed.", severity="error")
+                continue
+            if not response.continue_session:
+                OutputFormatter.log("Daemon session ended by remote command.", severity="warning")
+                break
+
+        except (KeyboardInterrupt, EOFError):
+            OutputFormatter.log("\nDetaching thin client. Daemon remains running.", severity="info")
+            break
 
 
 def _derive_namespace_from_diagnostic(diagnostic) -> str:
@@ -262,6 +296,12 @@ def repl(
         raise typer.BadParameter(f"Unexpected arguments: {' '.join(extras)}")
 
     if shutdown_daemon:
+        probe = probe_daemon_state(effective_root)
+        if probe.state == DaemonState.RUNNING and probe.metadata is not None:
+            try:
+                send_repl_rpc_command(probe.metadata.host, probe.metadata.port, "/quit", timeout_seconds=1.0)
+            except Exception:
+                pass
         removed = shutdown_daemon_lifecycle(effective_root)
         if removed:
             OutputFormatter.log("Daemon shutdown requested: cleared daemon/client lifecycle metadata.", severity="info")
@@ -350,29 +390,29 @@ def repl(
                 ),
                 severity="success",
             )
-            try:
-                daemon_process.wait()
-            except KeyboardInterrupt:
-                OutputFormatter.log("REPL interrupted; stopping daemon process.", severity="info")
-                try:
-                    daemon_process.terminate()
-                except Exception:
-                    pass
-                try:
-                    daemon_process.wait(timeout=1)
-                except Exception:
-                    pass
-        else:
-            OutputFormatter.log(
-                "Daemon attach RPC is not yet implemented; running compatibility in-process REPL session.",
-                severity="warning",
-            )
-            repl_session = BrimleyREPL(
+            _run_repl_thin_client_loop(
                 effective_root,
-                mcp_enabled_override=mcp_enabled_override,
-                auto_reload_enabled_override=auto_reload_enabled_override,
+                daemon_probe_after_bootstrap.metadata.host,
+                daemon_probe_after_bootstrap.metadata.port,
             )
-            repl_session.start()
+        else:
+            if daemon_probe.state == DaemonState.RUNNING and daemon_probe.metadata is not None:
+                _run_repl_thin_client_loop(
+                    effective_root,
+                    daemon_probe.metadata.host,
+                    daemon_probe.metadata.port,
+                )
+            else:
+                OutputFormatter.log(
+                    "Daemon attach RPC is not yet implemented; running compatibility in-process REPL session.",
+                    severity="warning",
+                )
+                repl_session = BrimleyREPL(
+                    effective_root,
+                    mcp_enabled_override=mcp_enabled_override,
+                    auto_reload_enabled_override=auto_reload_enabled_override,
+                )
+                repl_session.start()
     finally:
         release_repl_client_slot(effective_root)
 
@@ -442,14 +482,27 @@ def repl_daemon(
         severity="info",
     )
 
+    repl_session: Optional[BrimleyREPL] = None
     try:
         repl_session = BrimleyREPL(
             effective_root,
             mcp_enabled_override=mcp_enabled_override,
             auto_reload_enabled_override=auto_reload_enabled_override,
         )
-        repl_session.start()
+        repl_session.load()
+        repl_session.start_auto_reload()
+        rpc_daemon = ReplRPCDaemon(host=metadata.host, port=metadata.port, repl_session=repl_session)
+        rpc_daemon.serve_forever()
     finally:
+        if repl_session is not None:
+            try:
+                repl_session.stop_auto_reload()
+            except Exception:
+                pass
+            try:
+                repl_session._shutdown_mcp_server()
+            except Exception:
+                pass
         shutdown_daemon_lifecycle(effective_root)
 
 
