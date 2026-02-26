@@ -1,5 +1,5 @@
 # Brimley High-Level Design
-> Version 0.4
+> Version 0.5
 
 ## 1. Executive Summary
 
@@ -7,7 +7,7 @@ Brimley is a lightweight, file-based function execution engine designed to bridg
 
 ## 2. Core Architecture
 
-Brimley operates as a **Monolithic Engine** with a distinct lifecycle:
+Brimley operates as a daemon-oriented runtime with a distinct lifecycle:
 
 1. **Boot & Discovery:** On startup, the engine recursively scans a `ROOT_DIR`, identifying functions based on file extensions and internal metadata markers.
     
@@ -15,7 +15,7 @@ Brimley operates as a **Monolithic Engine** with a distinct lifecycle:
     
 3. **Context Injection:** Every execution is injected with a `BrimleyContext`, providing access to configuration, databases, and shared application state.
     
-4. **Invocation:** The `CLI` or `REPL` invokes functions by name, passing arguments that are validated and merged against the function's schema. The REPL also supports [Admin Commands](brimley-repl-admin-commands.md) for inspecting engine state and can run an embedded MCP server over SSE when configured.
+4. **Invocation:** The `CLI` or daemon-owned `REPL` runtime invokes functions by name, passing arguments that are validated and merged against the function's schema. The REPL thin client supports [Admin Commands](brimley-repl-admin-commands.md) and forwards execution to the daemon, which can host embedded MCP over SSE when configured.
 
 5. **Runtime Refresh (Optional):** When `auto_reload.enabled` is active, Brimley uses a polling watcher with debounce and partitioned reload policy to refresh entities/functions/MCP tools without tearing down unaffected runtime domains.
     

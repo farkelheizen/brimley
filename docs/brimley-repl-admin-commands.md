@@ -1,6 +1,6 @@
 # Brimley REPL Admin Commands
 
-> Version 0.4
+> Version 0.5
 
 To improve observability and usability, the Brimley REPL supports "Admin Commands". These are meta-commands prefixed with `/` that interact with the Brimley runtime itself rather than executing business logic functions.
 
@@ -20,7 +20,7 @@ All admin commands start with a forward slash `/`. This distinguishes them from
 |`/state`|`ctx.app`|Dumps the current mutable application state.|
 |`/functions`|`ctx.functions`|Lists all registered functions and their types.|
 |`/entities`|`ctx.entities`|Lists all registered entities.|
-|`/databases`|`ctx.infrastructure`|Lists configured database connections.|
+|`/databases`|`ctx.databases`|Lists configured database connections.|
 |`/reload`|Runtime reload engine|Runs one immediate reload cycle and prints standardized reload summary/diagnostics.|
 |`/errors [--limit N] [--offset N] [--history]`|Runtime diagnostics set|Shows persisted runtime diagnostics with pagination and optional resolved-history view.|
 |`/help`|N/A|Lists available admin commands.|

@@ -1,9 +1,9 @@
 # Brimley Function Arguments
-> Version 0.4
+> Version 0.5
 
 This specification defines argument inference and validation rules for Brimley functions.
 
-In 0.4, Python function signatures are the primary source for argument discovery.
+In 0.5, Python function signatures are the primary source for argument discovery.
 
 ## 1. Global Structure
 
@@ -47,9 +47,9 @@ from brimley import function
 def list_orders(limit: int = 10) -> list[dict]:
     return []
 ```
-### C. JSON Schema Runtime Note (v0.4)
+### C. JSON Schema Runtime Note (v0.5)
 
-- Direct JSON Schema authoring is **not** supported as a first-class runtime argument mode in v0.4.
+- Direct JSON Schema authoring is **not** supported as a first-class runtime argument mode in v0.5.
 - For migration scenarios, use `brimley schema-convert` to convert supported JSON Schema subsets into Brimley `inline` FieldSpec, then use the converted FieldSpec as runtime source.
 
 ---

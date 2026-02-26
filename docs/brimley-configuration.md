@@ -1,6 +1,6 @@
 # Brimley Configuration
 
-> Version 0.4
+> Version 0.5
 
 Brimley applications are configured via a single YAML file (`brimley.yaml`) located in the project root.
 
@@ -127,11 +127,11 @@ class BrimleyContext(Entity):
   - `brimley repl --watch|--no-watch` overrides `auto_reload.enabled`.
   - `brimley mcp-serve --watch|--no-watch` overrides `auto_reload.enabled`.
   - `brimley mcp-serve --host/--port` overrides `mcp.host` and `mcp.port`.
-  - Runtime execution behavior is controlled by `execution.*` (no CLI override in 0.4).
+  - Runtime execution behavior is controlled by `execution.*` (no CLI override in 0.5).
 
-  ### Transport Note (0.4)
+  ### Transport Note (0.5)
 
-  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in 0.4.
+  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in 0.5.
   - In hybrid workflows, REPL remains loopback-control-plane oriented and does not share terminal `stdio` with MCP transport.
 
   Precedence: CLI override > config > model default.

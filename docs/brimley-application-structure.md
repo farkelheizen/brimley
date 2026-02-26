@@ -1,6 +1,6 @@
 # Brimley Application Structure
 
-> Version 0.4
+> Version 0.5
 
 A standard Brimley application follows a specific directory layout to ensure the **Discovery Engine** can locate functions, entities, and configuration.
 

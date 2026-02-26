@@ -133,9 +133,7 @@ runtime.mcp_refresh = refresh_manager.refresh
 runtime.start_auto_reload(background=True)
 ```
 
-## 7. Related Specs
-
-## 8. Rogue Process Triage (Check + Kill)
+## 7. Rogue Process Triage (Check + Kill)
 
 Use this runbook when REPL/MCP startup fails due to stale daemon state or occupied ports.
 
@@ -205,6 +203,8 @@ lsof -nP -iTCP -sTCP:LISTEN | grep -Ei '8000|brimley|python'
 ```
 
 Then restart desired mode (`repl --mcp` or `mcp-serve`).
+
+## 8. Related Specs
 
 - [MCP Integration](brimley-model-context-protocol-integration.md)
 - [CLI & REPL Harness](brimley-cli-and-repl-harness.md)

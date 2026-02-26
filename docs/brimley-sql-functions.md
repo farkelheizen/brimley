@@ -1,6 +1,6 @@
 # Brimley SQL Functions
 
-> Version 0.4
+> Version 0.5
 SQL Functions in Brimley allow developers to expose database queries as Tools or internal logic. They support metadata blocks embedded directly within `.sql` files.
 
 ## 1. Core Properties
@@ -12,7 +12,7 @@ SQL Functions in Brimley allow developers to expose database queries as Tools or
 |`connection`|string|No|The name of the managed database pool. Defaults to `default`. |
 |`handler`|string|Conditional|Used in YAML definitions to point to a `.sql` file. |
 |`description`|string|No|Metadata describing the query's purpose for LLMs. |
-|`args`|dict|No|Maps named SQL parameters (e.g., `:id`) to types and sources. See [arguments](brimley-function-arguments.md). |
+|`arguments`|dict|No|Maps named SQL parameters (e.g., `:id`) to types and sources. See [arguments](brimley-function-arguments.md). |
 |`return_shape`|dict|No|Defines the structure of the row results.  If ommitted, the function is treated as `void`. See [return shape](brimley-function-return-shape.md). |
 
 ## 2. Defining Functions in `.sql` Files
@@ -30,7 +30,7 @@ name: get_customer_orders
 type: sql_function
 connection: analytics_db
 description: "Retrieves all orders for a specific customer, filtered by status."
-args:
+arguments:
   inline:
     customer_id: int
     status: string
@@ -58,7 +58,7 @@ name: update_user_status
 type: sql_function
 description: "Updates a user's status in the system."
 connection: default  # Maps to a key in brimley.yaml
-args:
+arguments:
   inline:
     user_id: int
     new_status: string
@@ -73,10 +73,10 @@ WHERE id = :user_id;
 
 ## 3. Arguments & State Injection
 
-SQL functions cannot access `context.app` directly. To use dynamic values (like the current User ID) in your query, you must map them in the `args` block using `from_context`.
+SQL functions cannot access `context.app` directly. To use dynamic values (like the current User ID) in your query, you must map them in the `arguments` block using `from_context`.
 
 ```
-args:
+arguments:
   inline:
     user_id:
       type: int
@@ -91,7 +91,7 @@ SELECT * FROM orders WHERE user_id = :user_id
 
 Brimley uses **colon-prefixed** named parameters (e.g., `:parameter_name`) supported by SQLAlchemy.
 
-1. **Mapping:** The keys defined in the `args.inline` or `args.entity_ref` block must match the parameter names used in the SQL body.
+1. **Mapping:** The keys defined in the `arguments.inline` or `arguments.entity_ref` block must match the parameter names used in the SQL body.
     
 2. **Injection Security:** Brimley utilizes parameterized queries (prepared statements) to prevent SQL injection. Values are passed as bound variables rather than string concatenation.  **Do not** use string formatting or f-strings in your SQL, as this leads to SQL injection vulnerabilities.
     
@@ -112,7 +112,7 @@ SQL functions typically return an array of objects (rows).
 
 If a `return_shape` uses an `entity_ref` (e.g., `User` or `User[]`), Brimley automatically maps raw database rows to that entity.
 
-In 0.4, these entities are expected to be Python-based entities discovered from decorated classes (for example `@entity(name="User")`).
+In 0.5, these entities are expected to be Python-based entities discovered from decorated classes (for example `@entity(name="User")`).
 
 1. **Column Matching:** The columns returned by your SQL `SELECT` statement must match the fields defined in the Entity.
     

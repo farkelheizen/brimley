@@ -1,6 +1,6 @@
 # Brimley Template Functions
 
-> Version 0.4
+> Version 0.5
 
 Brimley Template Functions are defined in `.md` or `.yaml` files. They exist to generate dynamic strings or prompt messages based on the arguments defined.
 
@@ -51,8 +51,9 @@ name: creative_writer_prompt
 type: template_function
 template_engine: jinja2 
 arguments:
-  genre: string
-returns: PromptMessage[]
+  inline:
+    genre: string
+return_shape: PromptMessage[]
 ---
 
 <system>
@@ -82,8 +83,9 @@ type: template_function
 description: generates a user directory
 template_engine: jinja2 
 arguments:
-  genre: string
-returns: string
+  inline:
+    users: list
+return_shape: string
 ---
 
 ### User Directory Total Users: {{ users | length }}
@@ -106,8 +108,9 @@ name: creative_writer_prompt
 type: template_function
 template_engine: jinja2
 arguments:
-  genre: string
-returns: PromptMessage[]
+  inline:
+    genre: string
+return_shape: PromptMessage[]
 messages:
   - role: system
     content: |
