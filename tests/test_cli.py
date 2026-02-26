@@ -946,6 +946,25 @@ def test_mcp_serve_exits_success_when_no_tools(tmp_path, monkeypatch):
     assert "No MCP tools discovered" in _combined_output(result)
 
 
+def test_mcp_serve_with_missing_root_logs_warning_and_exits_success(tmp_path, monkeypatch):
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return []
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+
+    missing_root = tmp_path / "missing-root"
+    result = runner.invoke(app, ["mcp-serve", "--root", str(missing_root)])
+
+    assert result.exit_code == 0
+    output = _combined_output(result)
+    assert "does not exist" in output
+    assert "No MCP tools discovered" in output
+
+
 def test_mcp_serve_errors_when_fastmcp_missing(tmp_path, monkeypatch):
     class FakeAdapter:
         def __init__(self, registry, context):
