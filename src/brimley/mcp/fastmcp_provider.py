@@ -100,6 +100,7 @@ class BrimleyProvider:
     def create_tool_wrapper(self, func: BrimleyFunction):
         """Create a callable wrapper that resolves args and dispatches execution."""
         input_model = self.build_tool_input_model(func)
+        func_name = func.name
 
         field_names = list(input_model.model_fields.keys())
 
@@ -124,16 +125,32 @@ class BrimleyProvider:
 
         func_code = f"""
 def wrapper({wrapper_params}):
-    return self.execute_tool(func, {arg_dict}, runtime_injections={{"mcp_context": ctx}} if ctx is not None else None)
+    return self.execute_tool_by_name(func_name, {arg_dict}, runtime_injections={{"mcp_context": ctx}} if ctx is not None else None)
 """
 
-        local_vars = {"self": self, "func": func, "PydanticUndefined": PydanticUndefined}
-        exec(func_code, {"self": self, "func": func, "ContextType": context_type}, local_vars)
+        local_vars = {"self": self, "func_name": func_name, "PydanticUndefined": PydanticUndefined}
+        exec(func_code, {"self": self, "func_name": func_name, "ContextType": context_type}, local_vars)
         wrapper = local_vars["wrapper"]
 
         wrapper.__name__ = func.name
         wrapper.__doc__ = (func.mcp.description if getattr(func, "mcp", None) and func.mcp.description else func.description) or ""
         return wrapper
+
+    def execute_tool_by_name(
+        self,
+        function_name: str,
+        tool_args: Dict[str, Any],
+        runtime_injections: Dict[str, Any] | None = None,
+    ) -> Any:
+        """Resolve and execute tool by current registry state using stable tool name."""
+        active_registry = self.context.functions
+
+        if function_name not in active_registry:
+            raise KeyError(f"MCP tool '{function_name}' is not available in current registry state.")
+
+        func = active_registry.get(function_name)
+        resolved_args = ArgumentResolver.resolve(func, tool_args, self.context)
+        return self.dispatcher.run(func, resolved_args, self.context, runtime_injections=runtime_injections)
 
     def _resolve_fastmcp_context_type(self) -> type[Any]:
         """Resolve FastMCP Context type when available; fall back to Any for local/non-MCP execution."""

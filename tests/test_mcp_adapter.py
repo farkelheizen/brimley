@@ -108,6 +108,7 @@ def test_create_tool_wrapper_executes_through_dispatcher_with_context_injection(
     )
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
     wrapper = adapter.create_tool_wrapper(func)
 
     result = wrapper(name="Developer")
@@ -132,6 +133,7 @@ def test_create_tool_wrapper_applies_default_arguments():
     )
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
     wrapper = adapter.create_tool_wrapper(func)
 
     result = wrapper()
@@ -155,6 +157,7 @@ def test_create_tool_wrapper_accepts_ctx_kwarg_and_forwards_runtime_injections()
     )
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
     wrapper = adapter.create_tool_wrapper(func)
 
     captured: dict[str, object] = {}
@@ -197,6 +200,7 @@ def test_create_tool_wrapper_ctx_parameter_uses_resolved_context_annotation(monk
         pass
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
     monkeypatch.setattr(adapter, "_resolve_fastmcp_context_type", lambda: FakeContextType)
 
     wrapper = adapter.create_tool_wrapper(func)
@@ -223,6 +227,7 @@ def test_create_tool_object_for_template_function_like_hello_md(monkeypatch):
     )
 
     adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
 
     # Mock fastmcp import
     class FakeToolsModule:
