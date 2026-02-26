@@ -25,7 +25,10 @@ Writing tools for AI agents shouldn't require restarting your server every time 
 Brimley is lightweight by default, but to serve tools to an LLM, you'll want the FastMCP integration.
 
 ```
-# Install Brimley with FastMCP transport support
+# Poetry project install with FastMCP transport support
+poetry install -E fastmcp
+
+# (Published package usage)
 pip install "brimley[fastmcp]"
 ```
 

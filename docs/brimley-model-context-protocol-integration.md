@@ -8,6 +8,12 @@ Under the hood, Brimley uses [FastMCP](https://github.com/PrefectHQ/fastmcp) t
 
 FastMCP is optional at install time. Brimley only requires it when you actually register or run MCP tools.
 
+For Poetry-managed projects, enable FastMCP support with:
+
+```
+poetry install -E fastmcp
+```
+
 ## Exposing a Function as an MCP Tool
 
 For Python functions, expose tools with the decorator option `mcpType="tool"`.
