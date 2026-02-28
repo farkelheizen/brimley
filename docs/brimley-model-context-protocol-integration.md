@@ -2,7 +2,9 @@
 
 > Version 0.5
 
-Brimley acts as a powerful single source of truth for your organizational functions. With built-in support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/ "null"), you can seamlessly expose your Brimley functions as tools to Large Language Models (LLMs) and agents like Claude, LangGraph, or AutoGen.
+This document describes the current experimental MCP integration in Brimley. It is intended for iterative development and validation, not as a production-readiness statement.
+
+With support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/ "null"), you can expose Brimley functions as tools to LLM clients and agent frameworks.
 
 Under the hood, Brimley uses [FastMCP](https://github.com/PrefectHQ/fastmcp) to create and host these tools.
 
@@ -45,7 +47,7 @@ In the example above:
     
 - The `support_email` argument (sourced from `from_context`) is hidden from the LLM's schema entirely.
     
-- When the LLM calls the tool, Brimley intercepts the call, fetches `config.support_email` from the active `BrimleyContext`, injects it, and executes the function seamlessly.
+- When the LLM calls the tool, Brimley fetches `config.support_email` from the active `BrimleyContext`, injects it, and executes the function.
 
 ### Agentic Python Tools (Context Passthrough)
 
@@ -104,7 +106,7 @@ If MCP tools exist but FastMCP is not installed, Brimley continues running REPL 
 
 In REPL mode, Brimley also creates a local `MockMCPContext` shim and passes it to runtime injections for function execution. Calls to `session.sample(...)` are printed as `[Mock Sampling]` and return deterministic dummy responses, enabling local agentic-tool development without a live MCP server or model backend.
 
-You can now point your MCP-compatible LLM client to `http://127.0.0.1:8000/sse` to allow the LLM to call your Brimley functions in real-time while you monitor or interact with the REPL.
+You can point your MCP-compatible client to `http://127.0.0.1:8000/sse` to call Brimley functions while you monitor or interact with the REPL.
 
 Embedded runtime settings are configured in `brimley.yaml`:
 
@@ -130,7 +132,7 @@ When watch mode or `/reload` applies a successful registry update, Brimley refre
 
 ## Running MCP Without REPL (CLI)
 
-Use the first-class MCP server command:
+Use the MCP server command:
 
 ```
 brimley mcp-serve --root .
@@ -150,9 +152,9 @@ brimley mcp-serve --root . --host 127.0.0.1 --port 8000
 
 ## Embedding Brimley MCP in External Apps (LangGraph, etc.)
 
-Long-term, you may not want to run the Brimley REPL, but rather embed Brimley's functions directly into an existing AI framework (like LangGraph) or an existing FastMCP server.
+You may choose to embed Brimley functions directly into an existing AI framework (like LangGraph) or an existing FastMCP server instead of running the Brimley REPL.
 
-Brimley provides a provider-first integration surface for this use case:
+Brimley provides a provider-based integration surface for this use case:
 
 ```
 from pathlib import Path
@@ -231,7 +233,7 @@ This keeps external-host MCP tools aligned with Brimley function changes while p
 
 ## 0.5 Migration Note (Adapter → Provider)
 
-- `BrimleyProvider` is the canonical MCP integration surface in 0.5.
+- `BrimleyProvider` is the primary MCP integration surface in 0.5.
 - `BrimleyMCPAdapter` remains available as a compatibility shim during transition.
-- `ProviderMCPRefreshManager` is the canonical host-managed refresh manager; `ExternalMCPRefreshAdapter` is compatibility naming.
+- `ProviderMCPRefreshManager` is the primary host-managed refresh manager; `ExternalMCPRefreshAdapter` is compatibility naming.
 - Migration path: replace direct adapter/legacy refresh-manager imports with provider/manager imports shown above.

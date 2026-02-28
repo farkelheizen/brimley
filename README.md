@@ -1,18 +1,20 @@
 # Brimley
 
-Build AI tools faster by editing plain files and getting immediate, safe runtime feedback.
+Experimental MCP tooling runtime for testing faster iteration loops.
 
-Brimley is an authoring and execution engine for function-based AI tooling. It is designed to remove the slow, brittle loop of: change code -> restart server -> rediscover tools -> reconnect clients.
+> Status: Brimley is currently experimental and not ready for production use. This project is intended to prove out a faster MCP development workflow, not to provide a hardened production platform.
+
+Brimley is an authoring and execution engine for function-based AI tooling. It is focused on reducing the change/test loop during MCP tool development: change code -> reload -> re-test.
 
 ## Why teams use Brimley
 
 - **Faster iteration loop:** author tools in `.py`, `.sql`, and `.md` files and execute them immediately.
-- **Safer change workflow:** discovery is AST-first for Python (no import-time execution during scan), with diagnostics instead of hard crashes.
+- **Safer change workflow:** discovery is AST-first for Python (no import-time execution during scan), with diagnostics instead of immediate process termination.
 - **Live runtime ergonomics:** use a thin REPL client attached to a daemon-owned runtime, with optional watch-mode reload.
-- **MCP-ready integration:** expose selected functions as MCP tools via FastMCP when needed.
+- **MCP integration path:** expose selected functions as MCP tools via FastMCP when needed.
 - **Operations clarity:** built-in reload diagnostics, runtime error surfacing, and explicit daemon lifecycle controls.
 
-In short: Brimley saves developer time by shortening feedback loops without sacrificing runtime safety.
+In short: Brimley is an experiment aimed at shortening feedback loops while MCP tooling behavior is still being developed.
 
 ## What makes Brimley different
 
@@ -21,7 +23,7 @@ Brimley separates **tool authoring/execution semantics** from **MCP transport ho
 - Brimley handles discovery, schemas, argument resolution, execution, reload policy, and diagnostics.
 - FastMCP (optional) handles MCP server transport.
 
-This keeps your function logic portable across local REPL workflows, dedicated MCP serving, and host-embedded deployments.
+This keeps function logic reusable across local REPL workflows, dedicated MCP serving, and host-embedded deployments.
 
 ## Quick Start
 

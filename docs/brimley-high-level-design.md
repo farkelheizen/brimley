@@ -1,6 +1,8 @@
 # Brimley High-Level Design
 > Version 0.5
 
+> Status note: Brimley is currently experimental and this design is intended to support fast MCP development iteration, not to claim production readiness.
+
 ## 1. Executive Summary
 
 Brimley is a lightweight, file-based function execution engine designed to bridge the gap between static definitions (SQL, Python, Templates) and dynamic execution environments (CLI, REPL, and FastMCP). It emphasizes a "Configuration over Code" approach for discovery and a strict contract for inputs and outputs.
@@ -99,7 +101,7 @@ Defined in [MCP Integration](brimley-model-context-protocol-integration.md), thi
 
 - **Embedded Hosting**: REPL can host FastMCP over SSE without conflicting with interactive terminal input.
 
-- **Provider-First Integration**: MCP tool registration uses `BrimleyProvider` as canonical integration surface, with adapter naming retained only as a compatibility shim.
+- **Provider-First Integration**: MCP tool registration uses `BrimleyProvider` as the primary integration surface, with adapter naming retained only as a compatibility shim.
     
 
 ## 4. Data Flow

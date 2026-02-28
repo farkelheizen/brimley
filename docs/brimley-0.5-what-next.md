@@ -3,6 +3,8 @@
 
 This document captures the intended next architecture milestones after 0.4.
 
+This roadmap reflects an experimental iteration phase and should not be interpreted as a production-readiness commitment.
+
 ## 1. Direction for 0.5
 
 Brimley 0.5 is focused on **architecture convergence**:
@@ -18,7 +20,7 @@ Brimley 0.5 is focused on **architecture convergence**:
 - Define explicit attach/reconnect/shutdown lifecycle semantics.
 
 ### ADR-002: Provider-Native MCP Integration
-- Make provider-based FastMCP integration the canonical embedding model.
+- Make provider-based FastMCP integration the primary embedding model.
 - Converge MCP registration/execution around that contract.
 
 ## 3. Planned 0.5 Workstreams
@@ -29,7 +31,7 @@ Brimley 0.5 is focused on **architecture convergence**:
 - Keep transport ownership boundaries explicit and testable.
 
 ### 3.2 MCP Contract Convergence
-- Unify schema-mutation refresh/reinit behavior under one canonical model.
+- Unify schema-mutation refresh/reinit behavior under one model.
 - Preserve strict restart/reconnect semantics for schema-shape changes.
 
 ### 3.3 Legacy Policy Finalization

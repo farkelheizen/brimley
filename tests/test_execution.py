@@ -107,6 +107,43 @@ def test_dispatcher_defaults_runtime_injections_to_none() -> None:
 	assert captured["runtime_injections"] is None
 
 
+def test_dispatcher_bypasses_threadpool_for_python_with_mcp_context() -> None:
+	dispatcher = Dispatcher()
+	context = BrimleyContext()
+	func = PythonFunction(
+		name="py_mcp_fn",
+		type="python_function",
+		return_shape="string",
+		handler="pkg.mod.fn",
+	)
+
+	captured: dict[str, object] = {}
+
+	def fake_python_run(f, args, ctx, runtime_injections=None):
+		captured["func"] = f
+		captured["args"] = args
+		captured["ctx"] = ctx
+		captured["runtime_injections"] = runtime_injections
+		return "ok"
+
+	dispatcher.python_runner.run = fake_python_run  # type: ignore[method-assign]
+
+	def exploding_runtime_controls(_context):
+		raise AssertionError("runtime controls should be bypassed for MCP-injected python execution")
+
+	dispatcher._ensure_runtime_controls = exploding_runtime_controls  # type: ignore[method-assign]
+
+	runtime_injections = {"mcp_context": object()}
+
+	result = dispatcher.run(func, {"name": "test"}, context, runtime_injections=runtime_injections)
+
+	assert result == "ok"
+	assert captured["func"] is func
+	assert captured["args"] == {"name": "test"}
+	assert captured["ctx"] is context
+	assert captured["runtime_injections"] is runtime_injections
+
+
 def test_dispatcher_function_timeout_precedence_over_global() -> None:
 	dispatcher = Dispatcher()
 	context = BrimleyContext(

@@ -57,7 +57,7 @@ return_shape: PromptMessage[]
 ---
 
 <system>
-You are a world-class author specializing in {{ args.genre }}.
+You are a creative author specializing in {{ args.genre }}.
 Your goal is to help the user expand on their world-building.
 </system>
 
@@ -114,7 +114,7 @@ return_shape: PromptMessage[]
 messages:
   - role: system
     content: |
-      You are a world-class author specializing in {{ args.genre }}.
+      You are a creative author specializing in {{ args.genre }}.
       Your goal is to help the user expand on their world-building.
 
   - role: user
