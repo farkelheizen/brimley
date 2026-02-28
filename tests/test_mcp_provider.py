@@ -1,9 +1,11 @@
 from brimley.core.context import BrimleyContext
-from brimley.core.models import SqlFunction, TemplateFunction
+from brimley.core.models import PythonFunction, SqlFunction, TemplateFunction
 from brimley.core.registry import Registry
 from brimley.infrastructure.database import initialize_databases
 from brimley.mcp.adapter import BrimleyMCPAdapter
 from brimley.mcp.fastmcp_provider import BrimleyProvider
+import inspect
+import pytest
 
 
 class _FakeMCPServer:
@@ -124,3 +126,40 @@ def test_tool_wrapper_late_binds_sql_function_after_registry_reload(tmp_path):
     context.functions = next_registry
 
     assert wrapper() == [{"version": "V2"}]
+
+
+@pytest.mark.anyio
+async def test_python_tool_wrapper_is_async_and_awaits_dispatcher_result():
+    context = BrimleyContext()
+    func = PythonFunction(
+        name="agent_tool",
+        type="python_function",
+        return_shape="string",
+        handler="examples.agent_sample.agent_sample",
+        mcp={"type": "tool"},
+        arguments={"inline": {"prompt": {"type": "string"}}},
+    )
+    context.functions.register(func)
+
+    provider = BrimleyProvider(registry=context.functions, context=context)
+    wrapper = provider.create_tool_wrapper(func)
+
+    assert inspect.iscoroutinefunction(wrapper)
+
+    captured: dict[str, object] = {}
+
+    async def fake_execute(function_name, tool_args, runtime_injections=None):
+        captured["function_name"] = function_name
+        captured["tool_args"] = tool_args
+        captured["runtime_injections"] = runtime_injections
+        return "async-ok"
+
+    provider.execute_tool_by_name = fake_execute  # type: ignore[method-assign]
+
+    mcp_ctx = object()
+    result = await wrapper(prompt="hello", ctx=mcp_ctx)
+
+    assert result == "async-ok"
+    assert captured["function_name"] == "agent_tool"
+    assert captured["tool_args"] == {"prompt": "hello"}
+    assert captured["runtime_injections"] == {"mcp_context": mcp_ctx}

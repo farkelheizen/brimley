@@ -1,7 +1,7 @@
 # Brimley 0.4: What’s New
 > Version 0.4
 
-This document summarizes the key capabilities delivered in Brimley 0.4.
+This document summarizes the key capabilities delivered in Brimley 0.4 during the project's iterative development phase.
 
 ## 1. Major Improvements
 
@@ -11,7 +11,7 @@ This document summarizes the key capabilities delivered in Brimley 0.4.
 
 ### 1.2 Naming + Identity Hardening
 - Function/entity naming constraints are enforced more consistently.
-- Canonical identity handling is improved for reload and diagnostics workflows.
+- Stable identity handling is improved for reload and diagnostics workflows.
 
 ### 1.3 Hot-Reload Safety (Promote/Quarantine)
 - Reload behavior uses partitioned, policy-driven apply semantics.
@@ -54,7 +54,7 @@ This document summarizes the key capabilities delivered in Brimley 0.4.
 ## 4. Discovery and Authoring Notes
 
 - AST-first Python discovery remains core behavior (no import requirement for discovery).
-- SQL (`.sql`) and template (`.md`) metadata authoring remain first-class.
+- SQL (`.sql`) and template (`.md`) metadata authoring remain supported runtime paths.
 - Standalone `.yaml` entity/tool scanning paths are removed from active scanner routing.
 
 ## 5. Versioning and Documentation Alignment

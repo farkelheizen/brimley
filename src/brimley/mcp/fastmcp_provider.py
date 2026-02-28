@@ -1,5 +1,6 @@
 import importlib
 import importlib.util
+import inspect
 import json
 from typing import Any, Dict, Tuple, Type
 
@@ -123,13 +124,31 @@ class BrimleyProvider:
         else:
             wrapper_params = "*, ctx: ContextType = None"
 
-        func_code = f"""
+        if func.type == "python_function":
+            func_code = f"""
+async def wrapper({wrapper_params}):
+    result = self.execute_tool_by_name(func_name, {arg_dict}, runtime_injections={{"mcp_context": ctx}} if ctx is not None else None)
+    if inspect.isawaitable(result):
+        return await result
+    return result
+"""
+        else:
+            func_code = f"""
 def wrapper({wrapper_params}):
     return self.execute_tool_by_name(func_name, {arg_dict}, runtime_injections={{"mcp_context": ctx}} if ctx is not None else None)
 """
 
         local_vars = {"self": self, "func_name": func_name, "PydanticUndefined": PydanticUndefined}
-        exec(func_code, {"self": self, "func_name": func_name, "ContextType": context_type}, local_vars)
+        exec(
+            func_code,
+            {
+                "self": self,
+                "func_name": func_name,
+                "ContextType": context_type,
+                "inspect": inspect,
+            },
+            local_vars,
+        )
         wrapper = local_vars["wrapper"]
 
         wrapper.__name__ = func.name

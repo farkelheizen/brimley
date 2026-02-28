@@ -62,6 +62,26 @@ class Dispatcher:
 
         raise NotImplementedError(f"No runner for function type: {func.type} ({type(func)})")
 
+    def _has_fastmcp_runtime_injection(
+        self,
+        runtime_injections: Optional[Dict[str, Any]],
+    ) -> bool:
+        if not runtime_injections:
+            return False
+
+        for key in (
+            "mcp_context",
+            "mcp",
+            "ctx",
+            "context",
+            "fastmcp_context",
+            "mcp.server.fastmcp.Context",
+        ):
+            if key in runtime_injections and runtime_injections[key] is not None:
+                return True
+
+        return False
+
     def run(
         self,
         func: BrimleyFunction,
@@ -69,6 +89,9 @@ class Dispatcher:
         context: BrimleyContext,
         runtime_injections: Optional[Dict[str, Any]] = None,
     ) -> Any:
+        if func.type == "python_function" and self._has_fastmcp_runtime_injection(runtime_injections):
+            return self._dispatch_sync_call(func, args, context, runtime_injections)
+
         self._ensure_runtime_controls(context)
         timeout_seconds = self._resolve_timeout_seconds(func, context)
         queue_strategy = context.execution.queue.on_full

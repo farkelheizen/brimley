@@ -49,7 +49,7 @@ def list_orders(limit: int = 10) -> list[dict]:
 ```
 ### C. JSON Schema Runtime Note (v0.5)
 
-- Direct JSON Schema authoring is **not** supported as a first-class runtime argument mode in v0.5.
+- Direct JSON Schema authoring is **not** supported as a direct runtime argument mode in v0.5.
 - For migration scenarios, use `brimley schema-convert` to convert supported JSON Schema subsets into Brimley `inline` FieldSpec, then use the converted FieldSpec as runtime source.
 
 ---

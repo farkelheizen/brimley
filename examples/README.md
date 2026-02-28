@@ -2,7 +2,9 @@
 
 > Version 0.5
 
-This directory contains example Brimley functions and configuration to demonstrate the engine's capabilities with Python, SQL, and Template functions.
+This directory contains exploratory Brimley examples and configuration for Python, SQL, and Template functions.
+
+These examples are for development iteration and behavior validation. They are not production deployment guidance.
 
 ## 🛠️ Setup
 
@@ -120,7 +122,7 @@ brimley > /quit
 
 ## 🧩 Non-REPL MCP Server
 
-You can run MCP tools without REPL using the first-class CLI command:
+You can run MCP tools without REPL using the CLI command:
 
 ```bash
 PYTHONPATH=../src poetry run brimley mcp-serve --root .

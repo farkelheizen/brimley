@@ -18,7 +18,7 @@ my-brimley-app/
 
 ## Configuration
 
-- **`brimley.yaml`**: The single source of truth for configuration. It defines database connections, application constants, and framework settings.
+- **`brimley.yaml`**: The primary project configuration file. It defines database connections, application constants, and framework settings.
 
 - **`auto_reload` in `brimley.yaml`**: Controls optional watch-mode behavior (`enabled`, polling interval, debounce, include/exclude filters).
     

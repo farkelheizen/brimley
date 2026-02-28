@@ -73,7 +73,7 @@ For `mcp-serve`:
 - Front MCP endpoints with a reverse proxy when TLS/auth/routing policies are required.
 - Expose health/readiness checks from the host process where possible.
 
-### Production-like Embedding
+### Higher-Reliability Embedding (Experimental)
 
 - Prefer external host embedding with explicit lifecycle management.
 - Ensure restart/reinit paths are handled for schema-shape changes.
