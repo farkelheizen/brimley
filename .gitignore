@@ -77,7 +77,7 @@ data/
 examples/mcp_server/demo.db
 # Temp markdown files
 *.tmp.md
-.github
+
 
 # Environment Variables
 .env
