@@ -16,6 +16,7 @@ pyyaml = "^6.0"
 rich = "^13.0"
 prompt_toolkit = "^3.0"
 sqlalchemy = "^2.0.46"
+loguru = "^0.7.2"
 fastmcp = {version = "*", optional = true}
 
 [tool.poetry.extras]

@@ -12,6 +12,7 @@ from prompt_toolkit.history import FileHistory
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
+from brimley.infrastructure.logging import initialize_logging_for_context
 from brimley.discovery.scanner import Scanner
 from brimley.discovery.schema_converter import convert_json_schema_to_fieldspec
 from brimley.core.registry import Registry
@@ -614,6 +615,7 @@ def mcp_serve(
 
     context = BrimleyContext(config_dict=load_config(config_path))
     context.app["root_dir"] = str(root_path.expanduser().resolve())
+    initialize_logging_for_context(context)
 
     effective_watch = watch_override if watch_override is not None else context.auto_reload.enabled
     effective_host = host if host is not None else context.mcp.host
@@ -1060,6 +1062,7 @@ def invoke(
     config_data = load_config(config_path)
     context = BrimleyContext(config_dict=config_data)
     context.app["root_dir"] = str(root_path.expanduser().resolve())
+    initialize_logging_for_context(context)
 
     # Hydrate databases
     if context.databases:

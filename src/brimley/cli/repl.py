@@ -12,6 +12,7 @@ from prompt_toolkit import PromptSession
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
+from brimley.infrastructure.logging import initialize_logging_for_context
 from brimley.discovery.scanner import Scanner, BrimleyScanResult
 from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
@@ -50,6 +51,7 @@ class BrimleyREPL:
         config_data = load_config(config_path)
         self.context = BrimleyContext(config_dict=config_data)
         self.context.app["root_dir"] = str(self.root_dir.expanduser().resolve())
+        initialize_logging_for_context(self.context)
 
         # CLI override takes precedence over config/default
         self.mcp_embedded_enabled = (
@@ -213,6 +215,7 @@ class BrimleyREPL:
                     config_data = load_config(config_path)
                     self.context = BrimleyContext(config_dict=config_data)
                     self.context.app["root_dir"] = str(self.root_dir.expanduser().resolve())
+                    initialize_logging_for_context(self.context)
 
                     # Keep CLI override precedence after reset
                     self.mcp_embedded_enabled = (

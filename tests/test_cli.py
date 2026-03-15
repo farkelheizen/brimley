@@ -6,9 +6,23 @@ from typer.testing import CliRunner
 from brimley.cli.main import app, _resolve_optional_bool_flag, _run_repl_thin_client_loop
 from brimley.runtime.daemon import DaemonMetadata, DaemonProbeResult, DaemonState
 from brimley.utils.diagnostics import BrimleyDiagnostic
+from brimley.infrastructure import logging as logging_infra
 from pathlib import Path
 
 runner = CliRunner()
+
+
+class FakeLoguruLogger:
+    def __init__(self) -> None:
+        self.remove_calls = 0
+        self.add_calls: list[dict] = []
+
+    def remove(self) -> None:
+        self.remove_calls += 1
+
+    def add(self, sink, **kwargs):
+        self.add_calls.append({"sink": sink, **kwargs})
+        return len(self.add_calls)
 
 
 def _combined_output(result) -> str:
@@ -109,6 +123,19 @@ def test_invoke_missing_function():
     result = runner.invoke(app, ["invoke", "non_existent_func"])
     assert result.exit_code == 1
     assert "Function 'non_existent_func' not found" in _combined_output(result)
+
+
+def test_invoke_startup_logging_uses_stderr_sink_not_stdout(monkeypatch, tmp_path):
+    fake_logger = FakeLoguruLogger()
+    monkeypatch.setattr(logging_infra, "_logger", fake_logger)
+
+    result = runner.invoke(app, ["invoke", "missing", "--root", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert fake_logger.remove_calls == 1
+    assert len(fake_logger.add_calls) == 1
+    assert fake_logger.add_calls[0]["sink"] is logging_infra.sys.stderr
+    assert fake_logger.add_calls[0]["sink"] is not logging_infra.sys.stdout
 
 def test_invoke_template_function(tmp_path):
     # Setup: Create a meaningful directory structure
@@ -944,6 +971,28 @@ def test_mcp_serve_exits_success_when_no_tools(tmp_path, monkeypatch):
 
     assert result.exit_code == 0
     assert "No MCP tools discovered" in _combined_output(result)
+
+
+def test_mcp_serve_startup_logging_uses_stderr_sink_not_stdout(tmp_path, monkeypatch):
+    fake_logger = FakeLoguruLogger()
+    monkeypatch.setattr(logging_infra, "_logger", fake_logger)
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return []
+
+    monkeypatch.setattr("brimley.cli.main.BrimleyMCPAdapter", FakeAdapter)
+
+    result = runner.invoke(app, ["mcp-serve", "--root", str(tmp_path)])
+
+    assert result.exit_code == 0
+    assert fake_logger.remove_calls == 1
+    assert len(fake_logger.add_calls) == 1
+    assert fake_logger.add_calls[0]["sink"] is logging_infra.sys.stderr
+    assert fake_logger.add_calls[0]["sink"] is not logging_infra.sys.stdout
 
 
 def test_mcp_serve_with_missing_root_logs_warning_and_exits_success(tmp_path, monkeypatch):
