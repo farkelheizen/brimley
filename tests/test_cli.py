@@ -126,8 +126,18 @@ def test_invoke_missing_function():
 
 
 def test_invoke_startup_logging_uses_stderr_sink_not_stdout(monkeypatch, tmp_path):
+    import sys as _real_sys
+
     fake_logger = FakeLoguruLogger()
     monkeypatch.setattr(logging_infra, "_logger", fake_logger)
+
+    # Pin logging_infra.sys to stable pre-CliRunner references so the sink
+    # identity check is not affected by CliRunner's stderr/stdout redirection.
+    class _PinnedSys:
+        stderr = _real_sys.stderr
+        stdout = _real_sys.stdout
+
+    monkeypatch.setattr(logging_infra, "sys", _PinnedSys)
 
     result = runner.invoke(app, ["invoke", "missing", "--root", str(tmp_path)])
 
@@ -974,8 +984,18 @@ def test_mcp_serve_exits_success_when_no_tools(tmp_path, monkeypatch):
 
 
 def test_mcp_serve_startup_logging_uses_stderr_sink_not_stdout(tmp_path, monkeypatch):
+    import sys as _real_sys
+
     fake_logger = FakeLoguruLogger()
     monkeypatch.setattr(logging_infra, "_logger", fake_logger)
+
+    # Pin logging_infra.sys to stable pre-CliRunner references so the sink
+    # identity check is not affected by CliRunner's stderr/stdout redirection.
+    class _PinnedSys:
+        stderr = _real_sys.stderr
+        stdout = _real_sys.stdout
+
+    monkeypatch.setattr(logging_infra, "sys", _PinnedSys)
 
     class FakeAdapter:
         def __init__(self, registry, context):

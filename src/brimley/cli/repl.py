@@ -13,6 +13,7 @@ from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
 from brimley.infrastructure.logging import initialize_logging_for_context
+from brimley.infrastructure import logging as _logging_infra
 from brimley.discovery.scanner import Scanner, BrimleyScanResult
 from brimley.execution.dispatcher import Dispatcher
 from brimley.execution.arguments import ArgumentResolver
@@ -37,11 +38,15 @@ class BrimleyREPL:
         mcp_enabled_override: Optional[bool] = None,
         auto_reload_enabled_override: Optional[bool] = None,
         reload_handler: Optional[Callable[[], ReloadCommandResult]] = None,
+        global_level_override: Optional[str] = None,
+        module_overrides: Optional[dict[str, str]] = None,
     ):
         self.root_dir = root_dir
         self.mcp_enabled_override = mcp_enabled_override
         self.auto_reload_enabled_override = auto_reload_enabled_override
         self.reload_handler = reload_handler
+        self._global_level_override = global_level_override
+        self._module_overrides = module_overrides
         
         # Load config: check root_dir first, then CWD
         config_path = self.root_dir / "brimley.yaml"
@@ -51,7 +56,11 @@ class BrimleyREPL:
         config_data = load_config(config_path)
         self.context = BrimleyContext(config_dict=config_data)
         self.context.app["root_dir"] = str(self.root_dir.expanduser().resolve())
-        initialize_logging_for_context(self.context)
+        initialize_logging_for_context(
+            self.context,
+            global_level_override=self._global_level_override,
+            module_overrides=self._module_overrides,
+        )
 
         # CLI override takes precedence over config/default
         self.mcp_embedded_enabled = (
@@ -272,6 +281,10 @@ class BrimleyREPL:
             "functions": self._cmd_functions,
             "entities": self._cmd_entities,
             "databases": self._cmd_databases,
+            "log-level": self._cmd_log_level,
+            "log-modules": self._cmd_log_modules,
+            "log-reset": self._cmd_log_reset,
+            "log-level-for-id": self._cmd_log_level_for_id,
         }
 
         handler = handlers.get(cmd)
@@ -366,6 +379,12 @@ class BrimleyREPL:
             ("/databases", "Lists configured database connections."),
             ("/errors [--limit N] [--offset N] [--history]", "Lists persisted runtime diagnostics."),
             ("/reload", "Triggers one immediate reload cycle."),
+            ("/log-level LEVEL", "Set global stderr log level (e.g. /log-level DEBUG)."),
+            ("/log-level MODULE LEVEL", "Set module-specific log level (e.g. /log-level brimley.mcp DEBUG)."),
+            ("/log-modules", "Show active module-level log overrides."),
+            ("/log-reset", "Reset all log-level overrides to config defaults."),
+            ("/log-level-for-id CID LEVEL", "Set per-request log level override by correlation ID."),
+            ("/log-level-for-id CID --clear", "Clear a per-request log level override."),
             ("/help", "Lists available admin commands."),
             ("/quit", "Exits the REPL."),
         ]
@@ -594,6 +613,120 @@ class BrimleyREPL:
         
         OutputFormatter.log("Database Configurations:", severity="info")
         typer.echo(json.dumps(self.context.databases, indent=2, default=str))
+        return True
+
+    def _cmd_log_level(self, args: list[str]) -> bool:
+        """Handle ``/log-level [MODULE] LEVEL`` — change the global or module-specific log level.
+
+        Usage::
+
+            /log-level DEBUG                     # change global stderr level
+            /log-level brimley.execution TRACE   # override a specific module
+        """
+        from brimley.core.models import _VALID_LOG_LEVELS
+
+        if not args:
+            OutputFormatter.log(
+                "Usage: /log-level LEVEL  or  /log-level MODULE LEVEL", severity="error"
+            )
+            return True
+
+        if len(args) == 1:
+            level = args[0].strip().upper()
+            if level not in _VALID_LOG_LEVELS:
+                OutputFormatter.log(
+                    f"Invalid level '{level}'. Valid values: {', '.join(sorted(_VALID_LOG_LEVELS))}",
+                    severity="error",
+                )
+                return True
+            self._global_level_override = level
+            initialize_logging_for_context(
+                self.context,
+                global_level_override=self._global_level_override,
+                module_overrides=self._module_overrides,
+            )
+            OutputFormatter.log(f"Global log level set to {level}.", severity="info")
+            return True
+
+        if len(args) == 2:
+            module = args[0].strip()
+            level = args[1].strip().upper()
+            if level not in _VALID_LOG_LEVELS:
+                OutputFormatter.log(
+                    f"Invalid level '{level}'. Valid values: {', '.join(sorted(_VALID_LOG_LEVELS))}",
+                    severity="error",
+                )
+                return True
+            if self._module_overrides is None:
+                self._module_overrides = {}
+            self._module_overrides[module] = level
+            initialize_logging_for_context(
+                self.context,
+                global_level_override=self._global_level_override,
+                module_overrides=self._module_overrides,
+            )
+            OutputFormatter.log(f"Module '{module}' log level set to {level}.", severity="info")
+            return True
+
+        OutputFormatter.log("Usage: /log-level LEVEL  or  /log-level MODULE LEVEL", severity="error")
+        return True
+
+    def _cmd_log_modules(self, args: list[str]) -> bool:
+        """Handle ``/log-modules`` — show current module-level log overrides."""
+        overrides = dict(self._module_overrides or {})
+        if not overrides:
+            OutputFormatter.log("No module-level log overrides active.", severity="info")
+            return True
+        OutputFormatter.log("Active module log level overrides:", severity="info")
+        for module, level in sorted(overrides.items()):
+            typer.echo(f"  {module}: {level}")
+        return True
+
+    def _cmd_log_reset(self, args: list[str]) -> bool:
+        """Handle ``/log-reset`` — reset all log-level overrides to config defaults."""
+        self._global_level_override = None
+        self._module_overrides = None
+        initialize_logging_for_context(self.context)
+        OutputFormatter.log("Log levels reset to configuration defaults.", severity="info")
+        return True
+
+    def _cmd_log_level_for_id(self, args: list[str]) -> bool:
+        """Handle ``/log-level-for-id CID LEVEL | --clear`` — set or clear a per-correlation override.
+
+        Usage::
+
+            /log-level-for-id abc12345 DEBUG
+            /log-level-for-id abc12345 --clear
+        """
+        from brimley.core.models import _VALID_LOG_LEVELS
+
+        if len(args) < 2:
+            OutputFormatter.log(
+                "Usage: /log-level-for-id CORRELATION_ID LEVEL  or  /log-level-for-id CORRELATION_ID --clear",
+                severity="error",
+            )
+            return True
+
+        cid = args[0].strip()
+        action = args[1].strip()
+
+        if action == "--clear":
+            _logging_infra.clear_correlation_level_override(cid)
+            OutputFormatter.log(f"Cleared log-level override for correlation ID '{cid}'.", severity="info")
+            return True
+
+        level = action.upper()
+        if level not in _VALID_LOG_LEVELS:
+            OutputFormatter.log(
+                f"Invalid level '{action}'. Valid values: {', '.join(sorted(_VALID_LOG_LEVELS))}",
+                severity="error",
+            )
+            return True
+
+        _logging_infra.set_correlation_level_override(cid, level)
+        OutputFormatter.log(
+            f"Log level for correlation ID '{cid}' set to {level}.", severity="info"
+        )
         return True
 
     def _parse_scalar_token(self, raw_value: str):

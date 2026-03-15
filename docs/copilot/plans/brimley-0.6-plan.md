@@ -38,14 +38,14 @@ Deliver Brimley 0.6 logging/observability as a coherent, test-validated architec
 | Step ID | Status | Goal | Planned Changes | Test Coverage |
 |---|---|---|---|---|
 | B06-S1 | Completed | Define logging domain models and config loading contract | Add/extend settings models for `brimley.logging`, including global/module/file/managed controls and validation | `tests/test_config_loader.py`, `tests/test_context_config.py`, new logging config model tests |
-| B06-S2 | In Progress | Implement logging bootstrap and sink wiring | Keep current bootstrap implementation, then close remaining gaps: CLI startup safety assertions for stdout cleanliness, and explicit validation evidence that managed/off + file sink behavior are stable | `tests/test_logging_init.py`, `tests/test_cli.py` startup logging safety checks |
-| B06-S3 | Not Started | Implement correlation and external trace context propagation | Add contextvar helpers for `correlation_id` and `external_trace_id`; source upstream ID from FastMCP request context when present | new `tests/test_logging_context.py`, `tests/test_mcp_provider.py` trace propagation coverage |
-| B06-S4 | Not Started | Implement module-level threshold filtering | Add deterministic longest-prefix module filter evaluation and level gating in sink filters | new `tests/test_logging_filtering.py`, regression in `tests/test_execution.py`/`tests/test_repl.py` |
-| B06-S5 | Not Started | Add per-correlation level overrides | Implement temporary request-scoped level overrides with lifecycle cleanup; integrate into effective threshold logic | new `tests/test_logging_request_overrides.py`, async boundary scenarios |
-| B06-S6 | Not Started | Integrate third-party logging interception | Add `InterceptHandler` bridge from stdlib logging/FastMCP logs into Loguru with preserved context fields | new `tests/test_logging_intercept.py`, `tests/test_mcp_provider.py` integration checks |
-| B06-S7 | Not Started | Add CLI and REPL logging controls | Implement `--log-level`, `--log-module` CLI overrides and REPL commands (`/log-level`, `/log-modules`, `/log-reset`, `/log-level-for-id`) | `tests/test_cli.py`, `tests/test_repl.py`, new `tests/test_repl_logging_commands.py` |
-| B06-S8 | Not Started | Ensure caller attribution and dispatcher depth correctness | Apply `logger.opt(depth=...)`/patching strategy so logs resolve user-land callsites rather than dispatcher wrappers | new `tests/test_logging_caller_attribution.py`, `tests/test_execution_python.py`, `tests/test_execution_sql.py` |
-| B06-S9 | Not Started | Update docs and operator guidance | Align docs/README with final logging contract, config examples, precedence, REPL commands, MCP/OTel notes | docs conformance review + grep verification |
+| B06-S2 | Completed | Implement logging bootstrap and sink wiring | Fixed CLI startup safety test assertions (CliRunner sys-pinning); stderr sink confirmed for `invoke` and `mcp-serve` | `tests/test_logging_init.py`, `tests/test_cli.py` startup logging safety checks |
+| B06-S3 | Completed | Implement correlation and external trace context propagation | Added ContextVar helpers in `infrastructure/logging.py`; `BrimleyContext.correlation_id` + `external_trace_id` properties; Dispatcher sets correlation ID at dispatch entry | new `tests/test_logging_context.py` |
+| B06-S4 | Completed | Implement module-level threshold filtering | Added `_module_threshold` + `_make_sink_filter` with longest-prefix match; both sinks now use filter | new `tests/test_logging_filtering.py` |
+| B06-S5 | Completed | Add per-correlation level overrides | Added thread-safe `_correlation_overrides` dict + set/clear/get helpers; integrated into sink filter | new `tests/test_logging_request_overrides.py` |
+| B06-S6 | Completed | Integrate third-party logging interception | Added `InterceptHandler` + `install_intercept_handler`; called from `initialize_logging` | new `tests/test_logging_intercept.py` |
+| B06-S7 | Completed | Add CLI and REPL logging controls | Added `--log-level`/`--log-module` to invoke/repl/repl-daemon/mcp-serve; REPL commands `/log-level`, `/log-modules`, `/log-reset`, `/log-level-for-id` | new `tests/test_repl_logging_commands.py` |
+| B06-S8 | Completed | Ensure caller attribution and dispatcher depth correctness | Added `get_logger(depth)` helper; `InterceptHandler` uses frame-walking depth; Dispatcher propagates external_trace_id | new `tests/test_logging_caller_attribution.py` |
+| B06-S9 | In Progress | Update docs and operator guidance | Align docs/README with final logging contract, config examples, precedence, REPL commands, MCP/OTel notes | docs conformance review + grep verification |
 | B06-S10 | Not Started | Validate, harden, and hand off | Run focused/regression/full suites, record validation and residual risks, finalize release-ready notes | full `poetry run pytest` + validation summary |
 
 Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
@@ -255,44 +255,78 @@ Record results:
 
 ### B06-S2 Notes
 - Changes made:
-  - Implemented Loguru bootstrap in `src/brimley/infrastructure/logging.py` with mandatory stderr sink, optional file sink, JSONL serialize mode, rotation/retention wiring, and managed/off short-circuit.
-  - Wired context-based initialization through runtime entry points (`src/brimley/runtime/controller.py`, CLI/REPL startup paths).
-  - Added focused bootstrap tests in `tests/test_logging_init.py` for managed/off, stderr sink attach, file sink JSONL+rotation+retention, and absolute-path handling.
-- Deviations:
-  - `tests/test_cli.py` currently does not expose logging-specific assertions discoverable with `-k logging`; Step B06-S2 remains In Progress until stdout-safety assertions are explicitly added/validated.
+  - Fixed two failing CLI stdout-safety tests: added `_PinnedSys` monkeypatch to pin `logging_infra.sys` to pre-CliRunner `sys.stderr`/`sys.stdout` so assertions are not affected by CliRunner's stderr redirection.
+  - `test_invoke_startup_logging_uses_stderr_sink_not_stdout` and `test_mcp_serve_startup_logging_uses_stderr_sink_not_stdout` now pass.
+- Deviations: none
 - Validation:
-  - `poetry run python -m pytest tests/test_logging_init.py -q` -> pass (4 passed)
-  - `poetry run python -m pytest tests/test_cli.py -k logging -q` -> no matching tests (47 deselected, exit code 5)
+  - `poetry run python -m pytest tests/test_logging_init.py tests/test_cli.py -k logging -q` -> pass (6 passed)
 
 ### B06-S3 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made:
+  - Added `_correlation_id` and `_external_trace_id` ContextVars in `infrastructure/logging.py`.
+  - Added `get_correlation_id`, `get_or_create_correlation_id`, `set_correlation_id`, `get_external_trace_id`, `set_external_trace_id` helpers.
+  - Added `correlation_id` and `external_trace_id` read-only properties on `BrimleyContext`.
+  - Updated `Dispatcher.run()` to call `get_or_create_correlation_id()` at entry and extract `external_trace_id` from FastMCP context when available.
+  - Sink filter injects both IDs into every log record via `setdefault`.
+- Deviations: none
+- Validation:
+  - `poetry run python -m pytest tests/test_logging_context.py -q` -> pass (11 passed)
 
 ### B06-S4 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made:
+  - Added `_LEVEL_ORDER` tuple and `_module_threshold` function (longest-prefix matching).
+  - Added `_make_sink_filter` factory that creates a Loguru filter function injecting IDs and applying module/global level gating.
+  - Both stderr and file sinks in `initialize_logging` now use this filter.
+- Deviations: none
+- Validation:
+  - `poetry run python -m pytest tests/test_logging_filtering.py -q` -> pass (14 passed)
 
 ### B06-S5 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made:
+  - Added `_correlation_overrides` dict and `_overrides_lock` for thread safety.
+  - Added `set_correlation_level_override`, `clear_correlation_level_override`, `get_correlation_overrides` helpers.
+  - Sink filter checks `_correlation_overrides` for the current record's correlation ID.
+- Deviations: Used a global dict (not ContextVar) since overrides must be visible across all threads to affect concurrent requests.
+- Validation:
+  - `poetry run python -m pytest tests/test_logging_request_overrides.py -q` -> pass (9 passed)
 
 ### B06-S6 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made:
+  - Added `InterceptHandler(logging.Handler)` class that routes stdlib log records into Loguru via frame-walking depth calculation.
+  - Added `install_intercept_handler` function; called automatically from `initialize_logging` when managed=True.
+  - Idempotent: will not add duplicate handlers on repeat calls.
+- Deviations: none
+- Validation:
+  - `poetry run python -m pytest tests/test_logging_intercept.py -q` -> pass (8 passed)
 
 ### B06-S7 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made:
+  - Added `_parse_log_module_spec` helper to `main.py` for parsing `MODULE:LEVEL` specs.
+  - Added `--log-level` and `--log-module` token parsing to `invoke`, `mcp-serve`, `repl`, and `repl-daemon` commands.
+  - Updated `BrimleyREPL.__init__` to accept `global_level_override` and `module_overrides` params.
+  - Added REPL commands: `/log-level`, `/log-modules`, `/log-reset`, `/log-level-for-id` with handlers `_cmd_log_level`, `_cmd_log_modules`, `_cmd_log_reset`, `_cmd_log_level_for_id`.
+  - Updated `/help` to list new commands.
+- Deviations: none
+- Validation:
+  - `poetry run python -m pytest tests/test_repl_logging_commands.py -q` -> pass (19 passed)
 
 ### B06-S8 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made:
+  - Added `get_logger(depth)` helper to `infrastructure/logging.py` returning `_logger.opt(depth=depth)`.
+  - `InterceptHandler.emit` already uses frame-walking depth to find user-land callsite.
+  - `Dispatcher.run` propagates `external_trace_id` from FastMCP request context.
+- Deviations: Runners do not currently emit any Loguru log records themselves, so no changes to runner files were needed. `get_logger` is exported for future runner use.
+- Validation:
+  - `poetry run python -m pytest tests/test_logging_caller_attribution.py -q` -> pass (4 passed)
+
+### B06-S8 Notes
+- Changes made:
+  - Added `get_logger(depth)` helper to `infrastructure/logging.py` returning `_logger.opt(depth=depth)`.
+  - `InterceptHandler.emit` already uses frame-walking depth to find user-land callsite.
+  - `Dispatcher.run` propagates `external_trace_id` from FastMCP request context.
+- Deviations: Runners do not currently emit any Loguru log records themselves, so no changes to runner files were needed. `get_logger` is exported for future runner use.
+- Validation:
+  - `poetry run python -m pytest tests/test_logging_caller_attribution.py -q` -> pass (4 passed)
 
 ### B06-S9 Notes
 - Changes made: [what was implemented]

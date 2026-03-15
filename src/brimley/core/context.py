@@ -113,6 +113,20 @@ class BrimleyContext(Entity):
             PromptMessage.name = "PromptMessage"
             self.entities.register(PromptMessage) # type: ignore
 
+    @property
+    def correlation_id(self) -> str:
+        """Return the current correlation ID for this request context (read-only)."""
+        from brimley.infrastructure.logging import get_correlation_id
+
+        return get_correlation_id()
+
+    @property
+    def external_trace_id(self) -> str:
+        """Return the upstream external trace ID, falling back to the local correlation ID (read-only)."""
+        from brimley.infrastructure.logging import get_external_trace_id
+
+        return get_external_trace_id()
+
     def execute_function_by_name(
         self,
         function_name: str,
