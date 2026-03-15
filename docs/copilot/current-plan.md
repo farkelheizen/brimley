@@ -2,7 +2,7 @@
 
 Use this file to identify the active implementation plan before starting work.
 
-- Active plan: `docs_local/brimley-0.6-plan.md`
+- Active plan: `docs/copilot/plans/brimley-0.6-plan.md`
 - Current step: `B06-S2 In Progress`
 - Last updated: `2026-03-15`
 - Owner: `Copilot`

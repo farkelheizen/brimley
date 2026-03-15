@@ -1,8 +1,6 @@
 # Copilot Instructions for Brimley
 
-I am using you to build the Brimley engine. To ensure quality and maintainability, you must strictly adhere to the following workflow rules.
-
-DO NOT attempt to commit any files inside the `.github` directory or the `docs_local` directory. These files are for documentation and instructions only. If you need to create a new instruction file, place it in `.docs_local` directory and follow the existing format.
+Copilot is being used to assist in building the Brimley engine. To ensure quality and maintainability, you must strictly adhere to the following workflow rules.
 
 ## 0. Poetry Project Requirement
 
@@ -15,13 +13,13 @@ This repository is a **Poetry-managed Python project**.
 
 ## 1. Documentation First
 
-- **Current Plan Pointer (Read Before Coding):** Open `docs_local/copilot/current-plan.md` to identify the active plan document and current step.
+- **Current Plan Pointer (Read Before Coding):** Open `docs/copilot/current-plan.md` to identify the active plan document and current step.
 
-- **Docs Routing Map (Start Here):** Always open `docs_local/copilot/copilot-docs-reference.md` first to quickly route to the correct spec(s) for the task.
+- **Docs Routing Map (Start Here):** Always open `docs/copilot/copilot-docs-reference.md` first to quickly route to the correct spec(s) for the task.
 
-- **Plan Template:** Use `docs_local/copilot/copilot-plan-template.md` for all new plans.
+- **Plan Template:** Use `docs/copilot/copilot-plan-template.md` for all new plans.
 
-- **Plan Doc:** This will be a markdown file under `docs_local` and must follow the template sections exactly (Problem Summary, Goal, Scope, Constraints, Implementation Plan table, Step Details, Acceptance Criteria, Risks/Notes, Validation Plan, Step Notes Log, Copilot Execution Protocol).
+- **Plan Doc:** This will be a markdown file under `docs` and must follow the template sections exactly (Problem Summary, Goal, Scope, Constraints, Implementation Plan table, Step Details, Acceptance Criteria, Risks/Notes, Validation Plan, Step Notes Log, Copilot Execution Protocol).
     
 - **Specs:** Use the detailed markdown specs under `docs` as the source of truth for logic.
 
