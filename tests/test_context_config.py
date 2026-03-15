@@ -51,6 +51,15 @@ def test_context_init_with_config():
 def test_context_default_init():
     ctx = BrimleyContext()
     assert ctx.settings.app_name == "Brimley App"
+    assert ctx.settings.log_level == "INFO"
+    assert ctx.settings.logging.level == "INFO"
+    assert ctx.settings.logging.modules == {}
+    assert ctx.settings.logging.file.path is None
+    assert ctx.settings.logging.file.level == "DEBUG"
+    assert ctx.settings.logging.file.format == "text"
+    assert ctx.settings.logging.file.rotation is None
+    assert ctx.settings.logging.file.retention is None
+    assert ctx.settings.logging.managed is True
     assert ctx.mcp.embedded is True
     assert ctx.mcp.transport == "sse"
     assert ctx.mcp.host == "127.0.0.1"
@@ -105,3 +114,56 @@ def test_context_execution_config_is_loaded():
     assert ctx.execution.timeout_seconds == 2.25
     assert ctx.execution.queue.max_size == 16
     assert ctx.execution.queue.on_full == "block"
+
+
+def test_context_logging_config_is_loaded_and_normalized():
+    ctx = BrimleyContext(
+        config_dict={
+            "brimley": {
+                "logging": {
+                    "level": "debug",
+                    "modules": {
+                        "brimley.execution": "trace",
+                        "sqlalchemy": "warning",
+                    },
+                    "file": {
+                        "path": "logs/brimley.log",
+                        "level": "error",
+                        "format": "jsonl",
+                        "rotation": "10 MB",
+                        "retention": "7 days",
+                    },
+                    "managed": False,
+                }
+            }
+        }
+    )
+
+    assert ctx.settings.logging.level == "DEBUG"
+    assert ctx.settings.logging.modules == {
+        "brimley.execution": "TRACE",
+        "sqlalchemy": "WARNING",
+    }
+    assert ctx.settings.logging.file.path == "logs/brimley.log"
+    assert ctx.settings.logging.file.level == "ERROR"
+    assert ctx.settings.logging.file.format == "jsonl"
+    assert ctx.settings.logging.file.rotation == "10 MB"
+    assert ctx.settings.logging.file.retention == "7 days"
+    assert ctx.settings.logging.managed is False
+
+
+def test_context_legacy_log_level_maps_to_logging_level():
+    ctx = BrimleyContext(config_dict={"brimley": {"log_level": "warning"}})
+
+    assert ctx.settings.log_level == "WARNING"
+    assert ctx.settings.logging.level == "WARNING"
+
+
+def test_context_logging_invalid_level_raises_validation_error():
+    with pytest.raises(ValidationError):
+        BrimleyContext(config_dict={"brimley": {"logging": {"level": "verbose"}}})
+
+
+def test_context_logging_invalid_module_name_raises_validation_error():
+    with pytest.raises(ValidationError):
+        BrimleyContext(config_dict={"brimley": {"logging": {"modules": {"   ": "INFO"}}}})
