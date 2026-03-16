@@ -29,6 +29,16 @@ Examples must be updated whenever a new Brimley version introduces a user-visibl
 
 ## �🛠️ Setup
 
+### Optional: Install fastmcp
+
+The MCP-related examples (`agent_sample`, `mcp-serve`) require `fastmcp`, which is an optional dependency. Install it with:
+
+```bash
+poetry add fastmcp
+```
+
+### Database
+
 Before running the examples, you must initialize the local SQLite database used by the SQL examples.
 
 ```bash
