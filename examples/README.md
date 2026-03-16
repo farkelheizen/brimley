@@ -1,12 +1,33 @@
 # Brimley Examples
 
-> Version 0.5
+> Version 0.6
 
 This directory contains exploratory Brimley examples and configuration for Python, SQL, and Template functions.
 
-These examples are for development iteration and behavior validation. They are not production deployment guidance.
+These examples are for development iteration and behaviour validation. They are not production deployment guidance.
 
-## 🛠️ Setup
+## What's New in 0.6
+
+Brimley 0.6 introduces structured logging. The `brimley.yaml` now includes a top-level `logging:` block that configures:
+
+- A stderr sink (always active, required for MCP transport).
+- An optional file sink at `./logs/brimley.log` with rotation and retention.
+- Per-module level overrides (`fastmcp`, `sqlalchemy`, etc.).
+- JSONL format support for structured log analysis.
+
+After running any invoke command you should now see a `logs/brimley.log` file created in this directory. The `logs/` directory is excluded from version control via `.gitignore`.
+
+## � Keeping Examples Current
+
+Examples must be updated whenever a new Brimley version introduces a user-visible feature or API change that affects them. When adding or merging a plan:
+
+- Update the version header above to match the release.
+- Add, update, or remove example files and CLI invocations to reflect the new behaviour.
+- If the `brimley.yaml` config schema changes, update `examples/brimley.yaml` accordingly.
+
+---
+
+## �🛠️ Setup
 
 Before running the examples, you must initialize the local SQLite database used by the SQL examples.
 
