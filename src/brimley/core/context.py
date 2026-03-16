@@ -81,7 +81,10 @@ class BrimleyContext(Entity):
         if config_dict:
             # Seed fields from config_dict if not explicitly provided in data
             if 'settings' not in data:
-                data['settings'] = FrameworkSettings(**config_dict.get('brimley', {}))
+                brimley_section = dict(config_dict.get('brimley', {}))
+                if 'logging' not in brimley_section and 'logging' in config_dict:
+                    brimley_section['logging'] = config_dict['logging']
+                data['settings'] = FrameworkSettings(**brimley_section)
             if 'config' not in data:
                 data['config'] = AppConfig(**config_dict.get('config', {}))
             if 'mcp' not in data:
