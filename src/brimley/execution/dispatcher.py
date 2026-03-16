@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from threading import BoundedSemaphore
+from loguru import logger as _logger
 from brimley.core.models import BrimleyFunction, PythonFunction, SqlFunction, TemplateFunction
 from brimley.core.context import BrimleyContext
 from brimley.execution.python_runner import PythonRunner
@@ -104,8 +105,16 @@ class Dispatcher:
                 if request_id:
                     set_external_trace_id(str(request_id))
 
+        _logger.trace("Dispatching function '{}' (type={})", func.name, func.type)
+
         if func.type == "python_function" and self._has_fastmcp_runtime_injection(runtime_injections):
-            return self._dispatch_sync_call(func, args, context, runtime_injections)
+            try:
+                result = self._dispatch_sync_call(func, args, context, runtime_injections)
+                _logger.trace("Function '{}' completed (type={})", func.name, func.type)
+                return result
+            except Exception as exc:
+                _logger.trace("Function '{}' failed (type={}): {}", func.name, func.type, exc)
+                raise
 
         self._ensure_runtime_controls(context)
         timeout_seconds = self._resolve_timeout_seconds(func, context)
@@ -136,12 +145,18 @@ class Dispatcher:
                 runtime_injections,
             )
             try:
-                return future.result(timeout=timeout_seconds)
+                result = future.result(timeout=timeout_seconds)
+                _logger.trace("Function '{}' completed (type={})", func.name, func.type)
+                return result
             except FuturesTimeoutError as exc:
                 future.cancel()
+                _logger.trace("Function '{}' timed out after {}s (type={})", func.name, timeout_seconds, func.type)
                 raise BrimleyExecutionError(
                     message=f"Execution timed out after {timeout_seconds:.3f}s.",
                     func_name=func.name,
                 ) from exc
+            except Exception as exc:
+                _logger.trace("Function '{}' failed (type={}): {}", func.name, func.type, exc)
+                raise
         finally:
             self._inflight_slots.release()
