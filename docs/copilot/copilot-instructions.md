@@ -94,7 +94,42 @@ This repository is a **Poetry-managed Python project**.
     
 - Include docstrings for public methods.
 
-## 7. Plan Completeness Gate
+## 7. CHANGELOG & Examples Gate
+
+Every plan that introduces a user-visible feature, API change, or bug fix **must** include steps (or at minimum acceptance criteria items) for:
+
+- **`CHANGELOG.md`** — Add entries under the appropriate version heading (`Added`, `Changed`, `Fixed`, `Removed`). Do this as part of the final step or as a dedicated step before the commit gate.
+- **`examples/`** — Update any affected example files, CLI invocations, or `brimley.yaml` to reflect the change. Bump the version header in `examples/README.md`. If a new feature has no existing example, consider adding one.
+
+These are **blocking** for the Review & Commit Protocol — a step cannot be marked `Completed` if either item is applicable and not done.
+
+## 8. Doc Scan Gate
+
+When merging or completing a version release, scan **all documents** in `docs/` and the root `README.md` for content that needs updating. This is a required step before the commit gate for any version release plan.
+
+**Step 1 — Version bump (do this first):**
+
+Bump the version number everywhere it appears before doing any other doc updates:
+
+- `pyproject.toml` — update `version = "X.Y.0"`.
+- Every spec doc under `docs/` — update the `> Version X.Y` header.
+- `examples/README.md` — update the `> Version X.Y` header.
+- `README.md` — update any `(X.Y architecture baseline)` or similar inline version references.
+- `docs/brimley-functions.md` and `docs/brimley-python-functions.md` — check for `"In Brimley X.Y, ..."` body text and rephrase as current baseline.
+
+**Step 2 — Content scan (after version bump):**
+
+- **Stale version references in body text** — e.g., "In Brimley 0.5, ..." — update or rephrase where the feature is now current.
+- **Reference Documentation Maps** — Check `docs/brimley-high-level-design.md` §5 and `README.md` Documentation Map for missing or outdated links to new/changed docs.
+- **Copilot Docs Reference Map** — `docs/copilot/copilot-docs-reference.md`: add any new topic rows or keyword index entries for new architectural areas.
+- **Feature mentions** — If a new architectural area was introduced (e.g., logging, entities, MCP), check that `brimley-high-level-design.md` §3 includes a corresponding Key Component entry.
+- **Context doc** — If the context object gained new fields (properties), update `docs/brimley-context.md` table and field detail list.
+- **CLI/REPL harness doc** — If new CLI flags or REPL commands were added, update `docs/brimley-cli-and-repl-harness.md` and `docs/brimley-repl-admin-commands.md`.
+- **Configuration doc** — If new `brimley.yaml` keys were added, verify `docs/brimley-configuration.md` reflects them.
+
+**This gate is blocking** — a version release plan step cannot be marked `Completed` until the version bump and doc scan have both been performed.
+
+## 9. Plan Completeness Gate
 
 Before starting implementation, verify the active plan includes:
 

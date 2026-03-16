@@ -40,6 +40,8 @@ Use this file as the fast lookup index before implementation.
 | Template function semantics and template context scope | `docs/brimley-template-functions.md` | `docs/brimley-function-arguments.md` |
 | MCP tool exposure, schema filtering, embedded server | `docs/brimley-model-context-protocol-integration.md` | `docs/brimley-cli-and-repl-harness.md`, `docs/brimley-python-functions.md` |
 | Naming and identifier constraints | `docs/brimley-naming-conventions.md` | `docs/brimley-functions.md` |
+| Logging, observability, correlation IDs, dual-sink, log levels, log format | `docs/roadmap/brimley-0.6-logging-architecture.md` | `docs/brimley-configuration.md`, `docs/brimley-repl-admin-commands.md`, `docs/brimley-cli-and-repl-harness.md` |
+| Deferred feature ideas, future enhancements | `docs/roadmap/brimley-wish-list.md` | `docs/roadmap/index.md` |
 | Repository/layout/dependency reference | `docs/brimley-project-structure.md` | `docs/brimley-application-structure.md` |
 | App-level file layout for Brimley projects | `docs/brimley-application-structure.md` | `docs/brimley-project-structure.md` |
 
@@ -55,6 +57,8 @@ Use this file as the fast lookup index before implementation.
 - **`return_shape`, `Result Mapper`, entity mapping** → `brimley-function-return-shape.md`, `brimley-entities.md`
 - **diagnostics, error codes, wall of shame** → `brimley-diagnostics-and-error-reporting.md`
 - **SQL params, SQLAlchemy engine, `rows_affected`** → `brimley-sql-functions.md`, `brimley-sql-execution.md`
+- **logging levels, Loguru, correlation ID, dual-sink, log hijacking, JSONL logs, --log-level, --log-module** → `docs/roadmap/brimley-0.6-logging-architecture.md`, `brimley-configuration.md`, `brimley-repl-admin-commands.md`
+- **wish list, deferred features, future ideas, WL-** → `docs/roadmap/brimley-wish-list.md`
 
 ---
 

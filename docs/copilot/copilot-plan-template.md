@@ -76,6 +76,10 @@ Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 - [No regressions in related paths]
 - [Diagnostics/errors are clear and actionable]
 - [Documentation updated where behavior changed]
+- `CHANGELOG.md` updated with Added / Changed / Fixed entries for this version.
+- `examples/` updated if any example is affected by the change (version header, YAML config, CLI invocations, new example files).
+- Version bump performed: `pyproject.toml` and all `docs/` version headers updated to the new version number.
+- Doc Scan performed: stale body-text version references updated, reference maps updated, new architectural areas reflected in high-level design and copilot docs reference map.
 
 ## Risks / Notes
 - [Potential implementation risk]
