@@ -80,6 +80,7 @@ Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 - `examples/` updated if any example is affected by the change (version header, YAML config, CLI invocations, new example files).
 - Version bump performed: `pyproject.toml` and all `docs/` version headers updated to the new version number.
 - Doc Scan performed: stale body-text version references updated, reference maps updated, new architectural areas reflected in high-level design and copilot docs reference map.
+- **Pre-publish gate:** `pyproject.toml` `version` field must reflect the new version before running `poetry build` / `poetry publish`. Verify this is the last thing confirmed before publishing to PyPI.
 
 ## Risks / Notes
 - [Potential implementation risk]
