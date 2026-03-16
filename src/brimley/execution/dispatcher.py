@@ -7,6 +7,10 @@ from brimley.execution.python_runner import PythonRunner
 from brimley.execution.sql_runner import SqlRunner
 from brimley.execution.jinja_runner import JinjaRunner
 from brimley.utils.diagnostics import BrimleyExecutionError
+from brimley.infrastructure.logging import (
+    get_or_create_correlation_id,
+    set_external_trace_id,
+)
 
 class Dispatcher:
     """
@@ -89,6 +93,17 @@ class Dispatcher:
         context: BrimleyContext,
         runtime_injections: Optional[Dict[str, Any]] = None,
     ) -> Any:
+        # Establish / inherit correlation ID for this dispatch.
+        get_or_create_correlation_id()
+
+        # Propagate external trace ID from FastMCP request context when present.
+        if runtime_injections:
+            mcp_ctx = runtime_injections.get("mcp_context") or runtime_injections.get("mcp")
+            if mcp_ctx is not None:
+                request_id = getattr(mcp_ctx, "request_id", None)
+                if request_id:
+                    set_external_trace_id(str(request_id))
+
         if func.type == "python_function" and self._has_fastmcp_runtime_injection(runtime_injections):
             return self._dispatch_sync_call(func, args, context, runtime_injections)
 
