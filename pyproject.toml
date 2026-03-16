@@ -2,9 +2,16 @@
 name = "brimley"
 version = "0.6.0"
 description = "A lightweight, file-based function execution engine."
-authors = ["Bill Spratley"]
+authors = ["Bill Spratley <billspratley@gmail.com>"]
+license = "Apache-2.0"
 readme = "README.md"
 packages = [{include = "brimley", from = "src"}]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
