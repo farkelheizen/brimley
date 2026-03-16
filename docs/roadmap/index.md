@@ -39,6 +39,12 @@ This document outlines the sequential release strategy for Brimley, focusing on 
 
 Brimley will remain in the 0.x series until the following "Real-World Validation" criteria are met:
 
+---
+
+## Deferred Ideas
+
+Feature ideas and enhancements that surfaced during development but were intentionally deferred to avoid blocking a release are tracked in the [Brimley Wish List](brimley-wish-list.md).
+
 1. **Production Adoption:** At least three distinct production-grade applications are running on the Brimley 0.12 core.
     
 2. **Community Feedback:** A stable API surface area that has survived at least 3 months without breaking changes.
