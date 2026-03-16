@@ -1,5 +1,5 @@
 # Brimley High-Level Design
-> Version 0.5
+> Version 0.6
 
 > Status note: Brimley is currently experimental and this design is intended to support fast MCP development iteration, not to claim production readiness.
 
@@ -45,7 +45,7 @@ Defined in [Discovery & Loader](brimley-discovery-and-loader-specification.md), 
     
 - **Parsing (Zero-Execution AST for Python)**: Parsing Python files with `ast.parse()` to discover `@function` and `@entity` markers without importing or executing user modules.
 
-- **Compatibility**: Python discovery is decorator-only in 0.5; legacy Python YAML frontmatter fallback is removed.
+- **Compatibility**: Python discovery is decorator-only (legacy YAML frontmatter fallback was removed in 0.5).
     
 - **Validation**: Enforcing [Naming Conventions](brimley-naming-conventions.md) and schema requirements.
     
@@ -102,6 +102,18 @@ Defined in [MCP Integration](brimley-model-context-protocol-integration.md), thi
 - **Embedded Hosting**: REPL can host FastMCP over SSE without conflicting with interactive terminal input.
 
 - **Provider-First Integration**: MCP tool registration uses `BrimleyProvider` as the primary integration surface, with adapter naming retained only as a compatibility shim.
+
+### G. Logging & Observability
+
+Defined in [Logging Architecture](../roadmap/brimley-0.6-logging-architecture.md) (0.6+):
+
+- **Loguru-backed pipeline**: Brimley owns and configures the Loguru logging pipeline at startup. All internal runners emit structured log records with a consistent format.
+- **Correlation IDs**: Every top-level `Dispatcher.run()` call gets a unique 8-character correlation ID stored in a `ContextVar`. Nested calls inherit the parent ID; async and thread-pool contexts preserve it automatically.
+- **External trace alignment**: When FastMCP provides a `request_id`, Brimley captures it as `external_trace_id`. Both IDs are injected into every log record and accessible via `BrimleyContext`.
+- **Dual-sink strategy**: A stderr sink is always active (required for MCP transport). An optional file sink (with JSONL support, rotation, and retention) is configured under the top-level `logging:` key in `brimley.yaml`.
+- **Per-module level overrides**: Log4J-style prefix matching maps module name prefixes to log levels (`logging.modules` in config, or `--log-module` CLI flag).
+- **FastMCP log interception**: An `InterceptHandler` routes stdlib `logging` calls (FastMCP, SQLAlchemy) into the Loguru stream with the same correlation ID.
+- **Runtime log control**: REPL commands `/log-level`, `/log-modules`, and `/log-reset` allow changing log verbosity without restarting the daemon.
     
 
 ## 4. Data Flow
@@ -123,8 +135,8 @@ Defined in [MCP Integration](brimley-model-context-protocol-integration.md), thi
 ## 5. Reference Documentation Map
 
 - [What’s New in 0.4](brimley-0.4-whats-new.md)
-- [What’s Next in 0.5](brimley-0.5-what-next.md)
-- [Project Structure](brimley-application-structure.md)
+- [What's New in 0.6 — Logging Architecture](../roadmap/brimley-0.6-logging-architecture.md)
+- [CHANGELOG](../CHANGELOG.md)- [Wish List — Deferred Ideas](../roadmap/brimley-wish-list.md)- [Project Structure](brimley-application-structure.md)
 - [Function Arguments](brimley-function-arguments.md)
 - [Return Shapes](brimley-function-return-shape.md)
 - [Entities](brimley-entities.md)

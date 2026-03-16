@@ -1,6 +1,6 @@
 # Brimley SQL Functions
 
-> Version 0.5
+> Version 0.6
 SQL Functions in Brimley allow developers to expose database queries as Tools or internal logic. They support metadata blocks embedded directly within `.sql` files.
 
 ## 1. Core Properties

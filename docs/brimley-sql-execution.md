@@ -1,6 +1,6 @@
 # Brimley SQL Execution
 
-> Version 0.5
+> Version 0.6
 
 This document specifies how Brimley executes `SqlFunction` definitions using SQLAlchemy. It covers configuration, connection management, parameter binding, and result formatting.
 

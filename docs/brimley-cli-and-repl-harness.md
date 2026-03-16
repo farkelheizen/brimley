@@ -1,5 +1,5 @@
-# Brimley 0.5 CLI & REPL Harness
-> Version 0.5
+# Brimley CLI & REPL Harness
+> Version 0.6
 
 The CLI is the primary interface for invoking and testing functions. It is designed to be "pipe-friendly" for automation while providing a rich interactive environment for developers.
 
@@ -35,7 +35,9 @@ Used for single-shot execution.
     3. **Execution:** Resolve/execute through Brimley's standard invoke pipeline (`execute_function_by_name`), which performs function lookup, argument resolution, and dispatcher execution.
         
     4. **Output:** Print _only_ the function result to `STDOUT`. All system logs or errors must go to `STDERR`.
-        
+- **Logging Flags (0.6+):**
+    - `--log-level LEVEL`: Override the global stderr log level for this invocation (e.g., `DEBUG`, `INFO`, `WARNING`).
+    - `--log-module MODULE:LEVEL`: Override the log level for a specific module prefix (repeatable). E.g., `--log-module brimley.execution:DEBUG`.        
 
 ### `brimley [ROOT_DIR] repl [--mcp|--no-mcp] [--watch|--no-watch] [--shutdown-daemon]`
 
@@ -58,9 +60,13 @@ Used for an interactive, stateful thin-client session.
 
 - **Prompt:** `brimley >`
 
+- **Logging Flags (0.6+):**
+    - `--log-level LEVEL`: Override the global stderr log level for this session.
+    - `--log-module MODULE:LEVEL`: Override the log level for a specific module prefix at startup (repeatable).
+
 - **Admin Commands:**
     - The REPL supports meta-commands prefixed with `/` for observability.
-    - See [Admin Commands Reference](brimley-repl-admin-commands.md) for `/settings`, `/config`, `/state`, `/functions`, `/entities`, `/databases`, `/reload`, `/errors`, and `/help`.
+    - See [Admin Commands Reference](brimley-repl-admin-commands.md) for `/settings`, `/config`, `/state`, `/functions`, `/entities`, `/databases`, `/reload`, `/errors`, `/log-level`, `/log-modules`, `/log-reset`, and `/help`.
     
 - **Interactive Parsing Logic:**
     

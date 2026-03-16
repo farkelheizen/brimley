@@ -1,5 +1,5 @@
 # Brimley Diagnostics & Error Reporting
-> Version 0.5
+> Version 0.6
 
 This document defines how Brimley should handle and display errors during the "Discovery" and "Registration" phases to ensure developers can fix issues without digging through source code.
 
