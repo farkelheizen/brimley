@@ -121,3 +121,31 @@ execution:
     assert config["execution"]["timeout_seconds"] == 5.5
     assert config["execution"]["queue"]["max_size"] == 32
     assert config["execution"]["queue"]["on_full"] == "reject"
+
+
+def test_load_config_includes_brimley_logging_section(tmp_path):
+    config_file = tmp_path / "brimley.yaml"
+    content = """
+brimley:
+  env: test
+  logging:
+    level: INFO
+    modules:
+      brimley.execution: DEBUG
+    file:
+      path: logs/brimley.log
+      level: DEBUG
+      format: jsonl
+      rotation: 10 MB
+      retention: 7 days
+    managed: false
+"""
+    config_file.write_text(content)
+
+    config = load_config(config_file)
+    assert "brimley" in config
+    assert config["brimley"]["logging"]["level"] == "INFO"
+    assert config["brimley"]["logging"]["modules"]["brimley.execution"] == "DEBUG"
+    assert config["brimley"]["logging"]["file"]["path"] == "logs/brimley.log"
+    assert config["brimley"]["logging"]["file"]["retention"] == "7 days"
+    assert config["brimley"]["logging"]["managed"] is False

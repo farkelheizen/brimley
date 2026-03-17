@@ -1,6 +1,6 @@
 # Brimley Python Functions
 
-> Version 0.5
+> Version 0.6
 
 Python Functions are native Python callables registered with the `@function` decorator. In Brimley 0.5, this is the primary Python discovery model.
 

@@ -1,6 +1,6 @@
 # Brimley Function Return Shape Specification
 
-> Version 0.5
+> Version 0.6
 
 This specification defines the syntax and validation rules for **Brimley Function Return Shapes**, used to define the expected output structure for Functions (SQL, API, Python).
 

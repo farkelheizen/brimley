@@ -1,6 +1,6 @@
 # Brimley Configuration
 
-> Version 0.5
+> Version 0.6
 
 Brimley applications are configured via a single YAML file (`brimley.yaml`) located in the project root.
 
@@ -8,7 +8,7 @@ Brimley applications are configured via a single YAML file (`brimley.yaml`) loca
 
 The configuration file is divided into seven sections, mapping directly to the Context:
 
-1. **`brimley`**: Framework-level settings (maps to `ctx.settings`).
+1. **`brimley`**: Framework-level settings (maps to `ctx.settings`), including the `brimley.logging` sub-section (new in 0.6).
     
 2. **`config`**: User-defined application configuration (maps to `ctx.config`).
     
@@ -32,7 +32,21 @@ The configuration file is divided into seven sections, mapping directly to the C
 brimley:
   env: ${BRIMLEY_ENV:development}
   app_name: "My Customer Portal"
-  log_level: "INFO"
+
+  # Observability / Logging (Brimley 0.6+)
+  logging:
+    level: INFO                  # Global default level for the stderr sink
+    modules:                     # Module-level overrides (Log4J-style prefix matching)
+      brimley.execution: DEBUG
+      fastmcp: WARNING
+      sqlalchemy: WARNING
+    file:
+      path: logs/brimley.log     # Relative to project root, or absolute
+      level: DEBUG               # File sink can be more verbose than stderr
+      format: jsonl              # 'text' (default) or 'jsonl' for structured logs
+      rotation: 10 MB            # 'N MB', 'daily', etc.
+      retention: 7 days          # '7 days', '4 weeks', etc.
+    managed: true                # Set false to disable Brimley's Loguru setup entirely
 
 # 2. Application Config (Immutable)
 # Renamed from 'app' to 'config' to match ctx.config
@@ -118,7 +132,11 @@ class BrimleyContext(Entity):
     execution: ExecutionSettings    # from 'execution'
     app: Dict[str, Any]             # from 'state'
     databases: Dict[str, Any]       # from 'databases'
-    
+
+    # Read-only observability properties (Brimley 0.6+)
+    correlation_id: str             # Current request correlation ID (ContextVar)
+    external_trace_id: str          # Upstream trace ID (FastMCP request_id, else correlation_id)
+
     # ... registries ...
 ```
 
@@ -127,11 +145,25 @@ class BrimleyContext(Entity):
   - `brimley repl --watch|--no-watch` overrides `auto_reload.enabled`.
   - `brimley mcp-serve --watch|--no-watch` overrides `auto_reload.enabled`.
   - `brimley mcp-serve --host/--port` overrides `mcp.host` and `mcp.port`.
-  - Runtime execution behavior is controlled by `execution.*` (no CLI override in 0.5).
+  - `brimley invoke|repl|mcp-serve --log-level LEVEL` overrides the global stderr log level for this session (Brimley 0.6+).
+  - `brimley invoke|repl|mcp-serve --log-module MODULE:LEVEL` overrides a module-specific log level (may be repeated, Brimley 0.6+).
+  - Runtime execution behavior is controlled by `execution.*`.
 
-  ### Transport Note (0.5)
+  ### Logging Precedence Order (Brimley 0.6+)
 
-  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in 0.5.
+  Effective log level for a given record is resolved highest-to-lowest:
+
+  1. **Per-correlation-ID override** (REPL `/log-level-for-id` or API call)
+  2. **CLI/runtime override** (`--log-level`, `--log-module`, or REPL `/log-level`)
+  3. **`brimley.logging.modules`** (per-module prefix threshold in config)
+  4. **`brimley.logging.level`** (global default, default: `INFO`)
+  5. **Model default** (`INFO` for stderr, `DEBUG` for file sink)
+
+  Logs are **always routed to stderr** (never stdout) to preserve the MCP JSON-RPC stream.
+
+  ### Transport Note (0.6)
+
+  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in 0.6.
   - In hybrid workflows, REPL remains loopback-control-plane oriented and does not share terminal `stdio` with MCP transport.
 
   Precedence: CLI override > config > model default.

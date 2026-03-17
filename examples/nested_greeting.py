@@ -1,7 +1,7 @@
 from brimley import function
 from brimley.core.context import BrimleyContext
 
-@function(name="nested_greeting")
+@function(name="nested_greeting", mcpType="tool")
 def nested_greeting(name: str, ctx: BrimleyContext) -> str:
     """Composes the hello function by invoking it through BrimleyContext."""
     return ctx.execute_function_by_name(

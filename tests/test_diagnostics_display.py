@@ -9,7 +9,7 @@ def _combined_output(result) -> str:
     return f"{result.stdout}{getattr(result, 'stderr', '')}"
 
 def test_diagnostics_table(tmp_path):
-    runner = CliRunner()
+    runner = CliRunner(mix_stderr=False)
     
     # Create a bad function file (missing name)
     (tmp_path / "funcs").mkdir()

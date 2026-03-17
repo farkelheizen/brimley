@@ -1,12 +1,21 @@
 import re
 from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from brimley.core.entity import Entity as BaseEntity, PromptMessage
 
 
 _GENERIC_LIST_PATTERN = re.compile(r"^(?:typing\.)?(?:list|List)\[(.+)\]$")
 _IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_VALID_LOG_LEVELS = {"TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"}
+
+
+def _normalize_log_level(value: str) -> str:
+    normalized = value.strip().upper()
+    if normalized not in _VALID_LOG_LEVELS:
+        valid = ", ".join(sorted(_VALID_LOG_LEVELS))
+        raise ValueError(f"Invalid log level '{value}'. Expected one of: {valid}.")
+    return normalized
 
 
 def normalize_type_expression(
@@ -95,6 +104,77 @@ class FrameworkSettings(BaseSettings):
     env: str = "development"
     app_name: str = "Brimley App"
     log_level: str = "INFO"
+    logging: "LoggingSettings" = Field(default_factory=lambda: LoggingSettings())
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_legacy_log_level(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        logging_section = data.get("logging")
+        legacy_level = data.get("log_level")
+
+        if logging_section is None and legacy_level is not None:
+            data["logging"] = {"level": legacy_level}
+            return data
+
+        if isinstance(logging_section, dict) and "level" not in logging_section and legacy_level is not None:
+            logging_section["level"] = legacy_level
+
+        return data
+
+    @field_validator("log_level")
+    @classmethod
+    def _validate_legacy_log_level(cls, value: str) -> str:
+        return _normalize_log_level(value)
+
+
+class LoggingFileSettings(BaseModel):
+    """Optional file sink settings under brimley.logging.file."""
+
+    model_config = ConfigDict(extra='ignore')
+
+    path: Optional[str] = None
+    level: str = "DEBUG"
+    format: Literal["text", "jsonl"] = "text"
+    rotation: Optional[str] = None
+    retention: Optional[str] = None
+
+    @field_validator("level")
+    @classmethod
+    def _validate_level(cls, value: str) -> str:
+        return _normalize_log_level(value)
+
+
+class LoggingSettings(BaseModel):
+    """Logging settings under brimley.logging."""
+
+    model_config = ConfigDict(extra='ignore')
+
+    level: str = "INFO"
+    modules: Dict[str, str] = Field(default_factory=dict)
+    file: LoggingFileSettings = Field(default_factory=LoggingFileSettings)
+    managed: bool = True
+
+    @field_validator("level")
+    @classmethod
+    def _validate_level(cls, value: str) -> str:
+        return _normalize_log_level(value)
+
+    @field_validator("modules")
+    @classmethod
+    def _validate_modules(cls, value: Dict[str, str]) -> Dict[str, str]:
+        normalized: Dict[str, str] = {}
+        for module_name, level in value.items():
+            key = module_name.strip()
+            if not key:
+                raise ValueError("Logging module names cannot be empty.")
+            normalized[key] = _normalize_log_level(level)
+        return normalized
+
+
+FrameworkSettings.model_rebuild()
 
 class AppConfig(BaseModel):
     """

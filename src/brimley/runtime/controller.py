@@ -9,6 +9,7 @@ from typing import Callable, Optional
 from brimley.config.loader import load_config
 from brimley.core.context import BrimleyContext
 from brimley.discovery.scanner import BrimleyScanResult, Scanner
+from brimley.infrastructure.logging import initialize_logging_for_context
 from brimley.runtime.polling_watcher import PollingWatcher
 from brimley.runtime.reload_contracts import ReloadCommandResult, ReloadCommandStatus
 from brimley.runtime.reload_engine import PartitionedReloadEngine
@@ -39,6 +40,7 @@ class BrimleyRuntimeController:
         config_data = load_config(self.root_dir / "brimley.yaml")
         self.context = BrimleyContext(config_dict=config_data)
         self.context.app["root_dir"] = str(self.root_dir.expanduser().resolve())
+        initialize_logging_for_context(self.context)
 
         self.reload_engine = PartitionedReloadEngine()
         self.auto_reload_watcher: Optional[PollingWatcher] = None

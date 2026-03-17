@@ -1,5 +1,5 @@
 # Brimley Embedded Deployments & Port Management
-> Version 0.5
+> Version 0.6
 
 This guide covers practical deployment patterns when embedding Brimley into host applications, with special focus on MCP transport ownership, port allocation, and reload behavior.
 

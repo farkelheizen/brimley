@@ -1,6 +1,6 @@
 # Brimley Entities
 
-> Version 0.5
+> Version 0.6
 
 Entities are the data structures and domain models in a Brimley application. In 0.5, entities are Python-first and discovered from decorated classes.
 

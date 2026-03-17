@@ -11,7 +11,7 @@ from brimley.runtime.reload_engine import ReloadApplicationResult
 from brimley.utils.diagnostics import BrimleyDiagnostic
 from pathlib import Path
 
-runner = CliRunner()
+runner = CliRunner(mix_stderr=False)
 
 
 def _combined_output(result) -> str:

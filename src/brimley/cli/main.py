@@ -12,6 +12,7 @@ from prompt_toolkit.history import FileHistory
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
+from brimley.infrastructure.logging import initialize_logging_for_context
 from brimley.discovery.scanner import Scanner
 from brimley.discovery.schema_converter import convert_json_schema_to_fieldspec
 from brimley.core.registry import Registry
@@ -70,6 +71,29 @@ def _read_option_value(tokens: list[str], index: int, option_name: str) -> tuple
     if index + 1 >= len(tokens):
         raise typer.BadParameter(f"Option {option_name} requires a value.")
     return tokens[index + 1], index + 2
+
+
+def _parse_log_module_spec(spec: str) -> tuple[str, str]:
+    """Parse a ``MODULE:LEVEL`` log-module override spec.
+
+    Returns a ``(module_name, level)`` tuple.
+    Raises :class:`typer.BadParameter` on invalid format.
+    """
+    if ":" not in spec:
+        raise typer.BadParameter(
+            f"--log-module must be in MODULE:LEVEL format (e.g. 'brimley.execution:DEBUG'), got: {spec!r}"
+        )
+    module, _, level = spec.partition(":")
+    module = module.strip()
+    level = level.strip().upper()
+    if not module:
+        raise typer.BadParameter(f"Module name cannot be empty in --log-module spec: {spec!r}")
+    from brimley.core.models import _VALID_LOG_LEVELS
+
+    if level not in _VALID_LOG_LEVELS:
+        valid = ", ".join(sorted(_VALID_LOG_LEVELS))
+        raise typer.BadParameter(f"Invalid log level {level!r} in --log-module spec. Expected one of: {valid}.")
+    return module, level
 
 
 def _build_repl_daemon_command(
@@ -272,6 +296,8 @@ def repl(
     watch = False
     no_watch = False
     shutdown_daemon = False
+    log_level_override: Optional[str] = None
+    log_module_overrides: dict[str, str] = {}
 
     tokens = list(ctx.args)
     extras: list[str] = []
@@ -304,6 +330,24 @@ def repl(
             continue
         if token == "--shutdown-daemon":
             shutdown_daemon = True
+            index += 1
+            continue
+        if token == "--log-level":
+            log_level_override, index = _read_option_value(tokens, index, token)
+            log_level_override = log_level_override.strip().upper()
+            continue
+        if token.startswith("--log-level="):
+            log_level_override = token.split("=", 1)[1].strip().upper()
+            index += 1
+            continue
+        if token == "--log-module":
+            mod_spec, index = _read_option_value(tokens, index, token)
+            mod_name, mod_level = _parse_log_module_spec(mod_spec)
+            log_module_overrides[mod_name] = mod_level
+            continue
+        if token.startswith("--log-module="):
+            mod_name, mod_level = _parse_log_module_spec(token.split("=", 1)[1])
+            log_module_overrides[mod_name] = mod_level
             index += 1
             continue
         if token.startswith("-"):
@@ -445,6 +489,8 @@ def repl(
                     effective_root,
                     mcp_enabled_override=mcp_enabled_override,
                     auto_reload_enabled_override=auto_reload_enabled_override,
+                    global_level_override=log_level_override,
+                    module_overrides=log_module_overrides or None,
                 )
                 repl_session.start()
     finally:
@@ -461,6 +507,8 @@ def repl_daemon(
     no_mcp = False
     watch = False
     no_watch = False
+    log_level_override: Optional[str] = None
+    log_module_overrides: dict[str, str] = {}
 
     tokens = list(ctx.args)
     extras: list[str] = []
@@ -489,6 +537,24 @@ def repl_daemon(
             continue
         if token == "--no-watch":
             no_watch = True
+            index += 1
+            continue
+        if token == "--log-level":
+            log_level_override, index = _read_option_value(tokens, index, token)
+            log_level_override = log_level_override.strip().upper()
+            continue
+        if token.startswith("--log-level="):
+            log_level_override = token.split("=", 1)[1].strip().upper()
+            index += 1
+            continue
+        if token == "--log-module":
+            mod_spec, index = _read_option_value(tokens, index, token)
+            mod_name, mod_level = _parse_log_module_spec(mod_spec)
+            log_module_overrides[mod_name] = mod_level
+            continue
+        if token.startswith("--log-module="):
+            mod_name, mod_level = _parse_log_module_spec(token.split("=", 1)[1])
+            log_module_overrides[mod_name] = mod_level
             index += 1
             continue
         if token.startswith("-"):
@@ -522,6 +588,8 @@ def repl_daemon(
             effective_root,
             mcp_enabled_override=mcp_enabled_override,
             auto_reload_enabled_override=auto_reload_enabled_override,
+            global_level_override=log_level_override,
+            module_overrides=log_module_overrides or None,
         )
         repl_session.load()
         repl_session.start_auto_reload()
@@ -552,6 +620,8 @@ def mcp_serve(
     no_watch = False
     host: Optional[str] = None
     port: Optional[int] = None
+    log_level_override: Optional[str] = None
+    log_module_overrides: dict[str, str] = {}
 
     tokens = list(ctx.args)
     extras: list[str] = []
@@ -596,6 +666,24 @@ def mcp_serve(
                 raise typer.BadParameter("Option --port must be an integer.") from exc
             index += 1
             continue
+        if token == "--log-level":
+            log_level_override, index = _read_option_value(tokens, index, token)
+            log_level_override = log_level_override.strip().upper()
+            continue
+        if token.startswith("--log-level="):
+            log_level_override = token.split("=", 1)[1].strip().upper()
+            index += 1
+            continue
+        if token == "--log-module":
+            mod_spec, index = _read_option_value(tokens, index, token)
+            mod_name, mod_level = _parse_log_module_spec(mod_spec)
+            log_module_overrides[mod_name] = mod_level
+            continue
+        if token.startswith("--log-module="):
+            mod_name, mod_level = _parse_log_module_spec(token.split("=", 1)[1])
+            log_module_overrides[mod_name] = mod_level
+            index += 1
+            continue
         if token.startswith("-"):
             raise typer.BadParameter(f"Unknown option: {token}")
         extras.append(token)
@@ -614,6 +702,11 @@ def mcp_serve(
 
     context = BrimleyContext(config_dict=load_config(config_path))
     context.app["root_dir"] = str(root_path.expanduser().resolve())
+    initialize_logging_for_context(
+        context,
+        global_level_override=log_level_override,
+        module_overrides=log_module_overrides or None,
+    )
 
     effective_watch = watch_override if watch_override is not None else context.auto_reload.enabled
     effective_host = host if host is not None else context.mcp.host
@@ -1017,6 +1110,8 @@ def invoke(
     # option values as extra positional args and leave option values as None.
     effective_root_dir = Path(".")
     effective_input_data = "{}"
+    log_level_override: Optional[str] = None
+    log_module_overrides: dict[str, str] = {}
     tail = list(names[1:])
     extras: list[str] = []
     index = 0
@@ -1036,6 +1131,24 @@ def invoke(
             continue
         if token.startswith("--input="):
             effective_input_data = token.split("=", 1)[1]
+            index += 1
+            continue
+        if token == "--log-level":
+            log_level_value, index = _read_option_value(tail, index, token)
+            log_level_override = log_level_value.strip().upper()
+            continue
+        if token.startswith("--log-level="):
+            log_level_override = token.split("=", 1)[1].strip().upper()
+            index += 1
+            continue
+        if token == "--log-module":
+            mod_spec, index = _read_option_value(tail, index, token)
+            mod_name, mod_level = _parse_log_module_spec(mod_spec)
+            log_module_overrides[mod_name] = mod_level
+            continue
+        if token.startswith("--log-module="):
+            mod_name, mod_level = _parse_log_module_spec(token.split("=", 1)[1])
+            log_module_overrides[mod_name] = mod_level
             index += 1
             continue
         if token.startswith("-"):
@@ -1060,6 +1173,11 @@ def invoke(
     config_data = load_config(config_path)
     context = BrimleyContext(config_dict=config_data)
     context.app["root_dir"] = str(root_path.expanduser().resolve())
+    initialize_logging_for_context(
+        context,
+        global_level_override=log_level_override,
+        module_overrides=log_module_overrides or None,
+    )
 
     # Hydrate databases
     if context.databases:

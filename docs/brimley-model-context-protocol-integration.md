@@ -1,6 +1,6 @@
 # Model Context Protocol (MCP) Integration
 
-> Version 0.5
+> Version 0.6
 
 This document describes the current experimental MCP integration in Brimley. It is intended for iterative development and validation, not as a production-readiness statement.
 

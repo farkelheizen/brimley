@@ -1,5 +1,5 @@
 # Brimley Function Arguments
-> Version 0.5
+> Version 0.6
 
 This specification defines argument inference and validation rules for Brimley functions.
 

@@ -1,6 +1,6 @@
 # Brimley Context
 
-> Version 0.5
+> Version 0.6
 
 The `BrimleyContext` is the central nervous system of a Brimley application.
 
@@ -31,6 +31,8 @@ class BrimleyContext(Entity):
 |`functions`|N/A|**Resolved**|Registry of internal Brimley functions.|
 |`entities`|N/A|**Resolved**|Registry of domain models.|
 |`databases`|`databases:`|**Managed**|Active SQLAlchemy engines.|
+|`correlation_id`|N/A|**Read-Only**|Unique 8-char request correlation ID (ContextVar-backed). Generated per top-level `Dispatcher.run()` call; inherited by nested calls. Available as `ctx.correlation_id` (0.6+).|
+|`external_trace_id`|N/A|**Read-Only**|Upstream trace ID from FastMCP `request_id`, or falls back to `correlation_id` for local-only runs. Available as `ctx.external_trace_id` (0.6+).|
 
 ## Fields
 
@@ -111,7 +113,21 @@ class BrimleyContext(Entity):
     - **Type**: `Dict[str, Engine]`
         
     - **Purpose**: A registry of active database connection pools (SQLAlchemy engines).
-        
+10. **`correlation_id`** *(0.6+)*:
+
+    - **Type**: `str` (read-only property)
+
+    - **Purpose**: Returns the current request correlation ID from the active `ContextVar`. Used to correlate logs across nested function calls and async contexts.
+
+    - **Access**: `ctx.correlation_id`
+
+11. **`external_trace_id`** *(0.6+)*:
+
+    - **Type**: `str` (read-only property)
+
+    - **Purpose**: Returns the upstream trace ID sourced from FastMCP `mcp_ctx.request_id`, or falls back to `correlation_id` for local-only runs. Included in every log record for distributed tracing alignment.
+
+    - **Access**: `ctx.external_trace_id`        
 
 ## Lifecycle
 
