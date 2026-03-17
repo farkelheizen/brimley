@@ -8,7 +8,7 @@ from brimley.core.models import SqlFunction, TemplateFunction
 from brimley.discovery.runtime import scan_module
 
 
-runner = CliRunner()
+runner = CliRunner(mix_stderr=False)
 
 
 def _load_module_from_path(module_name: str, path):

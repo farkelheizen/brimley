@@ -65,8 +65,18 @@ class MockMCPSession:
 
 class MockMCPContext:
     """
-    Lightweight context shim that exposes a `session.sample` interface.
+    Lightweight context shim that exposes a `session.sample` interface and a
+    direct async `sample()` method matching the FastMCP Context API.
     """
 
     def __init__(self, response_text: str = "Mock response from Brimley", model: str = "mock-model") -> None:
         self.session = MockMCPSession(response_text=response_text, model=model)
+        self._response_text = response_text
+
+    async def sample(self, *args: Any, **kwargs: Any) -> MockMCPTextContent:
+        """Async sampling shim matching the FastMCP Context.sample() signature.
+
+        Returns a MockMCPTextContent whose `.text` holds the configured response,
+        matching what agent_sample.py reads via ``sample.text``.
+        """
+        return MockMCPTextContent(text=self._response_text)

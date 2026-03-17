@@ -9,7 +9,7 @@ from brimley.utils.diagnostics import BrimleyDiagnostic
 from brimley.infrastructure import logging as logging_infra
 from pathlib import Path
 
-runner = CliRunner()
+runner = CliRunner(mix_stderr=False)
 
 
 class FakeLoguruLogger:

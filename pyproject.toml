@@ -8,9 +8,14 @@ authors = [
     {name = "Bill Spratley", email = "billspratley@gmail.com"}
 ]
 requires-python = ">=3.10,<4.0"
+keywords = ["mcp", "tools", "function-execution", "ai-tooling", "llm"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
 ]
@@ -24,11 +29,16 @@ dependencies = [
     "prompt_toolkit>=3.0",
     "sqlalchemy>=2.0.46",
     "loguru>=0.7.2",
-    "fastmcp (>=3.1.1,<4.0.0)",
 ]
 
 [project.optional-dependencies]
-fastmcp = ["fastmcp"]
+fastmcp = ["fastmcp>=3.1.1,<4.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/farkelheizen/brimley"
+Source = "https://github.com/farkelheizen/brimley"
+Issues = "https://github.com/farkelheizen/brimley/issues"
+Changelog = "https://github.com/farkelheizen/brimley/blob/main/CHANGELOG.md"
 
 [project.scripts]
 brimley = "brimley.cli.main:app"
@@ -37,7 +47,7 @@ brimley = "brimley.cli.main:app"
 packages = [{include = "brimley", from = "src"}]
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.0"
+pytest = "^8.0"
 
 [build-system]
 requires = ["poetry-core"]
