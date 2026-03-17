@@ -17,6 +17,8 @@ Use this file as the fast lookup index before implementation.
    - Open: `docs/brimley-model-context-protocol-integration.md`
 6. **Need config or context fields?**
    - Open: `docs/brimley-configuration.md`, `docs/brimley-context.md`
+7. **Need to understand *why* a roadmap or architectural decision was made?**
+   - Open: `docs/decisions/README.md` for the index, then the relevant numbered ADR.
 
 ---
 
@@ -42,6 +44,7 @@ Use this file as the fast lookup index before implementation.
 | Naming and identifier constraints | `docs/brimley-naming-conventions.md` | `docs/brimley-functions.md` |
 | Logging, observability, correlation IDs, dual-sink, log levels, log format | `docs/roadmap/brimley-0.6-logging-architecture.md` | `docs/brimley-configuration.md`, `docs/brimley-repl-admin-commands.md`, `docs/brimley-cli-and-repl-harness.md` |
 | Deferred feature ideas, future enhancements | `docs/roadmap/brimley-wish-list.md` | `docs/roadmap/index.md` |
+| Architecture & roadmap decision history (ADRs) | `docs/decisions/README.md` | Individual ADR files in `docs/decisions/` |
 | Repository/layout/dependency reference | `docs/brimley-project-structure.md` | `docs/brimley-application-structure.md` |
 | App-level file layout for Brimley projects | `docs/brimley-application-structure.md` | `docs/brimley-project-structure.md` |
 
@@ -58,6 +61,7 @@ Use this file as the fast lookup index before implementation.
 - **diagnostics, error codes, wall of shame** → `brimley-diagnostics-and-error-reporting.md`
 - **SQL params, SQLAlchemy engine, `rows_affected`** → `brimley-sql-functions.md`, `brimley-sql-execution.md`
 - **logging levels, Loguru, correlation ID, dual-sink, log hijacking, JSONL logs, --log-level, --log-module** → `docs/roadmap/brimley-0.6-logging-architecture.md`, `brimley-configuration.md`, `brimley-repl-admin-commands.md`
+- **ADR, architecture decision, roadmap rationale, why was X deferred, release order** → `docs/decisions/README.md`
 - **wish list, deferred features, future ideas, WL-** → `docs/roadmap/brimley-wish-list.md`
 
 ---

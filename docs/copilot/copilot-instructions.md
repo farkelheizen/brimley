@@ -17,6 +17,8 @@ This repository is a **Poetry-managed Python project**.
 
 - **Docs Routing Map (Start Here):** Always open `docs/copilot/copilot-docs-reference.md` first to quickly route to the correct spec(s) for the task.
 
+- **Architecture Decision Records:** Significant architectural and roadmap decisions are recorded in `docs/decisions/`. Before implementing a feature that touches the roadmap order, runner types, secrets handling, or plugin architecture, check whether a relevant ADR exists. See `docs/decisions/README.md` for the full index.
+
 - **Plan Template:** Use `docs/copilot/copilot-plan-template.md` for all new plans.
 
 - **Plan Doc:** This will be a markdown file under `docs` and must follow the template sections exactly (Problem Summary, Goal, Scope, Constraints, Implementation Plan table, Step Details, Acceptance Criteria, Risks/Notes, Validation Plan, Step Notes Log, Copilot Execution Protocol).

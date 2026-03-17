@@ -53,6 +53,9 @@ brimley/
 │           ├── __init__.py
 │           └── diagnostics.py
 ├── docs/                   # Documentation (flat structure)
+│   ├── decisions/          # Architecture Decision Records (ADRs)
+│   │   ├── README.md       # ADR index and process guide
+│   │   └── NNNN-<slug>.md  # Individual ADRs (numbered sequentially)
 │   ├── brimley-cli-and-repl-harness.md
 │   ├── brimley-context.md
 │   ├── brimley-diagnostics-and-error-reporting.md
