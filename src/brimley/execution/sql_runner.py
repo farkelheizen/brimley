@@ -35,9 +35,9 @@ class SqlRunner:
             if result.returns_rows:
                 # Return list of dicts
                 raw_rows = [dict(row) for row in result.mappings()]
+                conn.commit()
                 return ResultMapper.map_result(raw_rows, func, context)
             else:
-                # Commit for INSERT/UPDATE/DELETE if auto-commit isn't on by default
                 conn.commit()
                 # If the shape is void, we return None as per ResultMapper logic
                 if func.return_shape == "void" or not func.return_shape:

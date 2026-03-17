@@ -115,6 +115,30 @@ def test_sql_execution_insert(runner, context):
         res = conn.execute(text("SELECT name FROM users WHERE id = 3")).mappings().one()
         assert res["name"] == "Charlie"
 
+def test_sql_execution_insert_returning_commits(runner, context):
+    func = SqlFunction(
+        name="add_user_returning",
+        type="sql_function",
+        return_shape="dict[]",
+        sql_body="INSERT INTO users (id, name, email) VALUES (:id, :name, :email) RETURNING id, name",
+        arguments={
+            "inline": {
+                "id": "int",
+                "name": "string",
+                "email": "string"
+            }
+        }
+    )
+
+    result = runner.run(func, {"id": 4, "name": "Dora", "email": "dora@example.com"}, context)
+
+    assert result == [{"id": 4, "name": "Dora"}]
+
+    engine = context.databases["default"]
+    with engine.connect() as conn:
+        res = conn.execute(text("SELECT name FROM users WHERE id = 4")).mappings().one()
+        assert res["name"] == "Dora"
+
 def test_sql_execution_missing_connection(runner):
     context = BrimleyContext()
     # No databases registered
