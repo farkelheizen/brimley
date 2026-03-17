@@ -48,6 +48,7 @@ packages = [{include = "brimley", from = "src"}]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
+twine = "^6.2.0"
 
 [build-system]
 requires = ["poetry-core"]
