@@ -103,7 +103,11 @@ Defined in [MCP Integration](brimley-model-context-protocol-integration.md), thi
 
 - **Provider-First Integration**: MCP tool registration uses `BrimleyProvider` as the primary integration surface, with adapter naming retained only as a compatibility shim.
 
-### G. Logging & Observability
+### G. Architecture Decision Records
+
+Significant architectural and roadmap decisions are recorded as [Architecture Decision Records (ADRs)](decisions/README.md). ADRs capture the context that forced a decision, the decision itself, and the consequences — both positive and trade-offs accepted. Consult the ADR index before modifying roadmap order, runner types, secrets handling, or the plugin architecture.
+
+### H. Logging & Observability
 
 Defined in [Logging Architecture](../roadmap/brimley-0.6-logging-architecture.md) (0.6+):
 

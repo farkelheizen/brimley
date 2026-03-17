@@ -1,8 +1,12 @@
-# Brimley 0.9: Plugin Architecture (Custom Function Types)
+# Brimley 0.13: Plugin Architecture (External Runners)
+
+> **ADR Reference:** [ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.13.md) — deferred from the original v0.9 slot to v0.13.
+>
+> **Note on `BaseRunner`:** The `BaseRunner` interface ships in **v0.7** as Brimley's internal execution contract. `ApiRunner` and `CliRunner` implement it. v0.13 adds **dynamic external loading** of third-party runners — it does not redesign the interface.
 
 ## Overview
 
-Brimley 0.9 moves away from a hard-coded set of function types. By introducing a formal **Runner Plugin** interface, developers can extend Brimley to support new execution environments (e.g., `lambda_function`, `grpc_function`, or `deno_script`) by providing custom scanning and execution logic.
+Brimley 0.13 opens the `BaseRunner` interface to the community. By adding dynamic plugin loading to the `brimley.yaml` `plugins:` block, developers can extend Brimley to support new execution environments (e.g., `lambda_function`, `grpc_function`, `deno_script`) without modifying the core.
 
 ## 1. The Runner Interface
 
@@ -73,14 +77,15 @@ class DenoRunner(BaseRunner):
 - **Community Ecosystem:** Developers can share runners for specific clouds (Azure, GCP), specific protocols (GraphQL, gRPC), or specific languages (Ruby, Go).
     
 
-## 6. Internal Refactoring
+## 6. Context: `BaseRunner` Ships in v0.7
 
-To support this, the core `sql`, `api`, and `cli` runners in Brimley 0.9 will be refactored to use this exact same plugin interface, making the core of Brimley "dogfood" its own extensibility model.
+The `sql`, `api`, and `cli` runners already implement `BaseRunner` as first-party built-in runners starting in v0.7. They are **not** refactored in v0.13 — they already use the interface. v0.13 adds the dynamic loading mechanism so community-contributed runners can be registered via `brimley.yaml` without modifying core code.
 
-References:
-- [API Functions](./brimley-0.9-api-functions.md)
-- [CLI Functions](./brimley-0.9-cli-functions.md)
+The 200ms startup budget concern is addressed by lazy-loading: third-party runner modules are imported only when a file matches their `can_handle()` predicate, not at startup.
 
-## Unresolved Architectural Feedback
+## References
 
-*   **Startup Time Impact (v1.0 Concern):** With a plugin registry initiating via YAML, achieving a 200ms startup is extremely ambitious for Python. Strict lazy-loading architectures will be necessary.
+- [ADR-0004: Defer Plugin Architecture to v0.13](../decisions/0004-defer-plugin-architecture-to-v0.13.md)
+- [Brimley 0.7 API Functions](brimley-0.7-api-functions.md)
+- [Brimley 0.7 CLI Functions](brimley-0.7-cli-functions.md)
+

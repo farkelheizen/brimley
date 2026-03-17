@@ -1,29 +1,27 @@
 # Brimley
 
-Experimental MCP tooling runtime for testing faster iteration loops.
+Early-stage MCP tooling runtime focused on faster iteration loops.
 
-> Status: Brimley is currently experimental and not ready for production use. This project is intended to prove out a faster MCP development workflow, not to provide a hardened production platform.
+> Status: Brimley is not yet ready for production use. It is aimed at improving the MCP development workflow and is still under active development.
 
 Brimley is an authoring and execution engine for function-based AI tooling. It is focused on reducing the change/test loop during MCP tool development: change code -> reload -> re-test.
 
-## Why teams use Brimley
+## Design goals
 
-- **Faster iteration loop:** author tools in `.py`, `.sql`, and `.md` files and execute them immediately.
+- **Faster iteration loop:** author tools in `.py`, `.sql`, and `.md` files and execute them immediately, without a full redeploy cycle.
 - **Safer change workflow:** discovery is AST-first for Python (no import-time execution during scan), with diagnostics instead of immediate process termination.
 - **Live runtime ergonomics:** use a thin REPL client attached to a daemon-owned runtime, with optional watch-mode reload.
 - **MCP integration path:** expose selected functions as MCP tools via FastMCP when needed.
 - **Operations clarity:** built-in reload diagnostics, runtime error surfacing, and explicit daemon lifecycle controls.
 
-In short: Brimley is an experiment aimed at shortening feedback loops while MCP tooling behavior is still being developed.
-
-## What makes Brimley different
+## Architectural approach
 
 Brimley separates **tool authoring/execution semantics** from **MCP transport hosting**:
 
 - Brimley handles discovery, schemas, argument resolution, execution, reload policy, and diagnostics.
 - FastMCP (optional) handles MCP server transport.
 
-This keeps function logic reusable across local REPL workflows, dedicated MCP serving, and host-embedded deployments.
+Keeping function logic separate from transport makes it reusable across local REPL workflows, dedicated MCP serving, and host-embedded deployments.
 
 ## Quick Start
 
@@ -129,5 +127,3 @@ PYTHONPATH=src poetry run brimley mcp-serve --root .
 - [Configuration](docs/brimley-configuration.md)
 - [Discovery & loader spec](docs/brimley-discovery-and-loader-specification.md)
 - [MCP integration](docs/brimley-model-context-protocol-integration.md)
-
-

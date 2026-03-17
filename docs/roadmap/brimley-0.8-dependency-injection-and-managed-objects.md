@@ -1,8 +1,42 @@
 # Brimley 0.8: Dependency Injection & Managed Objects
 
+> **ADR Reference:** [ADR-0001](../decisions/0001-swap-di-and-mocking-order.md) — DI precedes Mocking so that the Mocking framework can integrate via `BrimleyContainer.override()` rather than building a redundant standalone registry.
+
 ## Overview
 
-Brimley 0.8 introduces a lightweight Dependency Injection (DI) system inspired by Spring (Java) and FastAPI (Python). This system allows developers to define managed objects ("Providers") that can be injected into Python functions, ensuring decoupled logic and easy testability.
+Brimley 0.8 introduces a lightweight, **custom** Dependency Injection system. It is deliberately minimal in scope and built from scratch to work within Brimley's AST-scanning architecture.
+
+### Why a Custom DI System?
+
+Brimley discovers Python functions via **zero-execution AST scanning** — it parses files with `ast.parse()` without importing or running user modules. Off-the-shelf DI libraries (`dependency-injector`, `injector`, `wireup`, etc.) require importing the container module and executing provider factory functions to wire up the dependency graph. This is fundamentally incompatible with the scanner model.
+
+**`BrimleyContainer` uses a two-phase design:**
+
+1. **Scan phase (AST, no imports):** The `@provider` decorator is detected via AST. The scanner records provider metadata (name, scope, module path, function signature) into the Registry — nothing is constructed or imported.
+2. **Startup phase (after import):** `BrimleyContainer` imports provider modules and constructs singletons. Request-scoped providers are constructed per `Dispatcher.run()` call.
+
+This mirrors the existing `@function` and `@entity` two-phase discovery pattern. Providers are simply another type of registered artifact.
+
+### Intentionally Minimal Scope
+
+v0.8 DI is not a general-purpose injection framework. Only the following patterns are in scope:
+
+**In scope:**
+- `@provider(scope="singleton")` — constructed once at startup, shared globally
+- `@provider(scope="request")` — constructed per `Dispatcher.run()` call
+- `Depends()` — inject a provider's value into a `@function` argument
+- `@on_startup` — run a callable after all singletons are initialized
+- `@on_shutdown` — run a callable on graceful shutdown
+
+**Explicitly out of scope:**
+- Named/qualified bindings and multibindings
+- Interceptors or middleware hooks
+- Circular dependency resolution
+- Property injection
+- Hierarchical containers / child scopes
+- Any XML, annotation, or config-file-based wiring
+
+This covers 100% of the known v0.8 use cases: managed DB pools, `httpx.AsyncClient` singletons, `SecretProvider` credential sources, and startup/shutdown lifecycle hooks.
 
 ## 1. The Managed Container
 
@@ -48,9 +82,9 @@ async def fetch_secure_data(
     return response.json()
 ```
 
-## 4. Named Dependencies (Multiple Instances)
+## 4. Named Dependencies
 
-For cases where you need multiple instances of the same type, you can use the `name` attribute in the provider and inject via `Depends("name")`.
+> **Out of scope for v0.8.** Named/qualified bindings are explicitly deferred (see Minimal Scope above). All providers in v0.8 are identified by their Python function reference passed to `Depends()`. Named string-based injection is not supported.
 
 ## 5. Lifecycle Management: Startup & Shutdown
 
@@ -89,23 +123,38 @@ The `SqlRunner` is refactored to depend on a managed provider named `db_conne
 
 Dependencies can depend on other dependencies or the current `BrimleyContext`.
 
-### B. Dependency Overriding (Mocking)
+### B. Dependency Overriding (Mocking — v0.9)
 
-The `MockRegistry` is integrated into the DI system. In `brimley test`, you can override a production provider with a mock version.
+`BrimleyContainer` exposes an `override()` API that the v0.9 Mocking framework consumes:
+
+```python
+container.override(provider_name, mock_impl)
+```
+
+The original standalone `MockRegistry` pattern from the v0.7 draft (parallel registry, Dispatcher-level intercept) is **abandoned**. The v0.9 Mocking spec is written from scratch on this interface. `@brimley.mock` becomes syntactic sugar for registering a test-scoped override. The `container.override()` method must be exposed in v0.8 — even though the Mocking framework is not yet built — so that v0.9 has a stable seam to integrate against.
+
+### C. SecretProvider: Activating the `provider` Secret Source
+
+API and CLI functions defined in v0.7 may declare `provider` sources in their `secrets:` block (see [ADR-0003](../decisions/0003-secrets-block-ordered-resolution.md)). In v0.7 these sources raise `BrimleySecretResolutionError` at startup. In v0.8, `BrimleyContainer` activates them:
+
+```yaml
+secrets:
+  api_key:
+    - env: MY_API_KEY        # v0.7: tried first
+    - provider: api_creds    # v0.8+: now functional
+```
+
+The runner resolution logic calls `container.resolve(provider_name)` when it encounters a `provider:` source. No YAML changes are required in functions written for v0.7.
 
 ## 8. Implementation Strategy
 
 ### The Startup Sequence
 
-1. **Scan:** The `Scanner` builds the `Registry` (AST-only).
-    
-2. **Register:** Providers and Hooks are identified.
-    
-3. **Initialize Hooks:** All `@on_startup` functions are awaited. Arguments are resolved via the `DependencyResolver`.
-    
-4. **Eager Load:** All `@provider(eager=True)` instances are created.
-    
-5. **Ready:** The application begins listening for commands/requests.
+1. **Scan (AST, no imports):** The `Scanner` builds the `Registry`. `@provider` decorators are detected via AST; metadata (name, scope, module path, signature) is recorded without importing or constructing anything.
+2. **Import:** `BrimleyContainer` imports provider modules.
+3. **Eager Load:** All `@provider(eager=True)` instances are constructed and yielded.
+4. **Startup Hooks:** All `@on_startup` callables are awaited in declaration order. Arguments are resolved via the `DependencyResolver`.
+5. **Ready:** The application begins accepting requests. Lazy `singleton` providers are constructed on first `Depends()` resolution. `request`-scoped providers are constructed per `Dispatcher.run()` call.
     
 
 ## 9. Error Handling & Fail-Fast Policy

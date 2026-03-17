@@ -4,22 +4,21 @@ This document outlines the sequential release strategy for Brimley, focusing on 
 - **Significant Change:** [Logging Architecture](brimley-0.6-logging-architecture.md)
 - **Why first?** Trace execution across async boundaries is foundational for debugging complex agentic loops.
 - **Key Feature:** 8-character `correlation_id` propagation via `ContextVar`.
-## v0.7: The Developer Loop (Mocking Framework)
-- **Significant Change:** [Mocking Framework & MCP Interactivity](brimley-0.7-mocking-framework-and-mcp-interactivity.md)
-- **Why?** Enables "Offline Development" to simulate DBs, APIs, and LLM responses without leaving the REPL.
-- **Key Feature:** The `MockRegistry` and `mocks/` directory scanning.
-## v0.8: Core Refactor (Dependency Injection)
+## v0.7: External Runners (API & CLI Functions)
+- **Significant Change:** [API Functions](brimley-0.7-api-functions.md) · [CLI Functions](brimley-0.7-cli-functions.md)
+- **Why now?** Immediate production need to wrap OS commands and HTTP APIs as first-class Brimley functions. The core runner loop has no structural dependency on DI or Mocking. See [ADR-0002](../decisions/0002-accelerate-api-cli-to-v0.7.md).
+- **Key Features:** `BaseRunner` interface, `ApiRunner` (httpx), `CliRunner` (asyncio subprocess), `secrets:` block with ordered-source resolution (env only; provider deferred to v0.8), Security Acceptance gate required before release.
+- **Secrets Design:** See [ADR-0003](../decisions/0003-secrets-block-ordered-resolution.md) for the ordered-resolution schema, applicable to all four YAML-based function types.
+
+## v0.8: Core Infrastructure (Dependency Injection)
 - **Significant Change:** [Dependency Injection & Managed Objects](brimley-0.8-dependency-injection-and-managed-objects.md)
-- **Why?** Cleans up runner resource access (e.g., SQL connections) and enables lifecycle hooks.
-- **Feature Extension (State Persistence):** Implementation of a persistence engine (SQLite-backed) for the existing `ctx.state` to ensure agent memory survives restarts.
-- **Key Feature:** `@provider`, `Depends()`, and `on_startup` hooks.
-## v0.9: Extensibility (Plugins, API & CLI Functions)
-- **Significant Change:** [Plugin Architecture (Custom Function Types](brimley-0.9-plugin-architecture-custom-function-types.md) 
-- **Why?** Formalizes the "Runner" interface to support [API](brimley-0.9-api-functions.md) and [CLI](brimley-0.9-cli-functions.md) functions as internal plugins.
-- **Feature Extension (Secrets & Manifests):**
-    - **Secrets:** A `SecretProvider` to safely inject credentials into API/CLI calls.
-    - **Manifests:** `brimley manifest` to export function/entity [schemas](copilot-schema-reference-guide.md) for external Copilot platforms.
-- **Key Feature:** `.yaml` based HTTP and Shell command wrapping.
+- **Why before Mocking?** Mocking is a consumer of DI — `MockRegistry` integrates via `BrimleyContainer.override()`. Building Mocking before DI would produce a redundant standalone registry that gets rewritten. See [ADR-0001](../decisions/0001-swap-di-and-mocking-order.md).
+- **Key Features:** Custom AST-aware `BrimleyContainer` (no off-the-shelf DI library — incompatible with zero-execution scanner), `@provider(scope="singleton"|"request")`, `Depends()`, `@on_startup`, `@on_shutdown`. Activates `provider` secret sources defined in v0.7 function YAMLs.
+
+## v0.9: Developer Loop (Mocking Framework)
+- **Significant Change:** [Mocking Framework & MCP Interactivity](brimley-0.9-mocking-framework-and-mcp-interactivity.md)
+- **Why after DI?** The v0.9 spec is a complete rewrite of the original v0.7 draft: `MockRegistry` is replaced by `BrimleyContainer.override()`; `@brimley.mock` becomes syntactic sugar for a test-scoped provider override. See [ADR-0001](../decisions/0001-swap-di-and-mocking-order.md).
+- **Key Features:** `container.override(provider_name, mock_impl)`, `@brimley.mock` decorator, `mocks/` directory scanning, REPL offline development for API/CLI functions.
 ## v0.10: The Quality Bar (Testing Framework)
 - **Significant Change:** [Testing Framework](brimley-0.10-testing-framework.md)
 - **Why?** Provides a unified way to verify Python, SQL, API, and CLI functions.
@@ -35,6 +34,15 @@ This document outlines the sequential release strategy for Brimley, focusing on 
 - **Why?** Final structural enhancement. Optimizing execution via TTL and conditional watches.
 - **Feature Extension (Agentic Flows):** `type: workflow` for declarative, YAML-based multi-step agent "macros" (Chains).
 - **Key Feature:** `watch_sql` invalidation and LRU memory management.
+## v0.13: External Extensibility (Plugin Architecture)
+- **Significant Change:** [Plugin Architecture (Custom Function Types)](brimley-0.13-plugin-architecture-custom-function-types.md)
+- **Why deferred?** The `BaseRunner` interface ships as an internal contract in v0.7. Dynamic external plugin loading (arbitrary module loading, startup security surface, 200ms startup budget) is a distinct problem. See [ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.13.md).
+- **Key Features:** `plugins:` block in `brimley.yaml`, dynamic `can_handle`/scanner handshake for third-party runners, community runner ecosystem.
+
+## v0.14: Manifest & Schema Export
+- **Why deferred?** `brimley manifest` requires a stable, finalized API surface across all function types and runners. Deferring until v0.13+ ensures the schema is not a moving target. See [ADR-0005](../decisions/0005-defer-manifest-to-v0.14.md).
+- **Key Features:** `brimley manifest` command, exports function/entity schemas for external Copilot platforms.
+
 ## The Path to v1.0
 
 Brimley will remain in the 0.x series until the following "Real-World Validation" criteria are met:
