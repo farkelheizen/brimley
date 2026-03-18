@@ -6,7 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [0.6.0] – 2026-03-16
+## [0.6.1] - 2026-03-17
+
+### Fixed
+
+- SQL functions now commit correctly when DML statements return rows (for example `INSERT ... RETURNING` in SQLite). `SqlRunner` now commits after consuming row-returning results, preventing writes from being dropped on successful execution.
+- Added regression coverage for row-returning DML commit behavior via `test_sql_execution_insert_returning_commits` in `tests/test_execution_sql.py`.
+
+### Changed
+
+- Documentation versioning policy is now standardized around baseline markers (for example `Docs baseline: 0.6.x`) to reduce per-doc point-version churn.
+- Removed stale per-doc `Version 0.6` headers in active specs and normalized outdated historical body wording where exact point versions were no longer semantically necessary.
+
+## [0.6.0] - 2026-03-16
 
 ### Added
 
