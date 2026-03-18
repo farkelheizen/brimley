@@ -1,5 +1,4 @@
 # Brimley Embedded Deployments & Port Management
-> Version 0.6
 
 This guide covers practical deployment patterns when embedding Brimley into host applications, with special focus on MCP transport ownership, port allocation, and reload behavior.
 
@@ -14,7 +13,7 @@ Use this for local development when a human and an MCP client should target the 
 - MCP clients connect to configured host/port (default `127.0.0.1:8000`).
 
 Notes:
-- In 0.5, hybrid mode keeps MCP server runtime in daemon process context to avoid REPL/MCP stdio conflicts.
+- Hybrid mode keeps MCP server runtime in daemon process context to avoid REPL/MCP stdio conflicts.
 - Logic-only tool changes can refresh in place.
 - MCP schema-shape changes require provider reinitialization/restart so clients can reconnect with updated schemas.
 - Use `/detach` to disconnect thin client while keeping daemon running; use `repl --shutdown-daemon` (or daemon-side `/quit`) for shutdown.

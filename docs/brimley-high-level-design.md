@@ -1,5 +1,5 @@
 # Brimley High-Level Design
-> Version 0.6
+> Docs baseline: 0.6.x
 
 > Status note: Brimley is currently experimental and this design is intended to support fast MCP development iteration, not to claim production readiness.
 
@@ -45,7 +45,7 @@ Defined in [Discovery & Loader](brimley-discovery-and-loader-specification.md), 
     
 - **Parsing (Zero-Execution AST for Python)**: Parsing Python files with `ast.parse()` to discover `@function` and `@entity` markers without importing or executing user modules.
 
-- **Compatibility**: Python discovery is decorator-only (legacy YAML frontmatter fallback was removed in 0.5).
+- **Compatibility**: Python discovery is decorator-only (legacy YAML frontmatter fallback was removed).
     
 - **Validation**: Enforcing [Naming Conventions](brimley-naming-conventions.md) and schema requirements.
     

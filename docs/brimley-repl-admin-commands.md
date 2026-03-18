@@ -1,7 +1,5 @@
 # Brimley REPL Admin Commands
 
-> Version 0.6
-
 To improve observability and usability, the Brimley REPL supports "Admin Commands". These are meta-commands prefixed with `/` that interact with the Brimley runtime itself rather than executing business logic functions.
 
 ## 1. Syntax

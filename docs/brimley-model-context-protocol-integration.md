@@ -1,7 +1,5 @@
 # Model Context Protocol (MCP) Integration
 
-> Version 0.6
-
 This document describes the current experimental MCP integration in Brimley. It is intended for iterative development and validation, not as a production-readiness statement.
 
 With support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/ "null"), you can expose Brimley functions as tools to LLM clients and agent frameworks.
@@ -231,9 +229,9 @@ runtime.start_auto_reload(background=True)
 
 This keeps external-host MCP tools aligned with Brimley function changes while preserving existing runtime domains when reload failures occur.
 
-## 0.5 Migration Note (Adapter → Provider)
+## Migration Note (Adapter → Provider)
 
-- `BrimleyProvider` is the primary MCP integration surface in 0.5.
+- `BrimleyProvider` is the primary MCP integration surface.
 - `BrimleyMCPAdapter` remains available as a compatibility shim during transition.
 - `ProviderMCPRefreshManager` is the primary host-managed refresh manager; `ExternalMCPRefreshAdapter` is compatibility naming.
 - Migration path: replace direct adapter/legacy refresh-manager imports with provider/manager imports shown above.

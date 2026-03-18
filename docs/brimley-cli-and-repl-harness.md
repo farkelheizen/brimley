@@ -1,5 +1,4 @@
 # Brimley CLI & REPL Harness
-> Version 0.6
 
 The CLI is the primary interface for invoking and testing functions. It is designed to be "pipe-friendly" for automation while providing a rich interactive environment for developers.
 
