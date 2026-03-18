@@ -1,7 +1,14 @@
 # Copilot Docs Reference Map (Brimley)
-> Version 0.1
+> Docs baseline: 0.6.x
 
 Use this file as the fast lookup index before implementation.
+
+## Documentation Versioning Convention
+
+- Treat specs as baseline docs (for example, `0.6.x`), not exact release trackers.
+- Keep exact versions in `pyproject.toml`, `CHANGELOG.md`, and release tags.
+- Update a spec doc only when that doc's behavior/content changed.
+- Use body markers like `Introduced in 0.6+` only when they add semantic clarity.
 
 ## Quick Routing Rules
 

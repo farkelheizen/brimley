@@ -1,7 +1,5 @@
 # Brimley Template Functions
 
-> Version 0.6
-
 Brimley Template Functions are defined in `.md` or `.yaml` files. They exist to generate dynamic strings or prompt messages based on the arguments defined.
 
 ## Properties

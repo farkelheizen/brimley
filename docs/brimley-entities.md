@@ -1,10 +1,8 @@
 # Brimley Entities
 
-> Version 0.6
+Entities are the data structures and domain models in a Brimley application. Entities are Python-first and discovered from decorated classes.
 
-Entities are the data structures and domain models in a Brimley application. In 0.5, entities are Python-first and discovered from decorated classes.
-
-## 1. Entity Definition Model (0.5)
+## 1. Entity Definition Model
 
 Use `@entity` on Python classes (typically Pydantic models):
 
@@ -28,7 +26,7 @@ Brimley records metadata for discovery and registers the entity with type `pytho
 
 ## 2. YAML Entity Deprecation
 
-YAML-based entity files are deprecated in the 0.5 decorator-first model.
+YAML-based entity files are deprecated in the decorator-first model.
 
 - Prefer Python entity classes with `@entity`.
 - Existing YAML entity references should be migrated to Python classes.

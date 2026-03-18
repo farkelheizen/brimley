@@ -109,17 +109,22 @@ These are **blocking** for the Review & Commit Protocol — a step cannot be mar
 
 When merging or completing a version release, scan **all documents** in `docs/` and the root `README.md` for content that needs updating. This is a required step before the commit gate for any version release plan.
 
-**Step 1 — Version bump (do this first):**
+**Step 1 — Release metadata bump (always):**
 
-Bump the version number everywhere it appears before doing any other doc updates:
+- `pyproject.toml` — update package version.
+- `CHANGELOG.md` — add release notes under `Added`, `Changed`, `Fixed`, and `Removed`.
+- `examples/README.md` — update only when examples, CLI invocations, or sample configuration behavior changed.
 
-- `pyproject.toml` — update `version = "X.Y.0"`.
-- Every spec doc under `docs/` — update the `> Version X.Y` header.
-- `examples/README.md` — update the `> Version X.Y` header.
-- `README.md` — update any `(X.Y architecture baseline)` or similar inline version references.
-- `docs/brimley-functions.md` and `docs/brimley-python-functions.md` — check for `"In Brimley X.Y, ..."` body text and rephrase as current baseline.
+**Step 2 — Documentation versioning policy (targeted updates, not blanket rewrites):**
 
-**Step 2 — Content scan (after version bump):**
+- Do **not** mass-update per-doc banner lines solely for patch/minor bumps.
+- Prefer stable spec banners where needed, e.g. `Docs baseline: 0.6.x` or `API baseline: 0.6.x`.
+- Keep exact release numbers in release metadata (`pyproject.toml`, `CHANGELOG.md`, release notes/tags), not in every spec header.
+- Keep version qualifiers in body text only when semantically meaningful (e.g., `Introduced in 0.6+`, `Changed in 0.7`).
+- For patch releases (`X.Y.Z`): update only docs directly affected by the bugfix/behavior change.
+- For minor releases (`X.Y.0`): update docs affected by behavior/interface/config changes; avoid no-op edits in unrelated docs.
+
+**Step 3 — Targeted content scan:**
 
 - **Stale version references in body text** — e.g., "In Brimley 0.5, ..." — update or rephrase where the feature is now current.
 - **Reference Documentation Maps** — Check `docs/brimley-high-level-design.md` §5 and `README.md` Documentation Map for missing or outdated links to new/changed docs.
@@ -129,7 +134,7 @@ Bump the version number everywhere it appears before doing any other doc updates
 - **CLI/REPL harness doc** — If new CLI flags or REPL commands were added, update `docs/brimley-cli-and-repl-harness.md` and `docs/brimley-repl-admin-commands.md`.
 - **Configuration doc** — If new `brimley.yaml` keys were added, verify `docs/brimley-configuration.md` reflects them.
 
-**This gate is blocking** — a version release plan step cannot be marked `Completed` until the version bump and doc scan have both been performed.
+**This gate is blocking** — a version release plan step cannot be marked `Completed` until release metadata and behaviorally affected docs are updated.
 
 ## 9. Plan Completeness Gate
 

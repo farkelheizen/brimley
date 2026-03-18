@@ -1,7 +1,5 @@
 # Brimley Application Structure
 
-> Version 0.6
-
 A standard Brimley application follows a specific directory layout to ensure the **Discovery Engine** can locate functions, entities, and configuration.
 
 ## Root Directory

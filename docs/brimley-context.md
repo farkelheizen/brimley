@@ -1,7 +1,5 @@
 # Brimley Context
 
-> Version 0.6
-
 The `BrimleyContext` is the central nervous system of a Brimley application.
 
 ## The Context Object

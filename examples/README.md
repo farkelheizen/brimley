@@ -1,6 +1,6 @@
 # Brimley Examples
 
-> Version 0.6
+> Examples baseline: 0.6.x
 
 This directory contains exploratory Brimley examples and configuration for Python, SQL, and Template functions.
 

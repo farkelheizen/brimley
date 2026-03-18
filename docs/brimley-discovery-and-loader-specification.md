@@ -1,7 +1,5 @@
 # Brimley Discovery & Loader Specification
 
-> Version 0.6
-
 The Discovery Engine translates assets on disk (or reflected module metadata) into executable function/entity models, then loads them into Brimley registries.
 
 ## 1. Scanning Algorithm
@@ -39,7 +37,7 @@ Behavior summary:
 - Infer `return_shape` from return annotations.
 - Build entity handlers as `{module_name}.{class_name}` for decorated classes.
 
-Python discovery is decorator-only in 0.5: legacy Python YAML frontmatter fallback is not applied when decorators are absent.
+Python discovery is decorator-only: legacy Python YAML frontmatter fallback is not applied when decorators are absent.
 
 ## 3. Validation Flow
 

@@ -1,9 +1,8 @@
 # Brimley Function Arguments
-> Version 0.6
 
 This specification defines argument inference and validation rules for Brimley functions.
 
-In 0.5, Python function signatures are the primary source for argument discovery.
+Python function signatures are the primary source for argument discovery.
 
 ## 1. Global Structure
 

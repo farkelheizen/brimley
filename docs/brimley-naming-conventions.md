@@ -1,5 +1,4 @@
 # Brimley Naming Conventions
-> Version 0.6
 
 To ensure compatibility with the **Model Context Protocol (MCP)**, **FastMCP**, and various database engines, all Brimley objects (Functions, Resources, and Tools) must adhere to the following naming rules.
 
