@@ -81,6 +81,8 @@ This repository is a **Poetry-managed Python project**.
     
     - Commit the changes with a descriptive message including the step ID (e.g., `feat: Implement Context (P1-S3)`).
 
+    - When creating a GitHub PR, always write the PR body to a temp file (e.g., `/tmp/brimley-pr-body.md`) and pass it via `--body-file`. Never pass a multi-line body inline on the command line.
+
 - **Next Step:**
 
     - After the commit is complete, ask if I want to proceed to the next step in the plan.
