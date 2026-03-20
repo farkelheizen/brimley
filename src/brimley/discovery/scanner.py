@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import List, Set, Optional
 from pydantic import BaseModel, Field
+import yaml
 
 from brimley.core.entity import Entity
 from brimley.core.models import BrimleyFunction
@@ -15,6 +16,8 @@ from brimley.utils.diagnostics import BrimleyDiagnostic
 from brimley.discovery.sql_parser import parse_sql_file
 from brimley.discovery.template_parser import parse_template_file
 from brimley.discovery.python_parser import parse_python_file
+from brimley.discovery.api_parser import parse_api_file
+from brimley.discovery.cli_parser import parse_cli_file
 
 class BrimleyScanResult(BaseModel):
     functions: List[BrimleyFunction] = Field(default_factory=list)
@@ -185,6 +188,9 @@ class Scanner:
                 return "template_function"
             return None
 
+        if suffix in (".yaml", ".yml"):
+            return self._identify_yaml_function_type(file_path)
+
         # YAML entities are removed from scanner routing in decorator transition.
         return None
 
@@ -206,6 +212,26 @@ class Scanner:
         stripped = content.lstrip()
         return stripped.startswith("/*") and "---" in stripped
 
+    def _identify_yaml_function_type(self, file_path: Path) -> Optional[str]:
+        """
+        Peek at the ``type:`` field in a YAML file.
+
+        Returns the type string if it is a recognised Brimley YAML function
+        type (``api_function`` or ``cli_function``), otherwise ``None``.
+        """
+        _YAML_FUNCTION_TYPES = {"api_function", "cli_function"}
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
+            data = yaml.safe_load(content) or {}
+            if not isinstance(data, dict):
+                return None
+            func_type = data.get("type")
+            if func_type in _YAML_FUNCTION_TYPES:
+                return func_type
+        except Exception:
+            pass
+        return None
+
     def _parse_file(self, file_path: Path, file_type: str) -> Entity:
         """
         Delegates to specific parsers based on type/extension.
@@ -216,5 +242,9 @@ class Scanner:
             return parse_template_file(file_path)
         elif file_type == "python_function":
             return parse_python_file(file_path)
+        elif file_type == "api_function":
+            return parse_api_file(file_path)
+        elif file_type == "cli_function":
+            return parse_cli_file(file_path)
         else:
             raise ValueError(f"Unknown file type: {file_type}")

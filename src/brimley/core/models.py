@@ -282,3 +282,114 @@ class TemplateFunction(BrimleyFunction):
     template_engine: str = "jinja2"
     template_body: Optional[str] = None
     messages: Optional[List[PromptMessage]] = None
+
+
+# ---------------------------------------------------------------------------
+# Brimley 0.7: secrets: block (ADR-0003)
+# ---------------------------------------------------------------------------
+
+class SecretSource(BaseModel):
+    """
+    A single resolution source entry for a named secret.
+
+    Exactly one of ``env`` or ``provider`` must be specified per entry.
+    Provider sources are structurally recognised in v0.7 but raise
+    ``BrimleySecretResolutionError`` at scanner load time until DI (v0.8).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    env: Optional[str] = None
+    provider: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _validate_exactly_one_source(self) -> "SecretSource":
+        provided = sum([
+            self.env is not None,
+            self.provider is not None,
+        ])
+        if provided != 1:
+            raise ValueError(
+                "Each secret source entry must specify exactly one of: 'env', 'provider'."
+            )
+        return self
+
+
+# ---------------------------------------------------------------------------
+# Brimley 0.7: API Functions (.yaml, type=api_function)
+# ---------------------------------------------------------------------------
+
+class ApiRequestConfig(BaseModel):
+    """HTTP request configuration block for an api_function."""
+
+    model_config = ConfigDict(extra="allow")
+
+    method: str = "GET"
+    url: str
+    headers: Optional[Dict[str, str]] = None
+    body: Optional[Any] = None
+    timeout: float = Field(default=30.0, gt=0)
+
+
+class ApiResponseHandler(BaseModel):
+    """Response handling configuration for a single HTTP status code."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: Optional[str] = None
+    parse: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+class ApiFunction(BrimleyFunction):
+    """
+    A function backed by an HTTP API call (httpx, async).
+
+    Introduced in Brimley 0.7.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    type: Literal["api_function"]
+    request: ApiRequestConfig
+    response: Optional[Dict[Any, Any]] = None
+    secrets: Optional[Dict[str, List[SecretSource]]] = None
+
+
+# ---------------------------------------------------------------------------
+# Brimley 0.7: CLI Functions (.yaml, type=cli_function)
+# ---------------------------------------------------------------------------
+
+class CliParsingConfig(BaseModel):
+    """Output parsing configuration for a cli_function."""
+
+    model_config = ConfigDict(extra="allow")
+
+    strategy: Literal["regex", "json", "text"] = "text"
+    pattern: Optional[str] = None
+    capture_group: Optional[str] = None
+
+
+class CliFunction(BrimleyFunction):
+    """
+    A function backed by a shell CLI command (asyncio.create_subprocess_exec).
+
+    Security constraints (non-negotiable per ADR-0002 / 0.7 spec):
+    - shell=False always; args are a list.
+    - timeout_seconds is required at scanner load time.
+    - cwd defaults to project root, never inherited.
+    - Only explicitly declared env: keys are passed to the subprocess.
+
+    Introduced in Brimley 0.7.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    type: Literal["cli_function"]
+    command: str
+    args: List[str] = Field(default_factory=list)
+    timeout_seconds: float = Field(..., gt=0)
+    cwd: Optional[str] = None
+    env: Optional[Dict[str, str]] = None
+    parsing: Optional[CliParsingConfig] = None
+    secrets: Optional[Dict[str, List[SecretSource]]] = None

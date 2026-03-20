@@ -2,11 +2,13 @@ from typing import Any, Dict, Optional
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from threading import BoundedSemaphore
 from loguru import logger as _logger
-from brimley.core.models import BrimleyFunction, PythonFunction, SqlFunction, TemplateFunction
+from brimley.core.models import BrimleyFunction, PythonFunction, SqlFunction, TemplateFunction, ApiFunction, CliFunction
 from brimley.core.context import BrimleyContext
 from brimley.execution.python_runner import PythonRunner
 from brimley.execution.sql_runner import SqlRunner
 from brimley.execution.jinja_runner import JinjaRunner
+from brimley.execution.api_runner import ApiRunner
+from brimley.execution.cli_runner import CliRunner
 from brimley.utils.diagnostics import BrimleyExecutionError
 from brimley.infrastructure.logging import (
     get_or_create_correlation_id,
@@ -21,6 +23,8 @@ class Dispatcher:
         self.python_runner = PythonRunner()
         self.sql_runner = SqlRunner()
         self.jinja_runner = JinjaRunner()
+        self.api_runner = ApiRunner()
+        self.cli_runner = CliRunner()
         self._executor: Optional[ThreadPoolExecutor] = None
         self._inflight_slots: Optional[BoundedSemaphore] = None
         self._runtime_signature: Optional[tuple[int, int, str]] = None
@@ -64,6 +68,14 @@ class Dispatcher:
         elif func.type == "template_function":
             if isinstance(func, TemplateFunction):
                 return self.jinja_runner.run(func, args, context)
+        elif func.type == "api_function":
+            # NOTE(v0.9): stub intercept point for MockRegistry — do not remove.
+            if isinstance(func, ApiFunction):
+                return self.api_runner.run(func, args, context)
+        elif func.type == "cli_function":
+            # NOTE(v0.9): stub intercept point for MockRegistry — do not remove.
+            if isinstance(func, CliFunction):
+                return self.cli_runner.run(func, args, context)
 
         raise NotImplementedError(f"No runner for function type: {func.type} ({type(func)})")
 
