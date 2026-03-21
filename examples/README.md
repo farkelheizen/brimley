@@ -1,10 +1,21 @@
 # Brimley Examples
 
+> **Note:** The version header is kept at `0.6.x` for the pre-existing examples. New 0.7 additions are described in the **What's New in 0.7** section above.
+
 > Examples baseline: 0.6.x
 
 This directory contains exploratory Brimley examples and configuration for Python, SQL, and Template functions.
 
 These examples are for development iteration and behaviour validation. They are not production deployment guidance.
+
+## What's New in 0.7
+
+Brimley 0.7 introduces two new function types:
+
+- **`api_function`** (`github_profile.yaml`): HTTP API calls via `httpx` with Jinja2 templating, `secrets:` block, and per-status-code `results:` handling.
+- **`cli_function`** (`system_metrics.yaml`): subprocess execution via `asyncio.create_subprocess_exec` with `command_arguments:`, timeout enforcement, and per-exit-code `results:` parsing.
+
+Both function types are MCP-exposed as tools and support the same `secrets:`, `arguments:`, and `results:` schema.
 
 ## What's New in 0.6
 
@@ -110,6 +121,22 @@ Calculates a SHA256 digest for a file path.
 PYTHONPATH=../src poetry run brimley invoke sha256_file --root . --input '{filepath: "../README.md"}'
 ```
 
+### 7. API Function (`get_github_profile`)
+
+Fetches a public GitHub user profile using the GitHub REST API. Requires a valid `GITHUB_TOKEN` environment variable.
+
+```bash
+GITHUB_TOKEN=your_token PYTHONPATH=../src poetry run brimley invoke get_github_profile --root . --input '{"username": "octocat"}'
+```
+
+### 8. CLI Function (`get_system_load`)
+
+Returns the current system load average using the `uptime` command. Demonstrates per-exit-code `results:` parsing with a regex capture group.
+
+```bash
+PYTHONPATH=../src poetry run brimley invoke get_system_load --root . --input '{}'
+```
+
 ---
 
 ## 🔄 Running via REPL (Interactive)
@@ -181,3 +208,5 @@ PYTHONPATH=../src poetry run brimley mcp-serve --root . --host 127.0.0.1 --port 
 - `nested_greeting.py`: Decorator-based Python function that composes another Brimley function by name via `BrimleyContext`.
 - `sha256_file.py`: Decorator-based Python function that computes SHA256 digest for a file path.
 - `hello.md`: Template function definition using Jinja2.
+- `github_profile.yaml`: API function — fetches a GitHub user profile via the GitHub REST API (0.7+).
+- `system_metrics.yaml`: CLI function — reports system load average via `uptime` with regex result parsing (0.7+).

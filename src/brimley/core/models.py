@@ -341,6 +341,30 @@ class ApiResponseHandler(BaseModel):
     error: Optional[str] = None
 
 
+class ResultMapping(BaseModel):
+    """
+    Per-code result handling entry for ``results:`` block (API and CLI functions).
+
+    Keys in the parent ``results:`` dict map HTTP status codes or CLI exit codes
+    to this model.  Supported code key formats:
+
+    - **API functions:** 3-digit numeric string (``"200"``), wildcard (``"2xx"``),
+      or ``"default"`` catch-all.
+    - **CLI functions:** numeric string (``"0"``–``"255"``) or ``"default"`` catch-all.
+
+    The first key that matches wins (ordered first-match semantics per SD-3).
+
+    Introduced in Brimley 0.7.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str = "text"
+    parse: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    empty: Optional[bool] = None
+
+
 class ApiFunction(BrimleyFunction):
     """
     A function backed by an HTTP API call (httpx, async).
@@ -353,6 +377,7 @@ class ApiFunction(BrimleyFunction):
     type: Literal["api_function"]
     request: ApiRequestConfig
     response: Optional[Dict[Any, Any]] = None
+    results: Optional[Dict[str, ResultMapping]] = None
     secrets: Optional[Dict[str, List[SecretSource]]] = None
 
 
@@ -361,7 +386,7 @@ class ApiFunction(BrimleyFunction):
 # ---------------------------------------------------------------------------
 
 class CliParsingConfig(BaseModel):
-    """Output parsing configuration for a cli_function."""
+    """Output parsing configuration for a cli_function (legacy ``parsing:`` block)."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -375,10 +400,10 @@ class CliFunction(BrimleyFunction):
     A function backed by a shell CLI command (asyncio.create_subprocess_exec).
 
     Security constraints (non-negotiable per ADR-0002 / 0.7 spec):
-    - shell=False always; args are a list.
+    - shell=False always; command_arguments are a list.
     - timeout_seconds is required at scanner load time.
     - cwd defaults to project root, never inherited.
-    - Only explicitly declared env: keys are passed to the subprocess.
+    - Only explicitly declared env: keys are passed to the subprocess when env is set.
 
     Introduced in Brimley 0.7.
     """
@@ -387,9 +412,25 @@ class CliFunction(BrimleyFunction):
 
     type: Literal["cli_function"]
     command: str
-    args: List[str] = Field(default_factory=list)
+    command_arguments: List[str] = Field(default_factory=list)
     timeout_seconds: float = Field(..., gt=0)
     cwd: Optional[str] = None
     env: Optional[Dict[str, str]] = None
     parsing: Optional[CliParsingConfig] = None
+    results: Optional[Dict[str, ResultMapping]] = None
     secrets: Optional[Dict[str, List[SecretSource]]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_command_arguments(cls, data: Any) -> Any:
+        """Accept ``args`` as a backward-compatible alias for ``command_arguments``."""
+        if isinstance(data, dict):
+            if "args" in data and "command_arguments" not in data:
+                data = dict(data)
+                data["command_arguments"] = data.pop("args")
+        return data
+
+    @property
+    def args(self) -> List[str]:
+        """Backward-compatible alias for ``command_arguments``."""
+        return self.command_arguments

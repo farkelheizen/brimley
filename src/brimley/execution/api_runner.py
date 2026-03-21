@@ -5,22 +5,29 @@ from __future__ import annotations
 import asyncio
 import re
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import httpx
-from jinja2 import Environment, StrictUndefined, UndefinedError
+from jinja2.sandbox import SandboxedEnvironment
+from jinja2 import StrictUndefined, UndefinedError
 
 from brimley.core.context import BrimleyContext
-from brimley.core.models import ApiFunction, BrimleyFunction
+from brimley.core.models import ApiFunction, BrimleyFunction, ResultMapping
 from brimley.execution.base_runner import BaseRunner
 from brimley.execution.result_mapper import ResultMapper
+from brimley.execution.result_parser import get_parser
 from brimley.infrastructure.logging import get_or_create_correlation_id
 from brimley.utils.diagnostics import BrimleyExecutionError
 from brimley.utils.secrets import BrimleySecretResolutionError, resolve_secrets
 
-_JINJA_ENV = Environment(undefined=StrictUndefined, keep_trailing_newline=True)
+# Sandboxed Jinja2 environment — defence-in-depth for user-controlled template values.
+_JINJA_ENV = SandboxedEnvironment(undefined=StrictUndefined, keep_trailing_newline=True)
 
-# JSONPath-lite: supports "$.key" and "$.key.sub" patterns.
-_JSONPATH_SIMPLE = re.compile(r"^\$\.(.+)$")
+# Wildcard status-code pattern: e.g. "2xx", "4xx", "5xx"
+_WILDCARD_CODE_PATTERN = re.compile(r"^([1-5])xx$")
+
+# Allowed URL schemes (SSRF mitigation)
+_ALLOWED_SCHEMES = frozenset({"http", "https"})
 
 
 class ApiRunner(BaseRunner):
@@ -30,15 +37,18 @@ class ApiRunner(BaseRunner):
     Execution flow (per spec §6):
     1. Resolve secrets (env-only in v0.7).
     2. Build Jinja2 template context (args + secrets + correlation_id).
-    3. Render URL, headers, and optional body.
-    4. Execute HTTP call asynchronously via httpx.
-    5. Map response through the ``response:`` block to ``return_shape``.
+    3. Render URL, headers, and optional body via SandboxedEnvironment.
+    4. Validate URL scheme (http/https only) and headers (no CRLF).
+    5. Execute HTTP call asynchronously via httpx.
+    6. Match response status code against ``results:`` block (ordered first-match),
+       or fall back to legacy ``response:`` block.
+    7. Map result through ``return_shape``.
 
     Security notes:
-    - Secrets are resolved from environment variables only; values are never
-      logged (callers must mask via the logging sink filter).
-    - Correlation ID is propagated into headers when the YAML declares
-      ``X-Correlation-ID: "{{ correlation_id }}"``.
+    - ``SandboxedEnvironment`` prevents Jinja2 template injection via user inputs.
+    - URL scheme validation rejects non-HTTP(S) schemes (SSRF mitigation).
+    - Header value validation rejects CRLF sequences (header injection prevention).
+    - Secrets are resolved from environment variables only; values are never logged.
 
     Introduced in Brimley 0.7.
     """
@@ -89,7 +99,13 @@ class ApiRunner(BaseRunner):
                 func_name=func.name,
             ) from exc
 
-        # 4. Execute.
+        # 4a. Validate URL scheme (SSRF mitigation).
+        _validate_url_scheme(url, func.name)
+
+        # 4b. Validate header values (header injection prevention).
+        _validate_headers(headers, func.name)
+
+        # 5. Execute.
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -107,7 +123,7 @@ class ApiRunner(BaseRunner):
         else:
             raw_response = asyncio.run(self._async_request(func, url, headers, body))
 
-        # 5. Map to return_shape.
+        # 6. Map to return_shape.
         return ResultMapper.map_result(raw_response, func, context)
 
     async def _async_request(
@@ -130,10 +146,43 @@ class ApiRunner(BaseRunner):
                 timeout=timeout,
             )
 
-        return self._handle_response(response, func)
+        # Prefer new ``results:`` block; fall back to legacy ``response:`` block.
+        if func.results:
+            return self._handle_results_block(response, func)
+        return self._handle_legacy_response(response, func)
+
+    # ------------------------------------------------------------------
+    # New results: block (ordered first-match, SD-3)
+    # ------------------------------------------------------------------
+
+    def _handle_results_block(self, response: httpx.Response, func: ApiFunction) -> Any:
+        """Apply ordered first-match against ``results:`` status-code mappings."""
+        status = response.status_code
+        mapping = _match_status_code(status, func.results or {})
+
+        if mapping is None:
+            # No match — fall back to raw text body, no error.
+            return response.text
+
+        if mapping.error is not None:
+            raise BrimleyExecutionError(
+                message=str(mapping.error),
+                func_name=func.name,
+            )
+
+        parser = get_parser(mapping.type or "text", func.name)
+        return parser.parse(response.content, mapping.parse, func.name)
+
+    # ------------------------------------------------------------------
+    # Legacy response: block (backward compat)
+    # ------------------------------------------------------------------
 
     def _handle_response(self, response: httpx.Response, func: ApiFunction) -> Any:
-        """Map the HTTP response through the ``response:`` configuration block."""
+        """Backward-compatible alias for ``_handle_legacy_response``."""
+        return self._handle_legacy_response(response, func)
+
+    def _handle_legacy_response(self, response: httpx.Response, func: ApiFunction) -> Any:
+        """Map the HTTP response through the legacy ``response:`` configuration block."""
         status = response.status_code
         response_cfg: Dict[Any, Any] = func.response or {}
 
@@ -171,7 +220,7 @@ class ApiRunner(BaseRunner):
         handler: Dict[str, Any],
         func: ApiFunction,
     ) -> Any:
-        """Apply the ``parse:`` block inside a response handler."""
+        """Apply the ``parse:`` block inside a legacy response handler."""
         content_type_hint = handler.get("type", "auto")
 
         if content_type_hint in ("json", "auto"):
@@ -195,17 +244,96 @@ class ApiRunner(BaseRunner):
         return data
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
 def _render(template_str: str, ctx: Dict[str, Any]) -> str:
-    """Render a Jinja2 template string with the given context."""
+    """Render a Jinja2 template string using the sandboxed environment."""
     return _JINJA_ENV.from_string(template_str).render(**ctx)
+
+
+def _validate_url_scheme(url: str, func_name: str) -> None:
+    """
+    Reject URLs with non-HTTP(S) schemes (SSRF mitigation).
+
+    Raises :class:`BrimleyExecutionError` if the scheme is not ``http`` or
+    ``https``, or if the URL contains embedded credentials.
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception as exc:
+        raise BrimleyExecutionError(
+            message=f"Invalid URL '{url}': {exc}",
+            func_name=func_name,
+        ) from exc
+
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise BrimleyExecutionError(
+            message=(
+                f"Disallowed URL scheme '{parsed.scheme}' in '{url}'. "
+                "Only 'http' and 'https' are permitted (SSRF mitigation)."
+            ),
+            func_name=func_name,
+        )
+
+    if parsed.username or parsed.password:
+        raise BrimleyExecutionError(
+            message=(
+                f"Embedded credentials are not allowed in URL '{url}'."
+            ),
+            func_name=func_name,
+        )
+
+
+def _validate_headers(headers: Dict[str, str], func_name: str) -> None:
+    """
+    Reject header values containing CRLF sequences (header injection prevention).
+
+    Raises :class:`BrimleyExecutionError` if any header value contains ``\\r`` or
+    ``\\n``.
+    """
+    for name, value in headers.items():
+        if "\r" in value or "\n" in value:
+            raise BrimleyExecutionError(
+                message=(
+                    f"Header '{name}' contains illegal CR/LF characters "
+                    "(header injection prevention)."
+                ),
+                func_name=func_name,
+            )
+
+
+def _match_status_code(
+    status: int,
+    results: Dict[str, "ResultMapping"],
+) -> Optional["ResultMapping"]:
+    """
+    Ordered first-match against a ``results:`` block.
+
+    Match precedence (in YAML declaration order):
+    1. Exact numeric match (e.g. ``"200"``)
+    2. Wildcard match (e.g. ``"2xx"``)
+    3. ``"default"`` catch-all
+    """
+    for key, mapping in results.items():
+        if key == "default":
+            return mapping
+        if re.fullmatch(r"\d+", key) and int(key) == status:
+            return mapping
+        wm = _WILDCARD_CODE_PATTERN.fullmatch(key)
+        if wm and str(status)[0] == wm.group(1):
+            return mapping
+    return None
 
 
 def _jsonpath_extract(data: Any, path: str, func_name: str) -> Any:
     """
-    Minimal JSONPath extractor supporting ``$.key`` and ``$.key.sub`` patterns.
+    Minimal legacy JSONPath extractor supporting ``$.key`` and ``$.key.sub``.
 
     Full JSONPath evaluation is out of scope for v0.7.
     """
+    _JSONPATH_SIMPLE = re.compile(r"^\$\.(.+)$")
     match = _JSONPATH_SIMPLE.match(path)
     if not match:
         return data

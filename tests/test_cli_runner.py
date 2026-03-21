@@ -116,7 +116,7 @@ def test_cli_runner_run_returns_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
     context = BrimleyContext()
     runner = CliRunner()
 
-    with patch.object(runner, "_async_exec", new=AsyncMock(return_value="hello\n")):
+    with patch.object(runner, "_async_exec", new=AsyncMock(return_value=(0, b"hello\n", b""))):
         result = runner.run(func, {}, context)
     assert result == "hello\n"
 
@@ -126,7 +126,7 @@ def test_cli_runner_run_applies_text_parsing(monkeypatch: pytest.MonkeyPatch) ->
     context = BrimleyContext()
     runner = CliRunner()
 
-    with patch.object(runner, "_async_exec", new=AsyncMock(return_value="raw output\n")):
+    with patch.object(runner, "_async_exec", new=AsyncMock(return_value=(0, b"raw output\n", b""))):
         result = runner.run(func, {}, context)
     assert result == "raw output\n"
 
@@ -136,7 +136,7 @@ def test_cli_runner_run_applies_json_parsing(monkeypatch: pytest.MonkeyPatch) ->
     context = BrimleyContext()
     runner = CliRunner()
 
-    with patch.object(runner, "_async_exec", new=AsyncMock(return_value='{"status":"ok"}')):
+    with patch.object(runner, "_async_exec", new=AsyncMock(return_value=(0, b'{"status":"ok"}', b""))):
         result = runner.run(func, {}, context)
     assert result == {"status": "ok"}
 
@@ -150,7 +150,7 @@ def test_cli_runner_run_injects_args(monkeypatch: pytest.MonkeyPatch) -> None:
 
     async def fake_exec(f, rendered_args, env, cwd):
         captured["args"] = rendered_args
-        return "ok"
+        return (0, b"ok", b"")
 
     with patch.object(runner, "_async_exec", side_effect=fake_exec):
         runner.run(func, {"name": "world"}, context)
@@ -163,7 +163,7 @@ def test_cli_runner_run_undefined_template_arg_raises(monkeypatch: pytest.Monkey
     context = BrimleyContext()
     runner = CliRunner()
 
-    with patch.object(runner, "_async_exec", new=AsyncMock(return_value="ok")):
+    with patch.object(runner, "_async_exec", new=AsyncMock(return_value=(0, b"ok", b""))):
         with pytest.raises(BrimleyExecutionError, match="Arg template rendering failed"):
             runner.run(func, {}, context)
 
@@ -181,7 +181,7 @@ def test_cli_runner_run_resolves_secret(monkeypatch: pytest.MonkeyPatch) -> None
 
     async def fake_exec(f, rendered_args, env, cwd):
         captured["args"] = rendered_args
-        return "ok"
+        return (0, b"ok", b"")
 
     with patch.object(runner, "_async_exec", side_effect=fake_exec):
         runner.run(func, {}, context)
@@ -208,7 +208,7 @@ def test_cli_runner_run_env_passthrough(monkeypatch: pytest.MonkeyPatch) -> None
 
     async def fake_exec(f, rendered_args, subprocess_env, cwd):
         captured["env"] = subprocess_env
-        return "ok"
+        return (0, b"ok", b"")
 
     with patch.object(runner, "_async_exec", side_effect=fake_exec):
         runner.run(func, {"flag": "true"}, context)
@@ -226,7 +226,7 @@ def test_cli_runner_run_cwd_defaults_to_project_root() -> None:
 
     async def fake_exec(f, rendered_args, subprocess_env, cwd):
         captured["cwd"] = cwd
-        return "ok"
+        return (0, b"ok", b"")
 
     with patch.object(runner, "_async_exec", side_effect=fake_exec):
         runner.run(func, {}, context)
@@ -243,7 +243,7 @@ def test_cli_runner_run_explicit_cwd_respected() -> None:
 
     async def fake_exec(f, rendered_args, subprocess_env, cwd):
         captured["cwd"] = cwd
-        return "ok"
+        return (0, b"ok", b"")
 
     with patch.object(runner, "_async_exec", side_effect=fake_exec):
         runner.run(func, {}, context)
