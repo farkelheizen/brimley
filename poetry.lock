@@ -626,7 +626,7 @@ files = [
     {file = "exceptiongroup-1.3.1-py3-none-any.whl", hash = "sha256:a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598"},
     {file = "exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219"},
 ]
-markers = {main = "extra == \"fastmcp\" or python_version == \"3.10\"", dev = "python_version == \"3.10\""}
+markers = {main = "python_version == \"3.10\" or extra == \"fastmcp\"", dev = "python_version == \"3.10\""}
 
 [package.dependencies]
 typing-extensions = {version = ">=4.6.0", markers = "python_version < \"3.13\""}
@@ -2766,4 +2766,4 @@ fastmcp = ["fastmcp"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "5e8523fd89cdda82984e98c0e20e94cc55a62f068805be3d3353e8554cb68fe2"
+content-hash = "98a371833417beb2e4355481e4a779a33a6a364fc8f07e895d106f89d3a17dea"
