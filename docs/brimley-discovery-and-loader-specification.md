@@ -10,11 +10,13 @@ The Discovery Engine translates assets on disk (or reflected module metadata) in
    - `.py` -> Python parser route
    - `.sql` -> SQL parser route only when SQL frontmatter marker is present
    - `.md` -> template parser route only when markdown frontmatter marker is present
-   - `.yaml` -> not routed as standalone entities in the decorator-transition model
+   - `.yaml` / `.yml` -> YAML parser route; `type` field selects `api_function` or `cli_function`
 4. **Parsing dispatch:**
    - `sql_function` -> `parse_sql_file`
    - `template_function` -> `parse_template_file`
    - `python_function` -> `parse_python_file`
+   - `api_function` -> `parse_api_function_file` (validates against `ApiFunction` model)
+   - `cli_function` -> `parse_cli_function_file` (validates against `CliFunction` model; requires `timeout_seconds`)
 5. **Collection:** parser outputs are normalized into function/entity lists plus diagnostics.
 
 This replaces the old Python 500-character YAML type probe for function identification.
