@@ -1,0 +1,40 @@
+name: get_github_profile
+type: api_function
+description: "Fetches a GitHub user's public profile data via the GitHub REST API"
+return_shape: string
+
+mcp:
+  type: tool
+
+arguments:
+  inline:
+    username:
+      type: string
+      description: "GitHub username to look up"
+
+secrets:
+  github_token:
+    - env: GITHUB_TOKEN
+
+request:
+  method: GET
+  url: "https://api.github.com/users/{{ username }}"
+  headers:
+    Authorization: "Bearer {{ secrets.github_token }}"
+    Accept: "application/vnd.github.v3+json"
+    X-Correlation-ID: "{{ correlation_id }}"
+  timeout: 10.0
+
+results:
+  "200":
+    type: json
+    parse:
+      path: "login"
+  "401":
+    error: "Authentication failed — check GITHUB_TOKEN environment variable"
+  "404":
+    error: "GitHub user not found"
+  "403":
+    error: "GitHub API rate limit exceeded or access forbidden"
+  "default":
+    error: "Unexpected response from GitHub API"

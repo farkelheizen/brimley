@@ -4,21 +4,28 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from jinja2 import Environment, StrictUndefined, UndefinedError
+from jinja2.sandbox import SandboxedEnvironment
+from jinja2 import StrictUndefined, UndefinedError
 
 from brimley.core.context import BrimleyContext
-from brimley.core.models import BrimleyFunction, CliFunction, CliParsingConfig
+from brimley.core.models import BrimleyFunction, CliFunction, CliParsingConfig, ResultMapping
 from brimley.execution.base_runner import BaseRunner
 from brimley.execution.result_mapper import ResultMapper
+from brimley.execution.result_parser import get_parser
 from brimley.infrastructure.logging import get_or_create_correlation_id
 from brimley.utils.diagnostics import BrimleyExecutionError
 from brimley.utils.secrets import BrimleySecretResolutionError, resolve_secrets
 
-_JINJA_ENV = Environment(undefined=StrictUndefined, keep_trailing_newline=True)
+# Sandboxed Jinja2 environment — defence-in-depth for user-controlled template values.
+_JINJA_ENV = SandboxedEnvironment(undefined=StrictUndefined, keep_trailing_newline=True)
+
+# Shell metacharacters that must not appear in rendered command_arguments entries.
+_SHELL_METACHAR_PATTERN = re.compile(r"[;&|`$><\r\n]|\$\(|\`")
 
 
 class CliRunner(BaseRunner):
@@ -27,12 +34,13 @@ class CliRunner(BaseRunner):
 
     Security constraints (non-negotiable per ADR-0002 / 0.7 spec):
     - ``shell=False`` always enforced; command + args are passed as a list.
-    - Only explicit ``args:`` list entries are passed to the subprocess.
-    - ``timeout_seconds`` is required and validated at scanner load time; the
-      runner treats a missing value as a hard error.
-    - ``cwd`` defaults to ``context.app["root_dir"]`` or CWD; never inherited
-      implicitly from the parent process.
-    - Only explicitly declared ``env:`` keys are forwarded to the subprocess.
+    - Only explicit ``command_arguments:`` list entries are passed to the subprocess.
+    - ``timeout_seconds`` is required and validated at scanner load time.
+    - ``cwd`` defaults to ``context.app["root_dir"]`` or CWD; never inherited.
+    - Shell metacharacters in rendered ``command_arguments`` entries are rejected.
+    - Environment follows two-mode behaviour: if ``env:`` is declared, only
+      declared keys are passed; if ``env:`` is omitted, parent environment is
+      inherited.
 
     Introduced in Brimley 0.7.
     """
@@ -63,18 +71,23 @@ class CliRunner(BaseRunner):
             "correlation_id": correlation_id,
         }
 
-        # 3. Render args list (Jinja2).
+        # 3. Render command_arguments list (Jinja2 sandboxed).
         try:
-            rendered_args = [_render(a, template_ctx) for a in func.args]
+            rendered_args = [_render(a, template_ctx) for a in func.command_arguments]
         except UndefinedError as exc:
             raise BrimleyExecutionError(
                 message=f"Arg template rendering failed: {exc}",
                 func_name=func.name,
             ) from exc
 
-        # 4. Build subprocess env (only explicitly declared keys, per security spec).
+        # 3a. Validate rendered args for shell metacharacters (injection prevention).
+        for rendered in rendered_args:
+            _validate_arg_no_metachar(rendered, func.name)
+
+        # 4. Build subprocess env (two-mode behaviour per spec / OQ-8 resolution).
         subprocess_env: Optional[Dict[str, str]] = None
-        if func.env:
+        if func.env is not None:
+            # env: declared — strict whitelist mode: only declared keys forwarded.
             try:
                 subprocess_env = {
                     k: _render(v, template_ctx) for k, v in func.env.items()
@@ -84,6 +97,9 @@ class CliRunner(BaseRunner):
                     message=f"Env template rendering failed: {exc}",
                     func_name=func.name,
                 ) from exc
+        else:
+            # env: omitted — inherit parent process environment (convenience mode).
+            subprocess_env = dict(os.environ)
 
         # 5. Determine cwd — defaults to project root, never inherited.
         cwd = func.cwd
@@ -105,21 +121,20 @@ class CliRunner(BaseRunner):
                     asyncio.run,
                     self._async_exec(func, rendered_args, subprocess_env, cwd),
                 )
-                stdout_text = future.result()
+                exit_code, stdout_bytes, stderr_bytes = future.result()
         else:
-            stdout_text = asyncio.run(
+            exit_code, stdout_bytes, stderr_bytes = asyncio.run(
                 self._async_exec(func, rendered_args, subprocess_env, cwd)
             )
 
-        # 7. Parse stdout.
-        raw_result: Any
-        if func.parsing:
-            raw_result = _parse_output(stdout_text, func.parsing, func.name)
-        else:
-            raw_result = stdout_text
-
-        # 8. Map to return_shape.
-        return ResultMapper.map_result(raw_result, func, context)
+        # 7. Apply results: block (per-exit-code) or fall back to legacy behaviour.
+        if func.results:
+            return self._handle_results_block(
+                exit_code, stdout_bytes, stderr_bytes, func, context
+            )
+        return self._handle_legacy_parsing(
+            exit_code, stdout_bytes, stderr_bytes, func, context
+        )
 
     async def _async_exec(
         self,
@@ -127,8 +142,8 @@ class CliRunner(BaseRunner):
         rendered_args: list[str],
         subprocess_env: Optional[Dict[str, str]],
         cwd: str,
-    ) -> str:
-        """Spawn the subprocess and capture stdout."""
+    ) -> tuple[int, bytes, bytes]:
+        """Spawn the subprocess and capture stdout + stderr."""
         cmd = [func.command] + rendered_args
 
         process = await asyncio.create_subprocess_exec(
@@ -157,21 +172,135 @@ class CliRunner(BaseRunner):
                 func_name=func.name,
             )
 
-        if process.returncode != 0:
+        return process.returncode or 0, stdout_bytes, stderr_bytes
+
+    # ------------------------------------------------------------------
+    # New results: block (per-exit-code, SD-3)
+    # ------------------------------------------------------------------
+
+    def _handle_results_block(
+        self,
+        exit_code: int,
+        stdout_bytes: bytes,
+        stderr_bytes: bytes,
+        func: CliFunction,
+        context: BrimleyContext,
+    ) -> Any:
+        """Apply per-exit-code first-match against ``results:`` block."""
+        mapping = _match_exit_code(exit_code, func.results or {})
+
+        if mapping is None:
+            # No mapping — default: exit 0 → text, non-zero → error with stderr.
+            if exit_code == 0:
+                raw: Any = stdout_bytes.decode(errors="replace")
+            else:
+                stderr_text = stderr_bytes.decode(errors="replace").strip()
+                raise BrimleyExecutionError(
+                    message=(
+                        f"CLI command '{func.command}' exited with code "
+                        f"{exit_code}: {stderr_text}"
+                    ),
+                    func_name=func.name,
+                )
+            return ResultMapper.map_result(raw, func, context)
+
+        if mapping.error is not None:
+            stderr_text = stderr_bytes.decode(errors="replace").strip()
+            raise BrimleyExecutionError(
+                message=str(mapping.error),
+                func_name=func.name,
+            )
+
+        if mapping.empty:
+            return ResultMapper.map_result(None, func, context)
+
+        parser = get_parser(mapping.type or "text", func.name)
+        raw = parser.parse(stdout_bytes, mapping.parse, func.name)
+        return ResultMapper.map_result(raw, func, context)
+
+    # ------------------------------------------------------------------
+    # Legacy parsing: block (backward compat)
+    # ------------------------------------------------------------------
+
+    def _handle_legacy_parsing(
+        self,
+        exit_code: int,
+        stdout_bytes: bytes,
+        stderr_bytes: bytes,
+        func: CliFunction,
+        context: BrimleyContext,
+    ) -> Any:
+        """Apply legacy single-strategy parsing and non-zero-as-error behaviour."""
+        if exit_code != 0:
             stderr_text = stderr_bytes.decode(errors="replace").strip()
             raise BrimleyExecutionError(
                 message=(
                     f"CLI command '{func.command}' exited with code "
-                    f"{process.returncode}: {stderr_text}"
+                    f"{exit_code}: {stderr_text}"
                 ),
                 func_name=func.name,
             )
 
-        return stdout_bytes.decode(errors="replace")
+        stdout_text = stdout_bytes.decode(errors="replace")
+
+        raw_result: Any
+        if func.parsing:
+            raw_result = _parse_output(stdout_text, func.parsing, func.name)
+        else:
+            raw_result = stdout_text
+
+        return ResultMapper.map_result(raw_result, func, context)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _render(template_str: str, ctx: Dict[str, Any]) -> str:
+    """Render a Jinja2 template string using the sandboxed environment."""
+    return _JINJA_ENV.from_string(template_str).render(**ctx)
+
+
+def _validate_arg_no_metachar(value: str, func_name: str) -> None:
+    """
+    Reject rendered command_arguments entries containing shell metacharacters.
+
+    Protects against command injection when user-supplied values are injected
+    into the subprocess argument vector.  Even though we use ``shell=False``,
+    rejecting metacharacters provides defence-in-depth.
+
+    Raises :class:`BrimleyExecutionError` on violation.
+    """
+    if _SHELL_METACHAR_PATTERN.search(value):
+        raise BrimleyExecutionError(
+            message=(
+                f"Rendered argument contains shell metacharacters which are "
+                f"not permitted: {value!r}"
+            ),
+            func_name=func_name,
+        )
+
+
+def _match_exit_code(
+    exit_code: int,
+    results: Dict[str, ResultMapping],
+) -> Optional[ResultMapping]:
+    """
+    Ordered first-match against a ``results:`` CLI exit-code block.
+
+    Supports exact numeric keys (``"0"``–``"255"``) and ``"default"`` catch-all.
+    No wildcard patterns for CLI (exit codes enumerated explicitly per SD-3).
+    """
+    for key, mapping in results.items():
+        if key == "default":
+            return mapping
+        if re.fullmatch(r"\d+", key) and int(key) == exit_code:
+            return mapping
+    return None
 
 
 def _parse_output(stdout: str, cfg: CliParsingConfig, func_name: str) -> Any:
-    """Apply the parsing strategy declared in the ``parsing:`` block."""
+    """Apply the legacy single-strategy parsing from the ``parsing:`` block."""
     if cfg.strategy == "json":
         try:
             return json.loads(stdout)
@@ -204,8 +333,3 @@ def _parse_output(stdout: str, cfg: CliParsingConfig, func_name: str) -> Any:
 
     # strategy == "text" (default) — return stdout as-is.
     return stdout
-
-
-def _render(template_str: str, ctx: Dict[str, Any]) -> str:
-    """Render a Jinja2 template string with the given context."""
-    return _JINJA_ENV.from_string(template_str).render(**ctx)

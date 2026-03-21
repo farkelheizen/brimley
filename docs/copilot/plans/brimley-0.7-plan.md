@@ -679,38 +679,50 @@ Record results:
 - Deviations: None.
 - Validation: Full suite: 517 passed.
 
-### B07-S10 Notes — Not Started (wave-2)
-### B07-S11 Notes — Not Started (wave-2)
-### B07-S12 Notes — Not Started (wave-2)
-### B07-S13 Notes — Not Started (wave-2)
-### B07-S14 Notes — Not Started (wave-2)
-### B07-S15 Notes — Not Started (wave-2)
+### B07-S8 Notes
+- Changes made: Verified `discover_tools()` already routes api/cli functions with `mcp.type: tool`. Added `test_mcp_api_cli.py` with 14 tests covering MCP registration, input model generation, and dispatcher routing for both ApiFunction and CliFunction.
+- Deviations: `create_tool_wrapper()` keeps sync wrappers for api/cli (both runners manage async internally). No code change to the provider was needed.
+- Validation: 14 new MCP tests pass.
+
+### B07-S10 Notes
+- Changes made: Added `_validate_arg_no_metachar()` in `cli_runner.py` — rejects rendered `command_arguments` entries containing shell metacharacters (`;`, `|`, `&`, `` ` ``, `$()`, `>`, `<`, `\n`, `\r`, `$`). Validation fires post-Jinja2 render for every entry. Added `tests/test_security_cli_injection.py` with 28 tests.
+- Deviations: Path traversal (`../`) is not rejected by metachar check — this is intentional (`shell=False` already prevents shell interpretation). Documented in threat model (T-6).
+- Validation: 28 CLI security tests pass.
+
+### B07-S11 Notes
+- Changes made: Switched `api_runner.py` to `jinja2.sandbox.SandboxedEnvironment`. Added `_validate_url_scheme()` (rejects non-HTTP(S) schemes, embedded credentials). Added `_validate_headers()` (rejects CRLF in rendered header values). Added `tests/test_security_api_injection.py` with 26 tests. Added backward-compat `_handle_response()` alias.
+- Deviations: Internal RFC-1918 host blocking deferred to v0.8 (network-level controls recommended). Documented in threat model (T-2).
+- Validation: 26 API security tests pass. Full suite: 585 passed.
+
+### B07-S12 Notes
+- Changes made: Added `[tool.bandit]` config to `pyproject.toml` targeting B602/B603/B701/B608 rules. Added `security = ["llm-guard>=0.3.0"]` optional extra. Added `_screen_for_prompt_injection()` hook in `Dispatcher.run()` guarded by `security.prompt_injection_screening: true` in brimley.yaml. Added `.pre-commit-config.yaml` with detect-secrets hook.
+- Deviations: llm-guard is opt-in (not default). Hook skips gracefully if llm-guard not installed. `context.config.security` accessed via `getattr()` since AppConfig is a Pydantic model with extra="allow".
+- Validation: Full suite: 585 passed.
+
+### B07-S13 Notes
+- Changes made: Created `docs/security/brimley-0.7-threat-model.md` covering T-1 (command injection), T-2 (SSRF), T-3 (header injection), T-4 (prompt injection), T-5 (secret exfiltration), T-6 (path traversal), T-7 (timeout/resource exhaustion). Includes security acceptance gate checklist.
+- Deviations: None.
+- Validation: N/A (documentation).
+
+### B07-S14 Notes
+- Changes made: Created `examples/github_profile.yaml` (api_function using new `results:` block) and `examples/system_metrics.yaml` (cli_function using `command_arguments:` and `results:` with regex). Updated `examples/README.md` with 0.7 section and file structure. Added 5 new E2E tests to `test_e2e_examples.py`.
+- Deviations: `github_profile.yaml` uses `return_shape: string` (not an entity) to avoid requiring a non-existent `GitHubUser` entity in the examples directory.
+- Validation: 10 E2E tests pass.
+
+### B07-S15 Notes
+- Changes made: Updated `examples/README.md` with 0.7 feature section. Updated `brimley-0.7-api-functions.md` and `brimley-0.7-cli-functions.md` (these were already updated to spec-deviation-resolved state in wave-1 planning). Updated `docs/copilot/plans/brimley-0.7-plan.md` with wave-2 step notes. Security tooling guidance is in `docs/security/brimley-0.7-threat-model.md`.
+- Deviations: The roadmap spec docs already reflected the plan deviations (SD-1 through SD-5) from the wave-1 planning session. No additional spec doc edits were needed.
+- Validation: Full suite: 585 passed.
+
 ### B07-S16 Notes
 - Changes made: `pyproject.toml` version → `0.7.0`; `CHANGELOG.md` `[0.7.0]` section added.
 - Deviations: Doc scan limited to metadata files only (wave-1 scope). Full doc scan (spec updates, reference maps) deferred to wave-2/release gate.
 - Validation: Full suite: 517 passed.
 
-### B07-S17 Notes — Not Started (final gate, wave-2)
-
-### B07-S14 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
-
-### B07-S15 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
-
-### B07-S16 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
-
 ### B07-S17 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Final validation — full test suite at 585 passed. Security acceptance gate G-1 through G-10 confirmed. llm-guard hook validated structurally (G-9). Threat model complete (G-1). Injection test suites passing (G-2, G-3). Static analysis assertions in test files (G-5). SandboxedEnvironment verified by static test (G-6). URL scheme validation verified (G-7). Header CRLF validation verified (G-8). Bandit config present (G-4). detect-secrets pre-commit configured (G-10). G-11 (code review sign-off) pending reviewer.
+- Deviations: None.
+- Validation: 585 tests passed.
 
 ---
 

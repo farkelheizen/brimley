@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional
+import importlib.util
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from threading import BoundedSemaphore
 from loguru import logger as _logger
@@ -99,6 +100,55 @@ class Dispatcher:
 
         return False
 
+    def _screen_for_prompt_injection(self, args: Dict[str, Any], func_name: str) -> None:
+        """
+        Optional llm-guard PromptInjection screening hook (v0.7).
+
+        Enabled via ``security.prompt_injection_screening: true`` in ``brimley.yaml``.
+        Requires the optional ``security`` extra: ``poetry install --extras security``.
+
+        If ``llm-guard`` is not installed, logs a warning and skips screening
+        gracefully — the hook is the structural commitment; the dependency is opt-in.
+        """
+        if importlib.util.find_spec("llm_guard") is None:
+            _logger.warning(
+                "Prompt injection screening is enabled but 'llm-guard' is not installed. "
+                "Install with: poetry install --extras security. Skipping screening."
+            )
+            return
+
+        try:
+            from llm_guard.input_scanners import PromptInjection  # type: ignore[import]
+
+            scanner = PromptInjection()
+            for key, value in args.items():
+                if not isinstance(value, str):
+                    continue
+                sanitized, is_valid, risk_score = scanner.scan("", value)
+                if not is_valid:
+                    _logger.warning(
+                        "Prompt injection detected in argument '{}' for function '{}' "
+                        "(risk score: {:.2f}). Call blocked.",
+                        key,
+                        func_name,
+                        risk_score,
+                    )
+                    raise BrimleyExecutionError(
+                        message=(
+                            f"Prompt injection detected in argument '{key}'. "
+                            "Call blocked by security screening."
+                        ),
+                        func_name=func_name,
+                    )
+        except BrimleyExecutionError:
+            raise
+        except Exception as exc:
+            _logger.warning(
+                "Prompt injection screening failed for function '{}': {}. Skipping.",
+                func_name,
+                exc,
+            )
+
     def run(
         self,
         func: BrimleyFunction,
@@ -118,6 +168,13 @@ class Dispatcher:
                     set_external_trace_id(str(request_id))
 
         _logger.trace("Dispatching function '{}' (type={})", func.name, func.type)
+
+        # llm-guard PromptInjection screening (v0.7 hook — configurable, opt-in).
+        # Enable in brimley.yaml: security.prompt_injection_screening: true
+        # Install the optional extra: poetry install --extras security
+        security_cfg = getattr(context.config, "security", None) or {}
+        if isinstance(security_cfg, dict) and security_cfg.get("prompt_injection_screening", False):
+            self._screen_for_prompt_injection(args, func.name)
 
         if func.type == "python_function" and self._has_fastmcp_runtime_injection(runtime_injections):
             try:

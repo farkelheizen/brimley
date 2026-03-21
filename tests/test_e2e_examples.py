@@ -106,3 +106,60 @@ def test_e2e_agent_sample_mockmcp_injection_runtime():
     )
 
     assert result == "mocked-sample"
+
+
+def test_e2e_examples_scanner_discovers_api_function():
+    """github_profile.yaml is discovered as an api_function."""
+    scan_result = Scanner(EXAMPLES_DIR).scan()
+    api_funcs = {f.name for f in scan_result.functions if f.type == "api_function"}
+    assert "get_github_profile" in api_funcs
+    assert len(scan_result.diagnostics) == 0, scan_result.diagnostics
+
+
+def test_e2e_examples_scanner_discovers_cli_function():
+    """system_metrics.yaml is discovered as a cli_function."""
+    scan_result = Scanner(EXAMPLES_DIR).scan()
+    cli_funcs = {f.name for f in scan_result.functions if f.type == "cli_function"}
+    assert "get_system_load" in cli_funcs
+    assert len(scan_result.diagnostics) == 0, scan_result.diagnostics
+
+
+def test_e2e_api_function_results_block_parsed():
+    """github_profile.yaml results: block is parsed into ResultMapping objects."""
+    from brimley.core.models import ApiFunction, ResultMapping
+
+    scan_result = Scanner(EXAMPLES_DIR).scan()
+    api_func = next(f for f in scan_result.functions if f.name == "get_github_profile")
+
+    assert isinstance(api_func, ApiFunction)
+    assert api_func.results is not None
+
+    ok_mapping = api_func.results.get("200")
+    assert ok_mapping is not None
+    assert ok_mapping.type == "json"
+    assert ok_mapping.parse == {"path": "login"}
+
+    err_mapping = api_func.results.get("404")
+    assert err_mapping is not None
+    assert "not found" in err_mapping.error.lower()
+
+
+def test_e2e_cli_function_command_arguments_and_results_parsed():
+    """system_metrics.yaml command_arguments and results: block parse correctly."""
+    from brimley.core.models import CliFunction, ResultMapping
+
+    scan_result = Scanner(EXAMPLES_DIR).scan()
+    cli_func = next(f for f in scan_result.functions if f.name == "get_system_load")
+
+    assert isinstance(cli_func, CliFunction)
+    assert cli_func.command == "uptime"
+    assert cli_func.command_arguments == []
+    assert cli_func.timeout_seconds == 10.0
+    assert cli_func.results is not None
+
+    ok_mapping = cli_func.results.get("0")
+    assert ok_mapping is not None
+    assert ok_mapping.type == "regex"
+    assert ok_mapping.parse is not None
+    assert "load_1min" in ok_mapping.parse.get("capture_group", "")
+
