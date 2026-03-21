@@ -40,14 +40,18 @@ Use this file as the fast lookup index before implementation.
 | Context object fields and lifecycle | `docs/brimley-context.md` | `docs/brimley-configuration.md`, `docs/brimley-high-level-design.md` |
 | Discovery/parsing/scanning/registration | `docs/brimley-discovery-and-loader-specification.md` | `docs/brimley-diagnostics-and-error-reporting.md`, `docs/brimley-project-structure.md` |
 | Diagnostics and Wall-of-Shame behavior | `docs/brimley-diagnostics-and-error-reporting.md` | `docs/brimley-discovery-and-loader-specification.md` |
-| Function metadata and supported types | `docs/brimley-functions.md` | `docs/brimley-python-functions.md`, `docs/brimley-sql-functions.md`, `docs/brimley-template-functions.md` |
+| Function metadata and supported types | `docs/brimley-functions.md` | `docs/brimley-python-functions.md`, `docs/brimley-sql-functions.md`, `docs/brimley-template-functions.md`, `docs/brimley-api-functions.md`, `docs/brimley-cli-functions.md` |
 | Argument inference, typing, `from_context` | `docs/brimley-function-arguments.md` | `docs/brimley-python-functions.md`, `docs/brimley-cli-and-repl-harness.md` |
 | Return shape syntax and runtime mapping | `docs/brimley-function-return-shape.md` | `docs/brimley-entities.md`, `docs/brimley-sql-functions.md` |
 | Python decorators, injection, reload metadata | `docs/brimley-python-functions.md` | `docs/brimley-discovery-and-loader-specification.md`, `docs/brimley-model-context-protocol-integration.md` |
 | SQL frontmatter, params, connection usage | `docs/brimley-sql-functions.md` | `docs/brimley-sql-execution.md`, `docs/brimley-function-arguments.md` |
 | SQLAlchemy execution and relative SQLite path semantics | `docs/brimley-sql-execution.md` | `docs/brimley-configuration.md` |
 | Template function semantics and template context scope | `docs/brimley-template-functions.md` | `docs/brimley-function-arguments.md` |
-| MCP tool exposure, schema filtering, embedded server | `docs/brimley-model-context-protocol-integration.md` | `docs/brimley-cli-and-repl-harness.md`, `docs/brimley-python-functions.md` |
+| API function schema, result parsing, SSRF/header injection mitigations | `docs/brimley-api-functions.md` | `docs/brimley-secrets.md`, `docs/brimley-model-context-protocol-integration.md`, `docs/roadmap/brimley-0.7-api-functions.md` |
+| CLI function schema, subprocess exec, metachar validation, exit-code handling | `docs/brimley-cli-functions.md` | `docs/brimley-secrets.md`, `docs/brimley-model-context-protocol-integration.md`, `docs/roadmap/brimley-0.7-cli-functions.md` |
+| Secrets resolution, ordered sources, log redaction, `BrimleySecretResolutionError` | `docs/brimley-secrets.md` | `docs/brimley-api-functions.md`, `docs/brimley-cli-functions.md`, `docs/decisions/0003-secrets-block-ordered-resolution.md` |
+| Security: threat model, injection mitigations, SSRF, prompt injection screening | `docs/security/brimley-0.7-threat-model.md` | `docs/brimley-api-functions.md`, `docs/brimley-cli-functions.md`, `docs/brimley-configuration.md` |
+| MCP tool exposure, schema filtering, embedded server | `docs/brimley-model-context-protocol-integration.md` | `docs/brimley-cli-and-repl-harness.md`, `docs/brimley-python-functions.md`, `docs/brimley-api-functions.md`, `docs/brimley-cli-functions.md` |
 | Naming and identifier constraints | `docs/brimley-naming-conventions.md` | `docs/brimley-functions.md` |
 | Logging, observability, correlation IDs, dual-sink, log levels, log format | `docs/roadmap/brimley-0.6-logging-architecture.md` | `docs/brimley-configuration.md`, `docs/brimley-repl-admin-commands.md`, `docs/brimley-cli-and-repl-harness.md` |
 | Deferred feature ideas, future enhancements | `docs/roadmap/brimley-wish-list.md` | `docs/roadmap/index.md` |
@@ -70,6 +74,11 @@ Use this file as the fast lookup index before implementation.
 - **logging levels, Loguru, correlation ID, dual-sink, log hijacking, JSONL logs, --log-level, --log-module** → `docs/roadmap/brimley-0.6-logging-architecture.md`, `brimley-configuration.md`, `brimley-repl-admin-commands.md`
 - **ADR, architecture decision, roadmap rationale, why was X deferred, release order** → `docs/decisions/README.md`
 - **wish list, deferred features, future ideas, WL-** → `docs/roadmap/brimley-wish-list.md`
+- **api_function, HTTP integration, httpx, url templating, SSRF, header injection** → `brimley-api-functions.md`, `docs/roadmap/brimley-0.7-api-functions.md`
+- **cli_function, subprocess, command_arguments, shell injection, metachar, exit code** → `brimley-cli-functions.md`, `docs/roadmap/brimley-0.7-cli-functions.md`
+- **secrets, secret resolution, env source, provider source, BrimleySecretResolutionError, log redaction** → `brimley-secrets.md`, `docs/decisions/0003-secrets-block-ordered-resolution.md`
+- **security, threat model, prompt injection, llm-guard, bandit, detect-secrets, SSRF** → `docs/security/brimley-0.7-threat-model.md`, `brimley-api-functions.md`, `brimley-cli-functions.md`, `brimley-configuration.md`
+- **ResultParser, result_parser, text parser, json parser, regex parser, results block** → `brimley-api-functions.md`, `brimley-cli-functions.md`
 
 ---
 

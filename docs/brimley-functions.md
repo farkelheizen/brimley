@@ -30,6 +30,8 @@ All functions share core properties.
 | [Template Functions](brimley-template-functions.md) | `*.md` (and metadata-backed templates) | Jinja-based prompt/text rendering with argument mapping. |
 | [Python Functions](brimley-python-functions.md) | `*.py` | Native Python handlers discovered from `@function` / `@function(...)`. |
 | [SQL Functions](brimley-sql-functions.md) | `*.sql` | Parameterized SQL execution with metadata frontmatter. |
+| [API Functions](brimley-api-functions.md) | `*.yaml` | Declarative HTTP integrations via `httpx`. Introduced in 0.7. |
+| [CLI Functions](brimley-cli-functions.md) | `*.yaml` | Declarative subprocess execution via `asyncio.create_subprocess_exec`. Introduced in 0.7. |
 
 ### The `mcp` Block
 

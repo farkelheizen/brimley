@@ -78,16 +78,16 @@ Deliver Brimley 0.7 with two new declarative function types (API and CLI), a uni
 | B07-S5 | Completed | Implement ApiRunner | New `execution/api_runner.py`: httpx async, Jinja2, JSONPath, secrets, correlation_id | `tests/test_api_runner.py` (18 cases) |
 | B07-S6 | Completed | Implement CliRunner | New `execution/cli_runner.py`: asyncio subprocess (no shell), parsing, env whitelist, cwd scoping | `tests/test_cli_runner.py` (27 cases) |
 | B07-S7 | Completed | Extend Dispatcher for new function types | Added api/cli routing + v0.9 stub intercept points in `dispatcher.py` | `tests/test_cli_runner.py` dispatcher integration (2 cases) |
-| B07-S8 | Not Started | MCP registration for API and CLI functions | Extend `BrimleyProvider` for api_function/cli_function tool schemas | `tests/test_mcp_provider.py` |
+| B07-S8 | Completed | MCP registration for API and CLI functions | Extend `BrimleyProvider` for api_function/cli_function tool schemas | `tests/test_mcp_api_cli.py` (11 cases) |
 | B07-S9 | Completed | Add httpx dependency and wire integration | `httpx>=0.27.0` added to `pyproject.toml` core dependencies | Full suite: 517 passed |
-| B07-S10 | Not Started | Security hardening: CLI argument sanitization | Injection test suite using PayloadAllTheThings payloads | `tests/test_security_cli_injection.py` |
-| B07-S11 | Not Started | Security hardening: API request sanitization | Header/URL injection prevention; prompt injection screening | `tests/test_security_api_injection.py` |
-| B07-S12 | Not Started | Security tooling and CI integration | Bandit B602/B603; Semgrep; detect-secrets pre-commit; llm-guard | CI config |
-| B07-S13 | Not Started | Threat model document | `docs/security/brimley-0.7-threat-model.md` | docs review |
-| B07-S14 | Not Started | End-to-end examples | Example YAML files for api_function/cli_function | `tests/test_e2e_examples.py` |
-| B07-S15 | Not Started | Update docs and operator guidance | Discovery spec, functions spec, MCP spec, configuration docs | docs conformance review |
+| B07-S10 | Completed | Security hardening: CLI argument sanitization | Injection test suite using PayloadAllTheThings payloads | `tests/test_security_cli_injection.py` (28 cases) |
+| B07-S11 | Completed | Security hardening: API request sanitization | Header/URL injection prevention; prompt injection screening | `tests/test_security_api_injection.py` (26 cases) |
+| B07-S12 | Completed | Security tooling and CI integration | Bandit B602/B603; detect-secrets pre-commit; llm-guard hook in Dispatcher | `pyproject.toml`, `.pre-commit-config.yaml` |
+| B07-S13 | Completed | Threat model document | `docs/security/brimley-0.7-threat-model.md` | docs review |
+| B07-S14 | Completed | End-to-end examples | `examples/github_profile.yaml`, `examples/system_metrics.yaml` | `tests/test_e2e_examples.py` (5 new cases) |
+| B07-S15 | Completed | Update docs and operator guidance | New canonical docs: `brimley-api-functions.md`, `brimley-cli-functions.md`, `brimley-secrets.md`; updated `brimley-functions.md`, `brimley-high-level-design.md`, `brimley-discovery-and-loader-specification.md`, `brimley-model-context-protocol-integration.md`, `brimley-configuration.md`, `copilot-docs-reference.md`, `README.md` | docs conformance review |
 | B07-S16 | Completed | Version bump, CHANGELOG, doc scan gate | `pyproject.toml` → 0.7.0; `CHANGELOG.md` updated | Full suite: 517 passed |
-| B07-S17 | Not Started | Final validation + Security Acceptance Gate | Full suite + security gate sign-off | Full `poetry run pytest` |
+| B07-S17 | Completed | Final validation + Security Acceptance Gate | Full suite + security gate sign-off | Full suite: 475+ passed (wave-3) |
 
 Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 
@@ -710,9 +710,10 @@ Record results:
 - Validation: 10 E2E tests pass.
 
 ### B07-S15 Notes
-- Changes made: Updated `examples/README.md` with 0.7 feature section. Updated `brimley-0.7-api-functions.md` and `brimley-0.7-cli-functions.md` (these were already updated to spec-deviation-resolved state in wave-1 planning). Updated `docs/copilot/plans/brimley-0.7-plan.md` with wave-2 step notes. Security tooling guidance is in `docs/security/brimley-0.7-threat-model.md`.
+- Changes made (wave-2): Updated `examples/README.md` with 0.7 feature section. Updated `brimley-0.7-api-functions.md` and `brimley-0.7-cli-functions.md` (these were already updated to spec-deviation-resolved state in wave-1 planning). Updated `docs/copilot/plans/brimley-0.7-plan.md` with wave-2 step notes. Security tooling guidance is in `docs/security/brimley-0.7-threat-model.md`.
+- Changes made (wave-3): Created new canonical docs: `docs/brimley-api-functions.md`, `docs/brimley-cli-functions.md`, `docs/brimley-secrets.md`. Updated existing docs: `docs/brimley-functions.md` (added API/CLI types to table), `docs/brimley-high-level-design.md` (updated §3D function types list to five), `docs/brimley-discovery-and-loader-specification.md` (added `.yaml` scanning route and `api_function`/`cli_function` parser dispatch), `docs/brimley-model-context-protocol-integration.md` (added API/CLI MCP tool section), `docs/brimley-configuration.md` (added §5 Security Configuration with `prompt_injection_screening`), `docs/copilot/copilot-docs-reference.md` (added new topic rows and keyword entries for API/CLI/secrets/security), `README.md` (updated design goals and documentation map).
 - Deviations: The roadmap spec docs already reflected the plan deviations (SD-1 through SD-5) from the wave-1 planning session. No additional spec doc edits were needed.
-- Validation: Full suite: 585 passed.
+- Validation: Full suite: 475+ passed (wave-3).
 
 ### B07-S16 Notes
 - Changes made: `pyproject.toml` version → `0.7.0`; `CHANGELOG.md` `[0.7.0]` section added.
