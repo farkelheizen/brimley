@@ -18,7 +18,13 @@ from brimley.execution.result_mapper import ResultMapper
 from brimley.execution.result_parser import get_parser
 from brimley.infrastructure.logging import get_or_create_correlation_id
 from brimley.utils.diagnostics import BrimleyExecutionError
-from brimley.utils.secrets import BrimleySecretResolutionError, resolve_secrets
+from brimley.utils.secrets import (
+    BrimleySecretResolutionError,
+    clear_secrets,
+    redact_secrets,
+    register_secrets,
+    resolve_secrets,
+)
 
 # Sandboxed Jinja2 environment — defence-in-depth for user-controlled template values.
 _JINJA_ENV = SandboxedEnvironment(undefined=StrictUndefined, keep_trailing_newline=True)
@@ -71,60 +77,71 @@ class ApiRunner(BaseRunner):
         except BrimleySecretResolutionError as exc:
             raise BrimleyExecutionError(message=str(exc), func_name=func.name) from exc
 
-        # 2. Template context — secrets are injected as a nested namespace.
+        # 1a. Register resolved secrets for log redaction.
         correlation_id = get_or_create_correlation_id()
-        template_ctx: Dict[str, Any] = {
-            **args,
-            "secrets": secrets,
-            "correlation_id": correlation_id,
-        }
+        secret_values = list(secrets.values())
+        register_secrets(correlation_id, secret_values)
 
-        # 3. Render request fields.
         try:
-            url = _render(func.request.url, template_ctx)
-            headers: Dict[str, str] = {}
-            if func.request.headers:
-                for k, v in func.request.headers.items():
-                    headers[k] = _render(v, template_ctx)
-            body: Optional[Any] = None
-            if func.request.body is not None:
-                raw_body = func.request.body
-                if isinstance(raw_body, str):
-                    body = _render(raw_body, template_ctx)
-                else:
-                    body = raw_body
-        except UndefinedError as exc:
-            raise BrimleyExecutionError(
-                message=f"Template rendering failed: {exc}",
-                func_name=func.name,
-            ) from exc
+            # 2. Template context — secrets are injected as a nested namespace.
+            template_ctx: Dict[str, Any] = {
+                **args,
+                "secrets": secrets,
+                "correlation_id": correlation_id,
+            }
 
-        # 4a. Validate URL scheme (SSRF mitigation).
-        _validate_url_scheme(url, func.name)
+            # 3. Render request fields.
+            try:
+                url = _render(func.request.url, template_ctx)
+                headers: Dict[str, str] = {}
+                if func.request.headers:
+                    for k, v in func.request.headers.items():
+                        headers[k] = _render(v, template_ctx)
+                body: Optional[Any] = None
+                if func.request.body is not None:
+                    raw_body = func.request.body
+                    if isinstance(raw_body, str):
+                        body = _render(raw_body, template_ctx)
+                    else:
+                        body = raw_body
+            except UndefinedError as exc:
+                raise BrimleyExecutionError(
+                    message=redact_secrets(f"Template rendering failed: {exc}", secret_values),
+                    func_name=func.name,
+                ) from exc
 
-        # 4b. Validate header values (header injection prevention).
-        _validate_headers(headers, func.name)
+            # 4a. Validate URL scheme (SSRF mitigation).
+            _validate_url_scheme(url, func.name)
 
-        # 5. Execute.
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
+            # 4b. Validate header values (header injection prevention).
+            _validate_headers(headers, func.name)
 
-        if loop and loop.is_running():
-            import concurrent.futures
+            # 5. Execute.
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(
-                    asyncio.run,
-                    self._async_request(func, url, headers, body),
-                )
-                raw_response = future.result()
-        else:
-            raw_response = asyncio.run(self._async_request(func, url, headers, body))
+            if loop and loop.is_running():
+                import concurrent.futures
 
-        # 6. Map to return_shape.
-        return ResultMapper.map_result(raw_response, func, context)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(
+                        asyncio.run,
+                        self._async_request(func, url, headers, body),
+                    )
+                    raw_response = future.result()
+            else:
+                raw_response = asyncio.run(self._async_request(func, url, headers, body))
+
+            # 6. Map to return_shape.
+            return ResultMapper.map_result(raw_response, func, context)
+        except BrimleyExecutionError as exc:
+            # Layer 2: scrub secret values from error messages.
+            exc.message = redact_secrets(exc.message, secret_values)
+            raise
+        finally:
+            clear_secrets(correlation_id)
 
     async def _async_request(
         self,

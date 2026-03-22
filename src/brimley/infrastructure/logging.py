@@ -96,8 +96,11 @@ def _module_threshold(logger_name: str, global_level: str, module_levels: dict[s
     return threshold
 
 
+from brimley.utils.secrets import get_registered_secrets, redact_secrets
+
+
 def _make_sink_filter(global_level: str, module_levels: dict[str, str]) -> Callable[[dict], bool]:
-    """Create a Loguru sink filter that injects correlation IDs and applies level gating."""
+    """Create a Loguru sink filter that injects correlation IDs, applies level gating, and redacts secrets."""
 
     def _filter(record: dict) -> bool:
         # Inject context IDs into every log record.
@@ -115,9 +118,18 @@ def _make_sink_filter(global_level: str, module_levels: dict[str, str]) -> Calla
 
         current = record["level"].name
         try:
-            return _LEVEL_ORDER.index(current) >= _LEVEL_ORDER.index(threshold)
+            passes = _LEVEL_ORDER.index(current) >= _LEVEL_ORDER.index(threshold)
         except ValueError:
-            return True
+            passes = True
+
+        # Scrub registered secret values from the log message before it
+        # reaches any sink (two-layer redaction — layer 1).
+        if passes and cid:
+            secret_values = get_registered_secrets(cid)
+            if secret_values:
+                record["message"] = redact_secrets(record["message"], secret_values)
+
+        return passes
 
     return _filter
 
