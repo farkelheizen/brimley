@@ -1,7 +1,7 @@
 name: get_github_profile
 type: api_function
 description: "Fetches a GitHub user's public profile data via the GitHub REST API"
-return_shape: string
+return_shape: dict
 
 mcp:
   type: tool
@@ -29,7 +29,7 @@ results:
   "200":
     type: json
     parse:
-      path: "login"
+      path: ""
   "401":
     error: "Authentication failed — check GITHUB_TOKEN environment variable"
   "404":

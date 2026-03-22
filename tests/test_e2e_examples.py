@@ -132,12 +132,14 @@ def test_e2e_api_function_results_block_parsed():
     api_func = next(f for f in scan_result.functions if f.name == "get_github_profile")
 
     assert isinstance(api_func, ApiFunction)
+    assert api_func.return_shape == "dict"
     assert api_func.results is not None
 
     ok_mapping = api_func.results.get("200")
     assert ok_mapping is not None
     assert ok_mapping.type == "json"
-    assert ok_mapping.parse == {"path": "login"}
+    # Empty path means return the full JSON profile payload.
+    assert ok_mapping.parse == {"path": ""}
 
     err_mapping = api_func.results.get("404")
     assert err_mapping is not None
