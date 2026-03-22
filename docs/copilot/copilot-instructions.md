@@ -120,7 +120,7 @@ When merging or completing a version release, scan **all documents** in `docs/` 
 **Step 2 — Documentation versioning policy (targeted updates, not blanket rewrites):**
 
 - Do **not** mass-update per-doc banner lines solely for patch/minor bumps.
-- Prefer stable spec banners where needed, e.g. `Docs baseline: 0.6.x` or `API baseline: 0.6.x`.
+- Prefer stable spec banners where needed, e.g. `Docs baseline: 0.7.x` or `API baseline: 0.7.x`.
 - Keep exact release numbers in release metadata (`pyproject.toml`, `CHANGELOG.md`, release notes/tags), not in every spec header.
 - Keep version qualifiers in body text only when semantically meaningful (e.g., `Introduced in 0.6+`, `Changed in 0.7`).
 - For patch releases (`X.Y.Z`): update only docs directly affected by the bugfix/behavior change.
