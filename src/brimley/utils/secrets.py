@@ -9,10 +9,57 @@ In v0.7 only ``env`` sources are supported; ``provider`` sources raise
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Dict, List, Optional
+import threading
+from typing import TYPE_CHECKING, Collection, Dict, List, Optional
 
 if TYPE_CHECKING:
     from brimley.core.models import SecretSource
+
+
+# ---------------------------------------------------------------------------
+# Correlation-keyed secret registry (thread-safe, module-level)
+# ---------------------------------------------------------------------------
+
+_secret_registry: Dict[str, frozenset[str]] = {}
+_registry_lock = threading.Lock()
+
+
+def register_secrets(correlation_id: str, values: Collection[str]) -> None:
+    """Register resolved secret values for the given correlation ID.
+
+    Registered values are used by the Loguru sink filter to scrub log messages.
+    """
+    # Skip values that are too short to redact safely (avoids false positives).
+    filtered = frozenset(v for v in values if len(v) > 2)
+    if not filtered:
+        return
+    with _registry_lock:
+        existing = _secret_registry.get(correlation_id, frozenset())
+        _secret_registry[correlation_id] = existing | filtered
+
+
+def clear_secrets(correlation_id: str) -> None:
+    """Remove registered secrets for the given correlation ID."""
+    with _registry_lock:
+        _secret_registry.pop(correlation_id, None)
+
+
+def get_registered_secrets(correlation_id: str) -> frozenset[str]:
+    """Return the set of secret values registered for *correlation_id*."""
+    with _registry_lock:
+        return _secret_registry.get(correlation_id, frozenset())
+
+
+def redact_secrets(message: str, secret_values: Collection[str]) -> str:
+    """Replace each secret value in *message* with ``***REDACTED***``.
+
+    Values with length ≤ 2 are skipped to avoid false-positive redaction of
+    common short strings.
+    """
+    for value in secret_values:
+        if len(value) > 2:
+            message = message.replace(value, "***REDACTED***")
+    return message
 
 
 class BrimleySecretResolutionError(ValueError):

@@ -88,6 +88,9 @@ Deliver Brimley 0.7 with two new declarative function types (API and CLI), a uni
 | B07-S15 | Completed | Update docs and operator guidance | New canonical docs: `brimley-api-functions.md`, `brimley-cli-functions.md`, `brimley-secrets.md`; updated `brimley-functions.md`, `brimley-high-level-design.md`, `brimley-discovery-and-loader-specification.md`, `brimley-model-context-protocol-integration.md`, `brimley-configuration.md`, `copilot-docs-reference.md`, `README.md` | docs conformance review |
 | B07-S16 | Completed | Version bump, CHANGELOG, doc scan gate | `pyproject.toml` → 0.7.0; `CHANGELOG.md` updated | Full suite: 517 passed |
 | B07-S17 | Completed | Final validation + Security Acceptance Gate | Full suite + security gate sign-off | Full suite: 475+ passed (wave-3) |
+| B07-S18 | Completed | Implement secret log redaction (GAP-1) | `utils/secrets.py` redaction utility, `infrastructure/logging.py` sink filter, runner error-path redaction | `tests/test_secret_redaction.py` (22 cases) |
+| B07-S19 | Not Started | Canonical docs verification pass (GAP-7, GAP-11, GAP-13) | Verify/fix `brimley-secrets.md`, `brimley-api-functions.md`, `brimley-cli-functions.md` | docs conformance review |
+| B07-S20 | Not Started | Post-gap re-validation and plan cleanup | Full suite re-run, update `brimley-0.7-gaps.md`, CHANGELOG addendum if needed | Full suite |
 
 Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 
@@ -564,6 +567,75 @@ Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 - All acceptance criteria are met and validation evidence is recorded in this plan.
 - Security acceptance gate is fully passed.
 
+### B07-S18 Implement Secret Log Redaction
+**Files (expected):**
+- `src/brimley/utils/secrets.py` (add `redact_secrets()` utility and correlation-keyed secret registry)
+- `src/brimley/infrastructure/logging.py` (integrate redaction into `_make_sink_filter()`)
+- `src/brimley/execution/api_runner.py` (register resolved secrets with redaction layer; redact error messages)
+- `src/brimley/execution/cli_runner.py` (register resolved secrets with redaction layer; redact error messages)
+- `tests/test_secret_redaction.py` (new)
+
+**Implementation notes:**
+- Implement `redact_secrets(message: str, secret_values: Collection[str]) -> str` in `utils/secrets.py`. Replaces each secret value with `***REDACTED***`. Handles empty/short values safely (skip redaction for values ≤ 2 chars to avoid false positives).
+- Add a thread-safe secret registry keyed by correlation ID. Use a module-level dict (not ContextVar — must be visible across threads for concurrent requests, same pattern as `_correlation_overrides` in logging). Expose `register_secrets(correlation_id, values)` and `clear_secrets(correlation_id)` helpers.
+- Integrate into `_make_sink_filter()`: after existing level gating, retrieve registered secrets for the current correlation ID and scrub `record["message"]` before the record reaches sinks.
+- In `ApiRunner.run()` and `CliRunner.run()`: after `resolve_secrets()`, call `register_secrets()` with the resolved values. Wrap the execution in `try/finally` to ensure `clear_secrets()` on completion.
+- In runner error paths: pass error messages through `redact_secrets()` before constructing `BrimleyExecutionError`.
+- **Known limitation (documented):** Python stack traces in debug/traceback output may still contain secret values in local variable repr. This is acknowledged in `docs/brimley-secrets.md` §4.
+
+**Test coverage:**
+- Resolved secret values do not appear in captured Loguru log output.
+- Resolved secret values do not appear in `BrimleyExecutionError` message strings.
+- Concurrent requests with different secrets redact independently (correlation ID isolation).
+- Secrets are cleared after request completion (no leakage across requests).
+- Short/empty secret values are not redacted (avoids false positives).
+
+**Definition of done:**
+- `redact_secrets()` utility exists and is tested.
+- Loguru sink filter scrubs resolved secret values from all log messages.
+- `BrimleyExecutionError` messages do not contain resolved secret values.
+- Secret registry is thread-safe and cleaned up per-request.
+- All tests in `test_secret_redaction.py` pass.
+
+### B07-S19 Canonical Documentation Verification Pass
+**Files (expected):**
+- `docs/brimley-secrets.md` (verify §4 redaction scope; add provider-only vs mixed-source behavior)
+- `docs/brimley-api-functions.md` (verify SandboxedEnvironment authoring restrictions are documented)
+- `docs/brimley-cli-functions.md` (verify SandboxedEnvironment authoring restrictions are documented)
+
+**Implementation notes:**
+- **GAP-7 verification:** Confirm `docs/brimley-secrets.md` §4 accurately describes the two-layer redaction behavior now that B07-S18 has implemented it. Verify the stack-trace known limitation is documented. Update if any implementation detail diverged from the documented behavior.
+- **GAP-11 verification:** Check `docs/brimley-api-functions.md` and `docs/brimley-cli-functions.md` for SandboxedEnvironment documentation. If the docs mention `SandboxedEnvironment` but do not note template-authoring restrictions (no method calls on objects, no `import` expressions, no `__dunder__` access), add a brief note.
+- **GAP-13 verification:** Check `docs/brimley-secrets.md` for provider-only error vs mixed-source warning nuance. If not documented, add a note in the startup validation section clarifying: provider-only source → `BrimleySecretResolutionError` at startup; env-first with provider fallback → diagnostic warning only.
+
+**Definition of done:**
+- `docs/brimley-secrets.md` accurately reflects implemented redaction behavior (two-layer scope, stack-trace limitation, provider validation nuance).
+- `docs/brimley-api-functions.md` and `docs/brimley-cli-functions.md` document SandboxedEnvironment restrictions for template authors.
+- No contradictions remain between canonical docs and runtime behavior for secrets, redaction, and template sandboxing.
+
+### B07-S20 Post-Gap Re-Validation and Plan Cleanup
+**Files (expected):**
+- `docs/copilot/plans/brimley-0.7-gaps.md` (update all gap statuses)
+- `CHANGELOG.md` (addendum for redaction if warranted)
+- Plan notes + validation artifacts
+
+**Implementation notes:**
+- Run full test suite: `poetry run python -m pytest`.
+- Confirm all new `test_secret_redaction.py` tests pass alongside the full suite with no regressions.
+- Update `brimley-0.7-gaps.md`:
+  - GAP-1 → Resolved (implemented in B07-S18)
+  - GAP-7 → Resolved (verified in B07-S19)
+  - GAP-11 → Resolved (verified in B07-S19)
+  - GAP-13 → Resolved (verified in B07-S19)
+- Determine whether `CHANGELOG.md` needs an addendum entry for secret redaction under the `[0.7.0]` heading (if not yet released) or a `[0.7.1]` section (if 0.7.0 was already published).
+- Record final test results in Step Notes Log.
+
+**Definition of done:**
+- Full test suite passes with no regressions.
+- All gaps in `brimley-0.7-gaps.md` are marked Resolved.
+- CHANGELOG reflects redaction capability.
+- Plan is complete — no open steps remain.
+
 ---
 
 ## Acceptance Criteria
@@ -573,7 +645,7 @@ Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 - `ApiRunner` executes HTTP requests via httpx with Jinja2 templating, per-status-code result parsing (`text` and `json` built-in via pluggable `ResultParser` interface), status-code error mapping, and `return_shape` validation.
 - `CliRunner` executes subprocesses via `asyncio.create_subprocess_exec` (NO `shell=True`) with strict arg validation, env whitelisting, cwd scoping, per-exit-code result parsing (`text`, `json`, `regex` built-in via pluggable `ResultParser` interface), and `return_shape` validation.
 - `secrets:` block is available on all function types with ordered-source resolution (`env` in v0.7; `provider` raises at startup).
-- Resolved secret values are automatically redacted from all log output.
+- Resolved secret values are automatically redacted from all log output (two-layer: Loguru sink filter + `BrimleyExecutionError` message scrubbing).
 - Scanner discovers `.yaml` function files and correctly parses both new types.
 - Dispatcher routes `api_function` and `cli_function` to the correct runners.
 - MCP auto-registration works for API and CLI functions via `mcp:` block.
@@ -725,286 +797,16 @@ Record results:
 - Deviations: None.
 - Validation: 585 tests passed.
 
----
-
-## Specification Deviations
-
-This section documents deliberate deviations from the roadmap specs (`brimley-0.7-api-functions.md`, `brimley-0.7-cli-functions.md`). Each deviation must be reviewed and merged back into the canonical specs before B07-S15 (Documentation) is marked complete.
-
-### SD-1: Simplified Result Parsing — Pluggable `ResultParser` Replaces Fixed Content-Type Handling
-**Spec reference:** `brimley-0.7-api-functions.md` §4 (Supported Content Types)
-
-**Spec says:** "Brimley 0.7 handles a variety of response formats including `json`, `xml`, `text`, and `binary`. The `auto` type uses the `Content-Type` header for intelligent detection."
-
-**Plan deviates:** v0.7 ships with **three** built-in result parsers: `text`, `json`, and `regex`. The `xml`, `binary`, and `auto` types are deferred. The `results.<code>.type` field becomes a **parser name** (a registry key) rather than a content-type indicator. The `regex` parser is intended primarily for CLI functions but is available to any runner.
-
-**Rationale:**
-- Real-world API integrations are overwhelmingly JSON or raw text. `xml` and `binary` are niche use cases that add dependency complexity (`xmltodict`/`lxml`) without covering the launch use cases.
-- `auto` (Content-Type sniffing) introduces ambiguity when headers are missing or incorrect. Explicit parser selection is safer and more predictable.
-- A pluggable `ResultParser` interface is introduced so that `xml`, `binary`, `jsonpath`, or any other parser can be registered in the future (v0.13 plugin architecture or earlier) without changing core code.
-- Default behavior when `type` is omitted is `text` (raw body/stdout) — the safest zero-surprise default.
-
-**Impact on spec:**
-- `results.<code>.type` valid values: `"text"` | `"json"` | `"regex"` (was: `"json"` | `"xml"` | `"text"` | `"binary"` | `"auto"`).
-- Default changes from implicit `"json"` to `"text"`.
-- `parse.path` syntax changes from JSONPath (`$.user_profile`) to custom dot-path (`user_profile` or `data.user.profile`).
-- The `ResultParser` ABC and built-in parser registry are new structural additions not in the original spec.
-- `results` dict keys are strings (not integers) to support wildcard patterns — see SD-3.
-
-**Spec update required:** Yes — `brimley-0.7-api-functions.md` §4 must be rewritten to reflect the pluggable parser model, reduced type set, and new path syntax.
-
-### SD-2: Custom Dot-Path Expression Parser Replaces JSONPath
-**Spec reference:** `brimley-0.7-api-functions.md` §1 (Schema Example, `parse.path: "$.user_profile"`)
-
-**Spec says:** `parse.path` uses JSONPath syntax (e.g., `$.user_profile`).
-
-**Plan deviates:** `parse.path` uses a custom dot-path expression syntax implemented in-house with no third-party dependency.
-
-**Path syntax (v0.7):**
-- `"user_profile"` — top-level key extraction
-- `"data.user.name"` — nested key traversal
-- `"items[0]"` — list index access
-- `"items[*].name"` — list-member projection (returns a list of `name` values)
-
-**Rationale:**
-- The actual use case is simple key/nested-key extraction, not full JSONPath query power.
-- Eliminates a new dependency (`jsonpath-ng`, `jmespath`).
-- The path parser is small, fully tested, and easy to reason about.
-- A future `jsonpath` parser can be registered as a new `ResultParser` if full JSONPath is needed.
-
-**Spec update required:** Yes — update the schema example `parse.path` from `"$.user_profile"` to `"user_profile"` and document the custom path syntax.
-
-### SD-3: Result Code Matching — Ordered First-Match with Wildcards
-**Spec reference:** `brimley-0.7-api-functions.md` §1 (Schema Example, `response:` block), `brimley-0.7-cli-functions.md` §1 (Schema Example, exit code handling)
-
-**Spec says:** The API `response` block uses integer status codes as keys (e.g., `200:`, `401:`, `404:`). No wildcard or range matching is specified. The CLI spec has a flat `parsing:` block with no per-exit-code handling — non-zero exit codes unconditionally raise `BrimleyExecutionError`.
-
-**Plan deviates:** Both API and CLI functions use a unified `results:` block with **ordered first-match** semantics. Keys are strings, not integers.
-
-**Matching rules (API — status codes):**
-- Keys are strings: `"200"`, `"404"`, `"2xx"`, `"5xx"`, `"default"`, etc.
-- **Exact keys** (all digits): match only that specific status code.
-- **Wildcard keys** (`Nxx` pattern): the first digit is literal, `xx` matches any value. `"2xx"` matches `200`–`299`, `"4xx"` matches `400`–`499`, etc.
-- **`"default"`:** matches any code (catch-all, should be last).
-- **Declaration order is match order.** The `results` dict is iterated in YAML declaration order. The first key that matches the actual status code wins. This means:
-  ```yaml
-  results:
-    201:
-      type: json
-      parse:
-        path: "id"
-    202:
-      type: text
-    2xx:
-      type: json
-      parse:
-        path: "data"
-  ```
-  A `201` response uses the first entry. A `204` response falls through to `2xx`. A `500` response matches nothing and falls back to the `text` parser default.
-- If no key matches: fall back to `text` parser (raw response body), no error raised.
-
-**Matching rules (CLI — exit codes):**
-- Keys are strings: `"0"`, `"1"`, `"default"`, etc.
-- **Exact keys** (numeric): match only that specific exit code.
-- **`"default"`:** matches any code (catch-all, should be last).
-- **No wildcard patterns** — exit codes 0–255 are cheap to enumerate explicitly and have no standardized range families.
-- **Declaration order is match order**, same as API.
-- If `results:` is omitted entirely: default behavior is exit 0 → parse stdout as `text`, non-zero → raise `BrimleyExecutionError` with stderr.
-
-**Unified inner structure (shared by API and CLI):**
-- `results.<code>.type` — parser selector (`text`, `json`, `regex`)
-- `results.<code>.parse` — parser-specific config
-- `results.<code>.error` — error message string
-- `results.<code>.empty` — valid-but-empty signal (CLI-only)
-
-**Rationale:**
-- Real-world APIs commonly return different success codes (201 Created, 202 Accepted, 204 No Content) with different body shapes, while sharing a common error shape across a class (4xx, 5xx). Exact-only matching forces verbose repetition. Wildcards with exact overrides give developers precise control with minimal YAML.
-- Real-world CLI commands use non-zero exit codes for meaningful non-error outcomes (`grep` returns 1 for no match, `diff` returns 1 for files differ). Per-exit-code handling prevents false-positive errors.
-- Ordered first-match is intuitive and mirrors how route matching works in web frameworks. No implicit priority rules to memorize — what you write first, matches first.
-- YAML dict order preservation is guaranteed by PyYAML (and the YAML 1.1+ spec for ordered mappings), so this is safe to rely on.
-- Using the same `results:` keyword and inner structure for both function types gives YAML authors one mental model to learn.
-
-**Validation rules (scanner):**
-- **API:** Each key must be either: a 3-digit numeric string (`"200"`–`"599"`), a wildcard pattern matching `^[1-5]xx$`, or the literal `"default"`. A diagnostic warning is emitted if a wildcard key appears before an exact key in the same class (e.g., `"2xx"` before `"201"`) since the exact key would be unreachable.
-- **CLI:** Each key must be either: a numeric string `"0"`–`"255"`, or the literal `"default"`.
-- Both: Duplicate keys are rejected at scan time.
-
-**Impact on spec:**
-- API: `response` block is renamed to `results`. Dict keys change from integer to string. Wildcard patterns and `"default"` catch-all are new capabilities.
-- CLI: flat `parsing:` block is replaced by per-exit-code `results:` block. Non-zero exit codes can now be mapped to parsers, errors, or `empty` outcomes instead of unconditionally raising errors.
-- Declaration-order matching semantics must be documented for both function types.
-
-**Spec update required:** Yes — `brimley-0.7-api-functions.md` §1 must rename `response` → `results`, use string keys, and document wildcard + ordered first-match behavior. `brimley-0.7-cli-functions.md` §1 must replace `parsing:` with `results:` block and document per-exit-code handling.
-
-### SD-4: `args` Renamed to `command_arguments` on CLI Functions
-**Spec reference:** `brimley-0.7-cli-functions.md` §1 (Schema Example, `args: []`), §4 (Key Features, "Arguments are injected into `command`, `args`, or `env`"), §5 (Security Requirements, "Only explicit `args:` list entries are passed")
-
-**Spec says:** The subprocess argument vector is defined by `args: []`.
-
-**Plan deviates:** The field is renamed from `args` to `command_arguments`.
-
-**Rationale:**
-- `BrimleyFunction` has an inherited `arguments:` block that defines the user-facing function input schema (what MCP exposes, what `ArgumentResolver` validates, what the user provides at call time). A field named `args` on `CliFunction` creates confusion between these two distinct concerns.
-- `command_arguments` makes the separation of concerns explicit:
-  - **`arguments:`** — the validated function input schema (inherited, shared by all function types).
-  - **`command_arguments:`** — the ordered list of strings passed to `asyncio.create_subprocess_exec` after the command. Each entry is a Jinja2 template that can reference validated function arguments (`{{ args.<name> }}`), resolved secrets (`{{ secrets.<name> }}`), correlation ID (`{{ correlation_id }}`), or literal strings.
-- This naming convention is clearer for developers authoring YAML and for Copilot when reasoning about which "args" are being discussed.
-
-**Template semantics for `command_arguments` entries:**
-```yaml
-command_arguments:
-  - "--user"                          # literal string
-  - "{{ args.username }}"             # validated function argument
-  - "--token"                         # literal
-  - "{{ secrets.api_token }}"         # resolved secret
-  - "--trace-id={{ correlation_id }}" # correlation ID
-```
-Each entry is rendered independently via Jinja2 `SandboxedEnvironment`. The rendered list is passed as-is to `create_subprocess_exec` — no shell expansion, no concatenation.
-
-**Impact on spec:**
-- All references to `args:` (as the subprocess argument vector) must be renamed to `command_arguments:` throughout `brimley-0.7-cli-functions.md`.
-- §4 "Input Injection" must clarify the distinction between `arguments` (function inputs) and `command_arguments` (subprocess exec vector).
-- §5 "Arg list enforcement" must reference `command_arguments:`, not `args:`.
-
-**Spec update required:** Yes — `brimley-0.7-cli-functions.md` §1, §4, §5 must rename `args` → `command_arguments` and document the Jinja2 template semantics.
-
-### SD-5: Unified `results:` Block Replaces `response:` (API) and `parsing:` (CLI)
-**Spec reference:** `brimley-0.7-api-functions.md` §1 (Schema Example, `response:` block), `brimley-0.7-cli-functions.md` §1 (Schema Example, `parsing:` block), §3 (Return Shapes & Output Mapping), §4 (Key Features, "Error Handling: Non-zero exit codes trigger `BrimleyExecutionError`")
-
-**Spec says:**
-- **API:** The outcome-handling block is named `response:`, keyed by HTTP status code, with `type`/`parse`/`error` inner fields.
-- **CLI:** A flat `parsing:` block with `strategy`/`pattern`/`capture_group` fields handles stdout parsing. Non-zero exit codes unconditionally raise `BrimleyExecutionError`.
-
-**Plan deviates:** Both API and CLI functions use a unified `results:` block. The keyword `response:` is renamed to `results:` for API functions. The flat `parsing:` block is removed entirely for CLI functions and replaced by the same `results:` structure.
-
-**Rationale:**
-- `results` is semantically neutral — it describes what the function *produced*, regardless of transport mechanism (HTTP response, subprocess output, or any future function type). `response` is HTTP-flavored and `parsing` is CLI-flavored; unifying under `results` gives YAML authors one mental model.
-- The inner structure is now identical across function types: `results.<code>.type`, `results.<code>.parse`, `results.<code>.error`. CLI adds `results.<code>.empty` for valid-but-empty outcomes.
-- No shipped code exists for v0.7 yet, so the rename cost is purely spec-and-plan edits.
-- Per-exit-code handling for CLI functions fixes a real gap: commands like `grep` (exit 1 = no match), `diff` (exit 1 = files differ), and `curl` (exit 6 = DNS failure) use non-zero exit codes for meaningful non-error outcomes that the flat `parsing:` model couldn't express.
-
-**API example (before → after):**
-```yaml
-# Before (spec)
-response:
-  200:
-    type: json
-    parse:
-      path: "user_profile"
-  401:
-    error: "Auth failed"
-
-# After (plan)
-results:
-  200:
-    type: json
-    parse:
-      path: "user_profile"
-  401:
-    error: "Auth failed"
-```
-
-**CLI example (before → after):**
-```yaml
-# Before (spec) — flat parsing, non-zero always errors
-parsing:
-  strategy: regex
-  pattern: "load average: (?P<load_1min>\\d+\\.\\d+)"
-  capture_group: "load_1min"
-
-# After (plan) — per-exit-code results
-results:
-  0:
-    type: regex
-    parse:
-      pattern: "load average: (?P<load_1min>\\d+\\.\\d+)"
-      capture_group: "load_1min"
-  default:
-    error: "uptime failed"
-```
-
-**CLI example — non-trivial exit codes (grep):**
-```yaml
-results:
-  0:
-    type: text          # matches found — stdout has match count
-  1:
-    empty: true         # no matches — valid result, not an error
-  default:
-    error: "grep failed"
-```
-
-**Default behavior when `results:` is omitted:**
-- **API:** Fall back to `text` parser for all status codes. No error mapping.
-- **CLI:** Exit 0 → parse stdout as `text`. Non-zero → raise `BrimleyExecutionError` with stderr. This preserves backward-compatible behavior for simple commands that don't need per-exit-code handling.
-
-**Impact on spec:**
-- **API:** `response:` is renamed to `results:` throughout `brimley-0.7-api-functions.md`. Inner field `type`/`parse`/`error` are unchanged. §1 schema example, §3 extraction hints, §5 error mapping references must all use `results:`.
-- **CLI:** `parsing:` block is removed from `brimley-0.7-cli-functions.md` §1 schema example. Replaced by `results:` block. §3 "Parsing to Shape" must reference `results:` per-exit-code mappings. §4 "Error Handling" must document per-exit-code behavior instead of blanket non-zero → error.
-- **Models:** `ApiResponseMapping` is renamed to `ResultMapping` (shared). `CliParsingConfig` is removed. Both `ApiFunction` and `CliFunction` use `results: Optional[Dict[str, ResultMapping]]`.
-- **Parsers:** `ApiResponseParser` is renamed to `ResultParser`. `TextResponseParser`/`JsonResponseParser` become `TextResultParser`/`JsonResultParser`. `RegexResultParser` is added for CLI (available to all runners). The parser file is `result_parser.py` (was `api_response_parser.py`).
-
-**Spec update required:** Yes — `brimley-0.7-api-functions.md` §1, §3, §5 must rename `response` → `results`. `brimley-0.7-cli-functions.md` §1, §3, §4 must replace `parsing:` with `results:` and document per-exit-code handling including `empty` flag.
-
-
-
----
-
-## Open Questions and Concerns
-
-### ~~OQ-1: JSONPath Library for API Response Extraction~~ — RESOLVED (SD-2)
-Resolved: Custom dot-path expression parser, no third-party library. See SD-2.
-
-### ~~OQ-2: XML Response Parsing Strategy~~ — RESOLVED (SD-1)
-Resolved: `xml` deferred from v0.7. Can be added as a registered `ResultParser` in a future release.
-
-### ~~OQ-3: Binary Response Handling~~ — RESOLVED (SD-1)
-Resolved: `binary` deferred from v0.7. Can be added as a registered `ResultParser` in a future release.
-
-### ~~OQ-4: `auto` Content-Type Detection~~ — RESOLVED (SD-1)
-Resolved: `auto` removed. Default parser is `text` (explicit, no sniffing). See SD-1.
-
-### ~~OQ-5: `httpx` Version Floor~~ — RESOLVED
-**Decision:** Pin `httpx>=0.27,<1.0` in `pyproject.toml`. This covers all Python 3.10+ environments and tracks the 0.x series until 1.0 stabilizes. The lower bound (`0.27`) is the oldest release supporting the async API surface used by `ApiRunner`. The upper bound (`<1.0`) avoids surprises from a major version bump.
-
-**Spec update required:** No — the specs do not prescribe a specific httpx version. This is a `pyproject.toml` detail documented in B07-S9.
-
-### ~~OQ-6: Secret Redaction Scope~~ — RESOLVED
-**Decision:** Redact in **two layers**: (1) Loguru sink filter scrubs resolved secret values from all log messages, and (2) `BrimleyExecutionError` message construction passes messages through the same redaction function before embedding in exceptions. CLI formatter output passes through Loguru, so it's covered by layer 1. Exception stack traces in debug mode may still contain secret values in local variable repr — this is documented as a known limitation for v0.7.
-
-**Spec update required:** Yes — `brimley-0.7-api-functions.md` and `brimley-0.7-cli-functions.md` reference automatic log redaction but do not specify the two-layer scope or the stack-trace limitation. ADR-0003 says "automatically redacted from log output" which is accurate but incomplete — the exception-message layer should be noted. The new canonical `docs/brimley-secrets.md` (created in B07-S15) will be the definitive reference for redaction scope.
-
-### ~~OQ-7: llm-guard as Optional Dependency~~ — RESOLVED
-**Decision:** `llm-guard` is an **optional Poetry extra** declared under `[tool.poetry.extras]` as `security = ["llm-guard"]`, installed via `poetry install --extras security`. It is NOT a core dependency. The Dispatcher hook checks for availability at runtime (`importlib.util.find_spec("llm_guard")`), logs a clear warning if not installed and screening is enabled in config, and skips scanning gracefully. The hook is the structural commitment; the dependency is opt-in.
-
-**Spec update required:** Yes — `brimley-0.7-api-functions.md` §7 and `brimley-0.7-cli-functions.md` §5 list "Runtime prompt injection screening: llm-guard PromptInjection scanner in Dispatcher.run()" as a security requirement without indicating it's optional. The spec should note that llm-guard is an optional extra and the hook is the hard requirement, not the dependency itself. `docs/brimley-configuration.md` will need a new `security:` config section documenting `prompt_injection_screening` (B07-S15).
-
-### ~~OQ-8: CliRunner `env` Block — Two-Mode Behavior~~ — RESOLVED
-**Decision:** Two-mode environment behavior for CLI functions:
-- **`env:` is declared** (even if empty dict `{}`): subprocess receives ONLY the explicitly declared keys. No inheritance from parent process. This is the strict-security path for MCP-exposed commands.
-- **`env:` is omitted** (`None` / key absent from YAML): subprocess inherits the parent process environment (`os.environ` copy). This is the convenience path for simple commands that need standard system env (e.g., `PATH`, `HOME`, `LANG`).
-
-This resolves the `PATH` usability problem without compromising the strict-security guarantee when `env:` is explicitly declared.
-
-**Spec update required:** Yes — `brimley-0.7-cli-functions.md` §5 states "Only explicitly declared `env:` keys are passed to the subprocess" without distinguishing the omitted-env case. The spec must document the two-mode behavior: declared = strict whitelist, omitted = inherit. The schema example already shows an explicit `env:` block, which is correct for the strict path. A second example or note should show the omitted case.
-
-### ~~OQ-9: Jinja2 SandboxedEnvironment for All Runner Templates~~ — RESOLVED
-**Decision:** Use `jinja2.sandbox.SandboxedEnvironment` for **all** Jinja2 template rendering in `ApiRunner` and `CliRunner`. This includes URL, headers, body (API), and command, args, env (CLI). The sandbox restrictions (no attribute access on unsafe objects, no `__` dunder access, etc.) are minimal for the template patterns used (simple `{{ variable }}` substitution). This is a defense-in-depth measure — even though templates are developer-authored, the values injected at call time come from user/LLM input.
-
-**Spec update required:** No — the specs do not prescribe a specific Jinja2 environment type. This is an implementation-level security decision. However, the new canonical docs (`docs/brimley-api-functions.md`, `docs/brimley-cli-functions.md` created in B07-S15) should document that sandbox mode is used and note any template-authoring restrictions that result (e.g., no calling methods on objects, no `import` expressions).
-
-### ~~OQ-10: CLI Function `arg_schema` / `allowed_args` Validation~~ — RESOLVED (SD-4)
-**Decision:** Continue to use the inherited `arguments:` block on `BrimleyFunction` for user-facing input validation. The `ArgumentResolver` already handles type casting, required-field checks, and `from_context` injection — no separate `arg_schema` model is needed. The subprocess argument vector is defined by the new `command_arguments:` field (renamed from `args:` — see SD-4), which is a `List[str]` of Jinja2 templates that can reference validated function arguments (`{{ args.<name> }}`), resolved secrets (`{{ secrets.<name> }}`), and correlation ID.
-
-**Spec update required:** Yes — see SD-4.
-
-### ~~OQ-11: API Function `results` Block — Result Code Granularity~~ — RESOLVED (SD-3, SD-5)
-Resolved: Both API and CLI functions use a unified `results:` block. API supports mixed exact and wildcard status code keys (`"200"`, `"2xx"`, `"default"`); CLI supports exact exit code keys (`"0"`, `"1"`, `"default"`). Both use ordered first-match semantics. See SD-3 and SD-5.
-
-### ~~OQ-12: Startup Validation Depth for `provider` Sources~~ — RESOLVED
-**Decision:** Raise `BrimleySecretResolutionError` at startup ONLY if `provider` is declared as the secret's **only** source (no preceding `env` source in the resolution order). If `env` is listed first and `provider` is a fallback, emit a **diagnostic WARNING** (not error) since the `env` path may succeed at runtime. This avoids breaking valid YAML that includes forward-compatible `provider` fallbacks while still failing fast when no runtime-resolvable source exists.
-
-**Spec update required:** No — ADR-0003 says "raises `BrimleySecretResolutionError` at startup until DI is available" which is accurate for the provider-only case. The nuance of warning-vs-error for mixed sources is an implementation detail. The new canonical `docs/brimley-secrets.md` (B07-S15) should document both behaviors.
+### B07-S18 Notes
+- Changes made: Added `redact_secrets()`, `register_secrets()`, `clear_secrets()`, `get_registered_secrets()` to `src/brimley/utils/secrets.py`. Integrated secret scrubbing into `_make_sink_filter()` in `src/brimley/infrastructure/logging.py` — retrieves registered secrets by correlation ID and redacts before sink output. Updated `src/brimley/execution/api_runner.py` and `src/brimley/execution/cli_runner.py` to register secrets after resolution, wrap execution in `try/finally` for cleanup, and `redact_secrets()` on `BrimleyExecutionError` messages (layer 2). Created `tests/test_secret_redaction.py` with 22 tests.
+- Deviations: None.
+- Validation: Focused: 22 passed. Adjacent (secrets, runners, logging): 99 passed. Full suite: 610 passed, 1 pre-existing failure (`test_e2e_api_function_results_block_parsed` — YAML `parse.path` field empty string vs expected `"login"`, unrelated to this step).
+
+### B07-S19 Notes
+*(Not yet started)*
+
+### B07-S20 Notes
+*(Not yet started)*
 
 ---
 

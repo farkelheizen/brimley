@@ -19,7 +19,13 @@ from brimley.execution.result_mapper import ResultMapper
 from brimley.execution.result_parser import get_parser
 from brimley.infrastructure.logging import get_or_create_correlation_id
 from brimley.utils.diagnostics import BrimleyExecutionError
-from brimley.utils.secrets import BrimleySecretResolutionError, resolve_secrets
+from brimley.utils.secrets import (
+    BrimleySecretResolutionError,
+    clear_secrets,
+    redact_secrets,
+    register_secrets,
+    resolve_secrets,
+)
 
 # Sandboxed Jinja2 environment — defence-in-depth for user-controlled template values.
 _JINJA_ENV = SandboxedEnvironment(undefined=StrictUndefined, keep_trailing_newline=True)
@@ -63,78 +69,89 @@ class CliRunner(BaseRunner):
         except BrimleySecretResolutionError as exc:
             raise BrimleyExecutionError(message=str(exc), func_name=func.name) from exc
 
-        # 2. Template context.
+        # 1a. Register resolved secrets for log redaction.
         correlation_id = get_or_create_correlation_id()
-        template_ctx: Dict[str, Any] = {
-            **args,
-            "secrets": secrets,
-            "correlation_id": correlation_id,
-        }
+        secret_values = list(secrets.values())
+        register_secrets(correlation_id, secret_values)
 
-        # 3. Render command_arguments list (Jinja2 sandboxed).
         try:
-            rendered_args = [_render(a, template_ctx) for a in func.command_arguments]
-        except UndefinedError as exc:
-            raise BrimleyExecutionError(
-                message=f"Arg template rendering failed: {exc}",
-                func_name=func.name,
-            ) from exc
+            # 2. Template context.
+            template_ctx: Dict[str, Any] = {
+                **args,
+                "secrets": secrets,
+                "correlation_id": correlation_id,
+            }
 
-        # 3a. Validate rendered args for shell metacharacters (injection prevention).
-        for rendered in rendered_args:
-            _validate_arg_no_metachar(rendered, func.name)
-
-        # 4. Build subprocess env (two-mode behaviour per spec / OQ-8 resolution).
-        subprocess_env: Optional[Dict[str, str]] = None
-        if func.env is not None:
-            # env: declared — strict whitelist mode: only declared keys forwarded.
+            # 3. Render command_arguments list (Jinja2 sandboxed).
             try:
-                subprocess_env = {
-                    k: _render(v, template_ctx) for k, v in func.env.items()
-                }
+                rendered_args = [_render(a, template_ctx) for a in func.command_arguments]
             except UndefinedError as exc:
                 raise BrimleyExecutionError(
-                    message=f"Env template rendering failed: {exc}",
+                    message=redact_secrets(f"Arg template rendering failed: {exc}", secret_values),
                     func_name=func.name,
                 ) from exc
-        else:
-            # env: omitted — inherit parent process environment (convenience mode).
-            subprocess_env = dict(os.environ)
 
-        # 5. Determine cwd — defaults to project root, never inherited.
-        cwd = func.cwd
-        if not cwd:
-            root_dir = context.app.get("root_dir") or context.app.get("project_root")
-            cwd = str(root_dir) if root_dir else str(Path.cwd())
+            # 3a. Validate rendered args for shell metacharacters (injection prevention).
+            for rendered in rendered_args:
+                _validate_arg_no_metachar(rendered, func.name)
 
-        # 6. Execute.
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
+            # 4. Build subprocess env (two-mode behaviour per spec / OQ-8 resolution).
+            subprocess_env: Optional[Dict[str, str]] = None
+            if func.env is not None:
+                # env: declared — strict whitelist mode: only declared keys forwarded.
+                try:
+                    subprocess_env = {
+                        k: _render(v, template_ctx) for k, v in func.env.items()
+                    }
+                except UndefinedError as exc:
+                    raise BrimleyExecutionError(
+                        message=redact_secrets(f"Env template rendering failed: {exc}", secret_values),
+                        func_name=func.name,
+                    ) from exc
+            else:
+                # env: omitted — inherit parent process environment (convenience mode).
+                subprocess_env = dict(os.environ)
 
-        if loop and loop.is_running():
-            import concurrent.futures
+            # 5. Determine cwd — defaults to project root, never inherited.
+            cwd = func.cwd
+            if not cwd:
+                root_dir = context.app.get("root_dir") or context.app.get("project_root")
+                cwd = str(root_dir) if root_dir else str(Path.cwd())
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(
-                    asyncio.run,
-                    self._async_exec(func, rendered_args, subprocess_env, cwd),
+            # 6. Execute.
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(
+                        asyncio.run,
+                        self._async_exec(func, rendered_args, subprocess_env, cwd),
+                    )
+                    exit_code, stdout_bytes, stderr_bytes = future.result()
+            else:
+                exit_code, stdout_bytes, stderr_bytes = asyncio.run(
+                    self._async_exec(func, rendered_args, subprocess_env, cwd)
                 )
-                exit_code, stdout_bytes, stderr_bytes = future.result()
-        else:
-            exit_code, stdout_bytes, stderr_bytes = asyncio.run(
-                self._async_exec(func, rendered_args, subprocess_env, cwd)
-            )
 
-        # 7. Apply results: block (per-exit-code) or fall back to legacy behaviour.
-        if func.results:
-            return self._handle_results_block(
+            # 7. Apply results: block (per-exit-code) or fall back to legacy behaviour.
+            if func.results:
+                return self._handle_results_block(
+                    exit_code, stdout_bytes, stderr_bytes, func, context
+                )
+            return self._handle_legacy_parsing(
                 exit_code, stdout_bytes, stderr_bytes, func, context
             )
-        return self._handle_legacy_parsing(
-            exit_code, stdout_bytes, stderr_bytes, func, context
-        )
+        except BrimleyExecutionError as exc:
+            # Layer 2: scrub secret values from error messages.
+            exc.message = redact_secrets(exc.message, secret_values)
+            raise
+        finally:
+            clear_secrets(correlation_id)
 
     async def _async_exec(
         self,
