@@ -91,6 +91,7 @@ Deliver Brimley 0.7 with two new declarative function types (API and CLI), a uni
 | B07-S18 | Completed | Implement secret log redaction (GAP-1) | `utils/secrets.py` redaction utility, `infrastructure/logging.py` sink filter, runner error-path redaction | `tests/test_secret_redaction.py` (22 cases) |
 | B07-S19 | Completed | Canonical docs verification pass (GAP-7, GAP-11, GAP-13) | Verify/fix `brimley-secrets.md`, `brimley-api-functions.md`, `brimley-cli-functions.md` | docs conformance review |
 | B07-S20 | Completed | Post-gap re-validation and plan cleanup | Full suite re-run, CHANGELOG addendum | Full suite |
+| B07-S21 | Completed | Version marker sweep (stale 0.6 → 0.7.x) | Update `Docs baseline` headers and inline version references from `0.6.x` to `0.7.x` across `brimley-high-level-design.md`, `brimley-configuration.md`, `copilot-docs-reference.md`, `copilot-instructions.md`, `README.md` | docs conformance review |
 
 Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 
@@ -819,6 +820,37 @@ Record results:
   - All 20 plan steps (B07-S1 through B07-S20) are now Completed.
 - Deviations: Gaps file already deleted by user; skipped that update.
 - Validation: Full suite: 611 passed, 0 failures.
+
+### B07-S21 Version Marker Sweep
+**Files (expected):**
+- `docs/brimley-high-level-design.md` — update `Docs baseline: 0.6.x` to `0.7.x`
+- `docs/copilot/copilot-docs-reference.md` — update `Docs baseline: 0.6.x` (line 2) and `for example, 0.6.x` (line 8) to `0.7.x`
+- `docs/copilot/copilot-instructions.md` — update example pattern `Docs baseline: 0.6.x` / `API baseline: 0.6.x` to `0.7.x`
+- `docs/brimley-configuration.md` — update `Transport Note (0.6)` section header and the inline `...in 0.6` description to reflect 0.7
+- `README.md` — update `Runtime Model (0.6 architecture baseline)` heading to `0.7`
+
+**Implementation notes:**
+- **Do NOT change** `(0.6+)` feature-introduction markers in body text — these are historically accurate annotations indicating when a feature was first introduced and remain correct in 0.7.
+- **Do NOT change** references inside `docs/roadmap/brimley-0.6-logging-architecture.md`, `docs/copilot/plans/brimley-0.6-plan.md`, `docs/roadmap/index.md`, `docs/roadmap/brimley-wish-list.md`, or `docs/roadmap/brimley-0.11-*.md` — these are historical or future-roadmap documents whose 0.6 references are correct as-is.
+- **Do NOT change** references in `brimley-0.7-plan.md` that say "0.6 shipped ..." or "preserved from 0.6" — these are correct backward references.
+- The `Transport Note` in `brimley-configuration.md` describes behavior that is still current in 0.7 (FastMCP over SSE). Update the heading to `Transport Note (0.7)` and the inline `in 0.6` to `in Brimley 0.7`.
+- The `copilot-instructions.md` change updates only the *example* cited in the pattern guidance — update both example version strings on that line to `0.7.x` so they stay consistent with the project's current baseline.
+
+**Definition of done:**
+- All `Docs baseline` markers on docs that cover 0.7 content read `0.7.x`.
+- `README.md` Runtime Model heading no longer says `0.6 architecture baseline`.
+- `brimley-configuration.md` Transport Note no longer implies it only describes 0.6 behavior.
+- No `(0.6+)` historical feature-introduction annotations were removed.
+
+### B07-S21 Notes
+- Changes made:
+  - `docs/brimley-high-level-design.md`: `Docs baseline: 0.6.x` → `0.7.x`.
+  - `docs/copilot/copilot-docs-reference.md`: `Docs baseline: 0.6.x` → `0.7.x` (header); `for example, 0.6.x` → `0.7.x` (body example).
+  - `docs/copilot/copilot-instructions.md`: example pattern `Docs baseline: 0.6.x` / `API baseline: 0.6.x` → `0.7.x` on both.
+  - `docs/brimley-configuration.md`: `Transport Note (0.6)` heading → `(0.7)`; `...in 0.6` body → `in Brimley 0.7`.
+  - `README.md`: `Runtime Model (0.6 architecture baseline)` → `(0.7 architecture baseline)`.
+- Deviations: None. All `(0.6+)` feature-introduction markers left intact as per step guidance.
+- Validation: Docs-only step — confirmed zero remaining `0.6.x` strings in the five changed files.
 
 ---
 

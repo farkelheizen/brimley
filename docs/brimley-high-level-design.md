@@ -1,5 +1,5 @@
 # Brimley High-Level Design
-> Docs baseline: 0.6.x
+> Docs baseline: 0.7.x
 
 > Status note: Brimley is currently experimental and this design is intended to support fast MCP development iteration, not to claim production readiness.
 

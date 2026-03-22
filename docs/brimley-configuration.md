@@ -159,9 +159,9 @@ class BrimleyContext(Entity):
 
   Logs are **always routed to stderr** (never stdout) to preserve the MCP JSON-RPC stream.
 
-  ### Transport Note (0.6)
+  ### Transport Note (0.7)
 
-  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in 0.6.
+  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in Brimley 0.7.
   - In hybrid workflows, REPL remains loopback-control-plane oriented and does not share terminal `stdio` with MCP transport.
 
   Precedence: CLI override > config > model default.
