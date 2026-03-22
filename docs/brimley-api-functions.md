@@ -156,6 +156,12 @@ Rendered header values are checked for `\r\n` sequences (HTTP response splitting
 ### Template Sandboxing
 All Jinja2 rendering uses `jinja2.sandbox.SandboxedEnvironment`. User-provided argument values cannot execute arbitrary code or access restricted attributes.
 
+**Template-authoring restrictions** enforced by SandboxedEnvironment:
+- No access to `__dunder__` attributes (e.g., `__class__`, `__globals__`).
+- No `import` expressions or module access.
+- No calling unsafe methods on built-in types (e.g., `str.format_map`).
+- Undefined variables raise `UndefinedError` immediately (`StrictUndefined` mode).
+
 ### Secrets Redaction
 Resolved secret values are automatically redacted from all Loguru log output and from `BrimleyExecutionError` messages. See [secrets](brimley-secrets.md) for full redaction scope.
 
@@ -191,7 +197,7 @@ See [MCP integration](brimley-model-context-protocol-integration.md) for full de
 
 ## 7. Known Gaps (v0.7)
 
-- **`provider` secret source:** Raises `BrimleySecretResolutionError` at startup if `provider` is the only source. If `env` is listed first and `provider` is a fallback, a diagnostic warning is emitted. See [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md).
+- **`provider` secret source:** Any `provider` source raises `BrimleySecretResolutionError` at scan time in v0.7, even if `env` is also declared. See [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md).
 - **MockRegistry intercept:** `ApiRunner` cannot be intercepted in offline tests until v0.9 Mocking. Stub intercept point left in `Dispatcher`.
 - **`httpx.AsyncClient` singleton:** Created per-call in v0.7; refactored to a singleton provider in v0.8 DI.
 - **Internal SSRF blocking:** URL scheme validation rejects non-HTTP(S) schemes. RFC-1918 host blocking is deferred to v0.8 (network-level controls recommended for production).

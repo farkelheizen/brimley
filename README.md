@@ -116,7 +116,7 @@ Then serve tools with:
 PYTHONPATH=src poetry run brimley mcp-serve --root .
 ```
 
-## Runtime Model (0.6 architecture baseline)
+## Runtime Model (0.7 architecture baseline)
 
 - REPL uses a **thin client** attached to a daemon-owned runtime.
 - Daemon owns state, watcher lifecycle, and embedded MCP hosting.
