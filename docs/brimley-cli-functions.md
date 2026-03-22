@@ -158,6 +158,12 @@ After Jinja2 rendering, each `command_arguments` entry is validated. Entries con
 ### Template Sandboxing
 All Jinja2 rendering uses `jinja2.sandbox.SandboxedEnvironment`. User-provided values cannot execute arbitrary code or access restricted attributes.
 
+**Template-authoring restrictions** enforced by SandboxedEnvironment:
+- No access to `__dunder__` attributes (e.g., `__class__`, `__globals__`).
+- No `import` expressions or module access.
+- No calling unsafe methods on built-in types (e.g., `str.format_map`).
+- Undefined variables raise `UndefinedError` immediately (`StrictUndefined` mode).
+
 ### Secrets Redaction
 Resolved secret values are automatically redacted from all Loguru log output and from `BrimleyExecutionError` messages. See [secrets](brimley-secrets.md) for full redaction scope.
 
@@ -194,7 +200,7 @@ See [MCP integration](brimley-model-context-protocol-integration.md) for full de
 
 ## 7. Known Gaps (v0.7)
 
-- **`provider` secret source:** Raises `BrimleySecretResolutionError` at startup if `provider` is the only source. If `env` is listed first and `provider` is a fallback, a diagnostic warning is emitted. See [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md).
+- **`provider` secret source:** Any `provider` source raises `BrimleySecretResolutionError` at scan time in v0.7, even if `env` is also declared. See [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md).
 - **MockRegistry intercept:** `CliRunner` cannot be intercepted in offline tests until v0.9 Mocking. Stub intercept point left in `Dispatcher`.
 - **Path traversal:** `../` sequences in `command_arguments` are not rejected (shell=False already prevents shell interpretation of path sequences). Document in threat model.
 - **Resource limits:** `timeout_seconds` is the only resource constraint in v0.7. Memory and file descriptor limits are a future enhancement.

@@ -19,6 +19,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`BrimleySecretResolutionError`** — New exception in `utils/secrets.py`; inherits `ValueError` so parsers can raise it and the Scanner converts it to a `BrimleyDiagnostic`.
 - **`resolve_secrets()`** — Module-level helper in `utils/secrets.py`; resolves `env:` sources in declared order at call time.
 - **`validate_secrets_no_provider()`** — Module-level helper in `utils/secrets.py`; called at scan time to reject `provider:` sources with a clear startup error.
+- **Secret log redaction** — Two-layer automatic redaction for resolved secret values. Layer 1: Loguru sink filter scrubs secrets from all log records before they reach stderr or file sinks. Layer 2: `BrimleyExecutionError` messages are scrubbed before being embedded in exception text. Secret values ≤ 2 characters are excluded to avoid false positives. Implemented via `redact_secrets()`, `register_secrets()`, `clear_secrets()`, and `get_registered_secrets()` in `utils/secrets.py`.
 - **YAML scanner extension** — `Scanner` now detects `.yaml` and `.yml` files. Files with `type: api_function` or `type: cli_function` are parsed and registered. Unknown YAML files are silently ignored.
 - **`api_parser.py` / `cli_parser.py`** — New parsers in `discovery/` for YAML function files.
 - **Dispatcher routing** — `Dispatcher._dispatch_sync_call()` routes `api_function` → `ApiRunner` and `cli_function` → `CliRunner`. Documented v0.9 stub intercept points left for future `MockRegistry` integration.
@@ -30,7 +31,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Known Gaps (v0.7 Release)
 
-- **Security Acceptance Gate** (threat model document, injection test suite, Bandit/Semgrep CI, llm-guard runtime screening, detect-secrets pre-commit hook) is a v0.7 release prerequisite per ADR-0002 §7 and the CLI spec §5. These are tracked as a follow-on gate.
 - **`provider` secret sources** raise `BrimleySecretResolutionError` at startup until DI (v0.8) is available.
 - **MockRegistry intercept** for `ApiRunner`/`CliRunner` is deferred to v0.9 Mocking. Stub intercept points are in place in `Dispatcher._dispatch_sync_call()`.
 - **Full JSONPath** support (wildcards, filters) in `ApiRunner` requires an external library; deferred. Only `$.key` and `$.key.subkey` patterns are currently supported.

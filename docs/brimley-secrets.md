@@ -16,6 +16,8 @@ secrets:
     - env: MY_API_KEY
 ```
 
+> **Note:** The `github_token` entry above includes a `provider` source and **will not load in v0.7** (see [Source Types](#source-types)). For v0.7, use only `env` sources.
+
 Each named secret maps to an **ordered list of sources**. Sources are tried in declaration order; the first source that returns a non-`None` value wins. An empty string (`""`) returned by an `env` source is treated as a valid resolved value.
 
 ### Source Types
@@ -23,13 +25,12 @@ Each named secret maps to an **ordered list of sources**. Sources are tried in d
 | Source | Syntax | v0.7 Status |
 |---|---|---|
 | `env` | `- env: ENV_VAR_NAME` | Supported — reads from `os.environ` at call time. |
-| `provider` | `- provider: provider_name` | Raises `BrimleySecretResolutionError` at scanner load time if `provider` is the **only** declared source. If `env` is listed first and `provider` is a fallback, a diagnostic **warning** is emitted (not an error) since the `env` path may succeed at runtime. |
+| `provider` | `- provider: provider_name` | **Not supported in v0.7.** Any secret declaring a `provider` source raises `BrimleySecretResolutionError` at scanner load time, regardless of whether `env` is also listed. Provider support requires Dependency Injection (v0.8+). |
 
 ## 2. Resolution Behavior
 
 At **scanner load time** (`validate_secrets_no_provider`):
-- Raises `BrimleySecretResolutionError` (converted to a `BrimleyDiagnostic`) if `provider` is the only source for any secret.
-- Emits a diagnostic warning if `env` is listed first and `provider` is a fallback (forward-compatible pattern for v0.8 DI).
+- Raises `BrimleySecretResolutionError` (converted to a `BrimleyDiagnostic`) if **any** secret declares a `provider` source — regardless of whether `env` is also listed. In v0.7 only `env` sources are supported.
 
 At **call time** (`resolve_secrets`):
 - Iterates sources in declaration order.
@@ -39,16 +40,16 @@ At **call time** (`resolve_secrets`):
 
 ### Forward-Compatible Pattern
 
-To write secrets config that works in both v0.7 (env only) and v0.8+ (env + provider):
+The following pattern is intended to work in both v0.7 (env only) and v0.8+ (env + provider):
 
 ```yaml
 secrets:
   api_token:
-    - env: API_TOKEN        # used in v0.7 and v0.8+
-    - provider: my_vault    # fallback in v0.8+ when env is absent
+    - env: API_TOKEN        # v0.7 and v0.8+
+    - provider: my_vault    # v0.8+ fallback when env is absent
 ```
 
-In v0.7: `API_TOKEN` env var is used; `provider` is skipped silently at call time. A diagnostic warning is emitted at scan time to note the deferred source.
+> **v0.7 limitation:** This pattern **will not load** in v0.7 — any `provider` source triggers `BrimleySecretResolutionError` at scan time. For v0.7, declare only `env` sources. The `provider` fallback line can be added once v0.8 DI is available.
 
 ## 3. Template Access
 
@@ -74,6 +75,8 @@ Resolved secret values are redacted from all output in two layers:
 1. **Loguru sink filter:** Scrubs all resolved secret values from structured log messages before they reach any sink (stderr or file). This covers `INFO`, `DEBUG`, `WARNING`, `ERROR`, and `SUCCESS` log records.
 
 2. **`BrimleyExecutionError` messages:** Error messages constructed by runners pass through the same redaction function before being embedded in exception text. This ensures that secrets are not visible in CLI error output or REPL error messages.
+
+**Minimum length:** Secret values with two or fewer characters are excluded from redaction to avoid false-positive replacement of common short strings (e.g., single-digit numbers).
 
 **Known limitation:** Python debug tracebacks (e.g., `--log-level DEBUG` or unhandled exceptions) may still contain secret values in local variable `repr()`. Loguru's structured output is covered; raw stack frames in Python's standard exception renderer are not. This is documented as a known limitation for v0.7.
 
