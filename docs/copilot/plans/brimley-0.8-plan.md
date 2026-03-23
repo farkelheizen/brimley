@@ -78,7 +78,7 @@ Deliver a custom, AST-aware Dependency Injection system (`BrimleyContainer`) wit
 
 | Step ID | Status | Goal | Planned Changes | Test Coverage |
 |---|---|---|---|---|
-| B08-S1 | Not Started | Domain models for providers, hooks, and Depends marker | `core/models.py`: `ProviderMetadata`, `LifecycleHookMetadata`; `core/di.py`: `Depends` class; `__init__.py`: `@provider`, `@on_startup`, `@on_shutdown` decorators | `tests/test_di_models.py` (models validation); `tests/test_decorators.py` (decorator attachment) |
+| B08-S1 | Completed | Domain models for providers, hooks, and Depends marker | `core/models.py`: `ProviderMetadata`, `LifecycleHookMetadata`; `core/di.py`: `Depends` class; `__init__.py`: `@provider`, `@on_startup`, `@on_shutdown` decorators | `tests/test_di_models.py` (models validation); `tests/test_decorators.py` (decorator attachment) |
 | B08-S2 | Not Started | AST detection of DI decorators | `discovery/python_parser.py`: detect `@provider`, `@on_startup`, `@on_shutdown` via AST; extract scope, eager, name kwargs | `tests/test_discovery_di.py` (AST parsing for providers + hooks) |
 | B08-S3 | Not Started | Scanner extension for providers and hooks | `discovery/scanner.py`: `BrimleyScanResult` gains `providers` and `lifecycle_hooks` fields; validation (name collisions, diagnostics) | `tests/test_discovery_di.py` (scanner integration, duplicate detection, diagnostics) |
 | B08-S4 | Not Started | BrimleyContainer core (singleton lifecycle) | New `core/container.py`: `BrimleyContainer` class with `register_provider()`, `resolve()`, `override()`, `reset()`; singleton scope; lazy and eager modes; yield-based teardown | `tests/test_container.py` (register, resolve, override, eager, lazy, teardown, error cases) |
@@ -496,9 +496,9 @@ Record results:
 ## Step Notes Log (update as work progresses)
 
 ### B08-S1 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Added `ProviderMetadata` and `LifecycleHookMetadata` to `src/brimley/core/models.py`; added `Depends` class to `src/brimley/core/di.py`; added `@provider`, `@on_startup`, `@on_shutdown` decorators and `Depends` export to `src/brimley/__init__.py`; created `tests/test_di_models.py`; extended `tests/test_decorators.py`.
+- Deviations: None.
+- Validation: Focused — 55 passed (`tests/test_di_models.py` + `tests/test_decorators.py`). Full suite — 547 passed, 1 pre-existing failure (`test_diagnostics_display.py` CliRunner arg, unrelated).
 
 ### B08-S2 Notes
 - Changes made: [what was implemented]

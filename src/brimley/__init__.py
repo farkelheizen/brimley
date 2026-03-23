@@ -7,7 +7,7 @@ __version__ = version("brimley")
 from collections.abc import Callable
 from typing import Any, TypeVar, overload
 
-from brimley.core.di import AppState, Config, Connection
+from brimley.core.di import AppState, Config, Connection, Depends
 
 DecoratedCallable = TypeVar("DecoratedCallable", bound=Callable[..., Any])
 DecoratedClass = TypeVar("DecoratedClass", bound=type)
@@ -115,10 +115,148 @@ def entity(
 	return decorator
 
 
+@overload
+def provider(func: DecoratedCallable, /) -> DecoratedCallable:
+	...
+
+
+@overload
+def provider(
+	func: None = None,
+	/,
+	*,
+	name: str | None = None,
+	scope: str = "singleton",
+	eager: bool = False,
+) -> Callable[[DecoratedCallable], DecoratedCallable]:
+	...
+
+
+def provider(
+	func: DecoratedCallable | None = None,
+	/,
+	*,
+	name: str | None = None,
+	scope: str = "singleton",
+	eager: bool = False,
+) -> DecoratedCallable | Callable[[DecoratedCallable], DecoratedCallable]:
+	"""Decorator that marks a callable as a Brimley managed dependency provider.
+
+	Supports both bare and configured usage:
+
+	- ``@provider``
+	- ``@provider(scope="request", eager=False)``
+
+	The decorated callable may be a regular function or a generator function
+	(using ``yield`` for setup/teardown semantics).
+
+	Introduced in Brimley 0.8.
+	"""
+
+	def decorator(target: DecoratedCallable) -> DecoratedCallable:
+		meta: dict[str, Any] = {
+			"type": "provider",
+			"name": name,
+			"scope": scope,
+			"eager": eager,
+		}
+		setattr(target, "_brimley_meta", meta)
+		return target
+
+	if callable(func):
+		return decorator(func)
+
+	return decorator
+
+
+@overload
+def on_startup(func: DecoratedCallable, /) -> DecoratedCallable:
+	...
+
+
+@overload
+def on_startup(
+	func: None = None,
+	/,
+) -> Callable[[DecoratedCallable], DecoratedCallable]:
+	...
+
+
+def on_startup(
+	func: DecoratedCallable | None = None,
+	/,
+) -> DecoratedCallable | Callable[[DecoratedCallable], DecoratedCallable]:
+	"""Decorator that marks a callable to run after all singletons are initialized.
+
+	Supports both bare and configured usage:
+
+	- ``@on_startup``
+	- ``@on_startup()``
+
+	Hooks execute in declaration (scan) order.
+
+	Introduced in Brimley 0.8.
+	"""
+
+	def decorator(target: DecoratedCallable) -> DecoratedCallable:
+		meta: dict[str, Any] = {"type": "on_startup"}
+		setattr(target, "_brimley_meta", meta)
+		return target
+
+	if callable(func):
+		return decorator(func)
+
+	return decorator
+
+
+@overload
+def on_shutdown(func: DecoratedCallable, /) -> DecoratedCallable:
+	...
+
+
+@overload
+def on_shutdown(
+	func: None = None,
+	/,
+) -> Callable[[DecoratedCallable], DecoratedCallable]:
+	...
+
+
+def on_shutdown(
+	func: DecoratedCallable | None = None,
+	/,
+) -> DecoratedCallable | Callable[[DecoratedCallable], DecoratedCallable]:
+	"""Decorator that marks a callable to run on graceful shutdown.
+
+	Supports both bare and configured usage:
+
+	- ``@on_shutdown``
+	- ``@on_shutdown()``
+
+	Hooks execute in reverse declaration (scan) order.
+
+	Introduced in Brimley 0.8.
+	"""
+
+	def decorator(target: DecoratedCallable) -> DecoratedCallable:
+		meta: dict[str, Any] = {"type": "on_shutdown"}
+		setattr(target, "_brimley_meta", meta)
+		return target
+
+	if callable(func):
+		return decorator(func)
+
+	return decorator
+
+
 __all__ = [
 	"AppState",
 	"Config",
 	"Connection",
+	"Depends",
 	"function",
 	"entity",
+	"provider",
+	"on_startup",
+	"on_shutdown",
 ]
