@@ -159,9 +159,29 @@ class BrimleyContext(Entity):
 
   Logs are **always routed to stderr** (never stdout) to preserve the MCP JSON-RPC stream.
 
-  ### Transport Note (0.6)
+  ### Transport Note (0.7)
 
-  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in 0.6.
+  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in Brimley 0.7.
   - In hybrid workflows, REPL remains loopback-control-plane oriented and does not share terminal `stdio` with MCP transport.
 
   Precedence: CLI override > config > model default.
+## 5. Security Configuration (Introduced in 0.7)
+
+The `config.security` sub-key under the application configuration section enables optional security features for API and CLI functions. These are placed under `config:` because `AppConfig` is user-owned and accessed via `ctx.config`.
+
+```yaml
+config:
+  security:
+    prompt_injection_screening: false   # Set to true to enable llm-guard screening
+```
+
+### `config.security.prompt_injection_screening`
+
+When set to `true`, the `Dispatcher` screens all function arguments for prompt injection before dispatch, using the optional `llm-guard` library.
+
+- **Default:** `false` (off).
+- **Requires:** `poetry install --extras security` (installs `llm-guard>=0.3.0`).
+- If `llm-guard` is not installed and this is `true`, a warning is logged and screening is skipped gracefully.
+- Applies to all function types (`api_function`, `cli_function`, `python_function`, etc.).
+
+See [CLI Functions](brimley-cli-functions.md#security) and [API Functions](brimley-api-functions.md#security) for the full security model.

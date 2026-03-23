@@ -88,6 +88,52 @@ def orchestrator_tool(prompt: str, ctx: BrimleyContext, mcp_ctx: Context):
 This preserves normal nested invocation semantics (lookup, argument resolution, dispatch) while still allowing MCP context passthrough for downstream Python handlers that request `Context`.
     
 
+## API and CLI Functions as MCP Tools (Introduced in 0.7)
+
+API functions and CLI functions defined in `.yaml` files can also be exposed as MCP tools via the same `mcp:` block:
+
+```yaml
+name: get_github_profile
+type: api_function
+description: "Fetches a GitHub user profile"
+mcp:
+  type: tool
+arguments:
+  inline:
+    username:
+      type: string
+      description: "GitHub username"
+...
+```
+
+```yaml
+name: get_system_load
+type: cli_function
+description: "Returns system load average"
+mcp:
+  type: tool
+...
+```
+
+### Argument Filtering for API/CLI Functions
+
+The MCP provider applies the same intelligent filtering for API and CLI functions as for Python functions:
+
+- **`secrets:` keys** are never exposed in the tool schema. LLM clients are not told which secrets a function uses or what their values are.
+- **`from_context` arguments** are excluded from the tool schema (injected at runtime from `BrimleyContext`).
+- Only user-facing `arguments:` fields appear in the tool schema.
+
+### MCP Tool Invocation
+
+When an LLM calls an API or CLI tool via MCP, the invocation is dispatched through the standard `Dispatcher`:
+- API functions are routed to `ApiRunner` (async HTTP via `httpx`).
+- CLI functions are routed to `CliRunner` (async subprocess via `asyncio.create_subprocess_exec`).
+
+Both runners apply the same security hardening (URL validation, metacharacter rejection, sandboxed templates) regardless of how they are invoked.
+
+See [API Functions](brimley-api-functions.md) and [CLI Functions](brimley-cli-functions.md) for full schema and security details.
+
+
 ## The Embedded REPL Server
 
 When you start the Brimley REPL via the CLI (`brimley repl`), Brimley discovers all functions exposed as MCP tools (for Python this is typically `@function(mcpType="tool")`). If any are found and MCP embedding is enabled (`mcp.embedded: true`, or via CLI override), Brimley spins up an embedded FastMCP server in the background.

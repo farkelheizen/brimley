@@ -8,10 +8,11 @@ Brimley is an authoring and execution engine for function-based AI tooling. It i
 
 ## Design goals
 
-- **Faster iteration loop:** author tools in `.py`, `.sql`, and `.md` files and execute them immediately, without a full redeploy cycle.
+- **Faster iteration loop:** author tools in `.py`, `.sql`, `.md`, and `.yaml` files and execute them immediately, without a full redeploy cycle.
 - **Safer change workflow:** discovery is AST-first for Python (no import-time execution during scan), with diagnostics instead of immediate process termination.
 - **Live runtime ergonomics:** use a thin REPL client attached to a daemon-owned runtime, with optional watch-mode reload.
 - **MCP integration path:** expose selected functions as MCP tools via FastMCP when needed.
+- **Declarative HTTP and CLI integration (0.7+):** wrap external APIs and shell commands as first-class Brimley functions using YAML — no boilerplate code required.
 - **Operations clarity:** built-in reload diagnostics, runtime error surfacing, and explicit daemon lifecycle controls.
 
 ## Architectural approach
@@ -100,12 +101,14 @@ PYTHONPATH=src poetry run brimley invoke calculate_tax --root . --input "{amount
 Mark a function as an MCP tool:
 
 - Python: `@function(mcpType="tool")`
-- SQL/Template frontmatter: 
+- SQL/Template/API/CLI frontmatter: 
 
 ```yaml
 mcp:
   type: tool
 ```
+
+API and CLI functions defined in `.yaml` files are first-class MCP tools. See [API Functions](docs/brimley-api-functions.md) and [CLI Functions](docs/brimley-cli-functions.md).
 
 Then serve tools with:
 
@@ -113,7 +116,7 @@ Then serve tools with:
 PYTHONPATH=src poetry run brimley mcp-serve --root .
 ```
 
-## Runtime Model (0.6 architecture baseline)
+## Runtime Model (0.7 architecture baseline)
 
 - REPL uses a **thin client** attached to a daemon-owned runtime.
 - Daemon owns state, watcher lifecycle, and embedded MCP hosting.
@@ -127,3 +130,7 @@ PYTHONPATH=src poetry run brimley mcp-serve --root .
 - [Configuration](docs/brimley-configuration.md)
 - [Discovery & loader spec](docs/brimley-discovery-and-loader-specification.md)
 - [MCP integration](docs/brimley-model-context-protocol-integration.md)
+- [API Functions](docs/brimley-api-functions.md) *(0.7+)*
+- [CLI Functions](docs/brimley-cli-functions.md) *(0.7+)*
+- [Secrets](docs/brimley-secrets.md) *(0.7+)*
+- [Security — Threat Model](docs/security/brimley-0.7-threat-model.md) *(0.7+)*

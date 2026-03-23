@@ -1,5 +1,5 @@
 # Brimley High-Level Design
-> Docs baseline: 0.6.x
+> Docs baseline: 0.7.x
 
 > Status note: Brimley is currently experimental and this design is intended to support fast MCP development iteration, not to claim production readiness.
 
@@ -64,13 +64,17 @@ Brimley uses two discovery strategies depending on runtime context:
 
 ### D. Function Types
 
-Brimley supports three primary function primitives:
+Brimley supports five function primitives:
 
 1. [Python Functions](brimley-python-functions.md): Native code execution with reflection-based schema inference.
     
 2. [SQL Functions](brimley-sql-functions.md): Database queries wrapped in metadata, executed via the Context's connection pools.
     
 3. [Template Functions](brimley-template-functions.md): Jinja2-based text generation returning strings or structured messages.
+
+4. [API Functions](brimley-api-functions.md) *(Introduced in 0.7)*: Declarative HTTP integrations via `httpx`. Defined in `.yaml` files with `type: api_function`.
+
+5. [CLI Functions](brimley-cli-functions.md) *(Introduced in 0.7)*: Declarative subprocess execution via `asyncio.create_subprocess_exec`. Defined in `.yaml` files with `type: cli_function`.
     
 
 ### E. The Interface Layer
