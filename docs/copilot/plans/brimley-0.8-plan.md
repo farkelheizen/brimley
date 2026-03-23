@@ -79,8 +79,8 @@ Deliver a custom, AST-aware Dependency Injection system (`BrimleyContainer`) wit
 | Step ID | Status | Goal | Planned Changes | Test Coverage |
 |---|---|---|---|---|
 | B08-S1 | Completed | Domain models for providers, hooks, and Depends marker | `core/models.py`: `ProviderMetadata`, `LifecycleHookMetadata`; `core/di.py`: `Depends` class; `__init__.py`: `@provider`, `@on_startup`, `@on_shutdown` decorators | `tests/test_di_models.py` (models validation); `tests/test_decorators.py` (decorator attachment) |
-| B08-S2 | Not Started | AST detection of DI decorators | `discovery/python_parser.py`: detect `@provider`, `@on_startup`, `@on_shutdown` via AST; extract scope, eager, name kwargs | `tests/test_discovery_di.py` (AST parsing for providers + hooks) |
-| B08-S3 | Not Started | Scanner extension for providers and hooks | `discovery/scanner.py`: `BrimleyScanResult` gains `providers` and `lifecycle_hooks` fields; validation (name collisions, diagnostics) | `tests/test_discovery_di.py` (scanner integration, duplicate detection, diagnostics) |
+| B08-S2 | Completed | AST detection of DI decorators | `discovery/python_parser.py`: detect `@provider`, `@on_startup`, `@on_shutdown` via AST; extract scope, eager, name kwargs | `tests/test_discovery_di.py` (AST parsing for providers + hooks) |
+| B08-S3 | Completed | Scanner extension for providers and hooks | `discovery/scanner.py`: `BrimleyScanResult` gains `providers` and `lifecycle_hooks` fields; validation (name collisions, diagnostics) | `tests/test_discovery_di.py` (scanner integration, duplicate detection, diagnostics) |
 | B08-S4 | Not Started | BrimleyContainer core (singleton lifecycle) | New `core/container.py`: `BrimleyContainer` class with `register_provider()`, `resolve()`, `override()`, `reset()`; singleton scope; lazy and eager modes; yield-based teardown | `tests/test_container.py` (register, resolve, override, eager, lazy, teardown, error cases) |
 | B08-S5 | Not Started | DependencyResolver and request scope | New `core/resolver.py`: topological sort, cycle detection, `BrimleyContext` injection; `BrimleyContainer` gains request-scoped provider support with enter/exit request context | `tests/test_resolver.py` (topological order, cycle detection, BrimleyContext injection); `tests/test_container.py` (request scope lifecycle) |
 | B08-S6 | Not Started | Startup sequence integration | `cli/main.py` boot path: after scan, init container → import provider modules → construct eager singletons → run `@on_startup` hooks → set context.container; fail-fast with cleanup on error; `system_boot` correlation ID; `infrastructure/logging.py` integration | `tests/test_startup.py` (happy path, eager failure abort, hook failure abort, cleanup runs, ordering) |
@@ -501,14 +501,14 @@ Record results:
 - Validation: Focused — 55 passed (`tests/test_di_models.py` + `tests/test_decorators.py`). Full suite — 547 passed, 1 pre-existing failure (`test_diagnostics_display.py` CliRunner arg, unrelated).
 
 ### B08-S2 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Extended `_find_brimley_decorators()` with `_PROVIDER_DECORATORS`, `_STARTUP_DECORATORS`, `_SHUTDOWN_DECORATORS` sets; added `"provider"`, `"on_startup"`, `"on_shutdown"` kind handling in `parse_python_file()`; updated return type to include `ProviderMetadata` and `LifecycleHookMetadata`; imported both models from `brimley.core.models`.
+- Deviations: None.
+- Validation: Focused — 32 passed (`tests/test_discovery_di.py`). Adjacent — 103 passed (`test_di_models.py`, `test_decorators.py`, `test_discovery.py`, `test_scanner.py`, `test_scanner_yaml.py`, `test_parsers.py`). Full suite — 579 passed, 1 pre-existing failure (`test_diagnostics_display.py` CliRunner arg, unrelated).
 
 ### B08-S3 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Added `ProviderMetadata` and `LifecycleHookMetadata` imports to `scanner.py`; added `providers` and `lifecycle_hooks` fields to `BrimleyScanResult`; updated `Scanner.scan()` to route `ProviderMetadata` and `LifecycleHookMetadata` objects before the generic function/entity pipeline; added `ERR_DUPLICATE_PROVIDER` diagnostic for duplicate provider names; added `ERR_PROVIDER_SHADOWS_FUNCTION` (severity=warning) when a provider and function share the same name (bidirectional check — fires regardless of scan order).
+- Deviations: Made the provider-shadows-function warning bidirectional (emitted whether provider or function is encountered second) to avoid relying on non-deterministic `os.walk` file ordering.
+- Validation: See B08-S2 Notes (same test run covers both steps).
 
 ### B08-S4 Notes
 - Changes made: [what was implemented]

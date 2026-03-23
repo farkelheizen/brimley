@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 import yaml
 
 from brimley.core.entity import Entity
-from brimley.core.models import BrimleyFunction
+from brimley.core.models import BrimleyFunction, LifecycleHookMetadata, ProviderMetadata
 from brimley.core.naming import (
     build_canonical_id,
     is_reserved_function_name,
@@ -22,6 +22,8 @@ from brimley.discovery.cli_parser import parse_cli_file
 class BrimleyScanResult(BaseModel):
     functions: List[BrimleyFunction] = Field(default_factory=list)
     entities: List[Entity] = Field(default_factory=list)
+    providers: List[ProviderMetadata] = Field(default_factory=list)
+    lifecycle_hooks: List[LifecycleHookMetadata] = Field(default_factory=list)
     diagnostics: List[BrimleyDiagnostic] = Field(default_factory=list)
 
 class Scanner:
@@ -38,9 +40,12 @@ class Scanner:
     def scan(self) -> BrimleyScanResult:
         functions: List[BrimleyFunction] = []
         entities: List[Entity] = []
+        providers: List[ProviderMetadata] = []
+        lifecycle_hooks: List[LifecycleHookMetadata] = []
         diagnostics: List[BrimleyDiagnostic] = []
         seen_function_names: Set[str] = set()
         seen_entity_names: Set[str] = set()
+        seen_provider_names: Set[str] = set()
         seen_identity_keys: Set[str] = set()
         seen_function_proximity: dict[str, str] = {}
         seen_entity_proximity: dict[str, str] = {}
@@ -79,6 +84,47 @@ class Scanner:
                 objects = parsed if isinstance(parsed, list) else [parsed]
 
                 for obj in objects:
+                    # Route DI metadata types before the generic function/entity pipeline.
+                    if isinstance(obj, ProviderMetadata):
+                        effective_name = obj.name if obj.name is not None else obj.func_name
+                        if not self.NAME_REGEX.match(effective_name):
+                            diagnostics.append(BrimleyDiagnostic(
+                                file_path=str(file_path),
+                                error_code="ERR_INVALID_NAME",
+                                message=f"Provider name '{effective_name}' is invalid.",
+                                suggestion="Names must start with a letter and contain only alphanumeric chars, underscores, or dashes.",
+                                line_number=None,
+                            ))
+                            continue
+                        if effective_name in seen_provider_names:
+                            diagnostics.append(BrimleyDiagnostic(
+                                file_path=str(file_path),
+                                error_code="ERR_DUPLICATE_PROVIDER",
+                                message=f"Provider '{effective_name}' is already defined.",
+                                suggestion="Rename this provider or remove the duplicate.",
+                                line_number=None,
+                            ))
+                            continue
+                        seen_provider_names.add(effective_name)
+                        if effective_name in seen_function_names:
+                            diagnostics.append(BrimleyDiagnostic(
+                                file_path=str(file_path),
+                                error_code="ERR_PROVIDER_SHADOWS_FUNCTION",
+                                message=(
+                                    f"Provider name '{effective_name}' shadows a function of the same name. "
+                                    "This may reduce discoverability."
+                                ),
+                                severity="warning",
+                                suggestion="Use a distinct name to avoid confusion.",
+                                line_number=None,
+                            ))
+                        providers.append(obj)
+                        continue
+
+                    if isinstance(obj, LifecycleHookMetadata):
+                        lifecycle_hooks.append(obj)
+                        continue
+
                     if not obj.name or not self.NAME_REGEX.match(obj.name):
                         diagnostics.append(BrimleyDiagnostic(
                             file_path=str(file_path),
@@ -154,6 +200,18 @@ class Scanner:
                             ))
                             continue
                         seen_function_names.add(obj.name)
+                        if obj.name in seen_provider_names:
+                            diagnostics.append(BrimleyDiagnostic(
+                                file_path=str(file_path),
+                                error_code="ERR_PROVIDER_SHADOWS_FUNCTION",
+                                message=(
+                                    f"Provider name '{obj.name}' shadows a function of the same name. "
+                                    "This may reduce discoverability."
+                                ),
+                                severity="warning",
+                                suggestion="Use a distinct name to avoid confusion.",
+                                line_number=None,
+                            ))
                         functions.append(obj)
                     else:
                         if obj.name in seen_entity_names:
@@ -167,7 +225,13 @@ class Scanner:
                         seen_entity_names.add(obj.name)
                         entities.append(obj)
 
-        return BrimleyScanResult(functions=functions, entities=entities, diagnostics=diagnostics)
+        return BrimleyScanResult(
+            functions=functions,
+            entities=entities,
+            providers=providers,
+            lifecycle_hooks=lifecycle_hooks,
+            diagnostics=diagnostics,
+        )
 
     def _identify_file_type(self, file_path: Path) -> Optional[str]:
         """
