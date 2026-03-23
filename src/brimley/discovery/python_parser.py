@@ -3,7 +3,13 @@ import ast
 import sys
 from typing import Any, Union
 from pydantic import ValidationError
-from brimley.core.models import DiscoveredEntity, PythonFunction, normalize_type_expression
+from brimley.core.models import (
+    DiscoveredEntity,
+    LifecycleHookMetadata,
+    ProviderMetadata,
+    PythonFunction,
+    normalize_type_expression,
+)
 
 
 INJECTED_TYPE_NAMES = {
@@ -17,6 +23,9 @@ INJECTED_TYPE_NAMES = {
 
 _FUNCTION_DECORATORS = {"function", "brimley.function"}
 _ENTITY_DECORATORS = {"entity", "brimley.entity"}
+_PROVIDER_DECORATORS = {"provider", "brimley.provider"}
+_STARTUP_DECORATORS = {"on_startup", "brimley.on_startup"}
+_SHUTDOWN_DECORATORS = {"on_shutdown", "brimley.on_shutdown"}
 _RELOAD_HAZARD_IDENTIFIERS = {"open", "connect", "start", "run", "thread", "popen", "call"}
 
 
@@ -91,6 +100,18 @@ def _find_brimley_decorators(tree: ast.Module) -> list[tuple[ast.AST, str, dict[
 
             if dec_name in _ENTITY_DECORATORS and isinstance(node, ast.ClassDef):
                 matches.append((node, "entity", kwargs))
+                break
+
+            if dec_name in _PROVIDER_DECORATORS and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                matches.append((node, "provider", kwargs))
+                break
+
+            if dec_name in _STARTUP_DECORATORS and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                matches.append((node, "on_startup", {}))
+                break
+
+            if dec_name in _SHUTDOWN_DECORATORS and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                matches.append((node, "on_shutdown", {}))
                 break
 
     return matches
@@ -320,7 +341,9 @@ def _infer_module_name(file_path: Path) -> str:
     return file_path.stem
 
 
-def parse_python_file(file_path: Path) -> list[Union[PythonFunction, DiscoveredEntity]]:
+def parse_python_file(
+    file_path: Path,
+) -> list[Union[PythonFunction, DiscoveredEntity, ProviderMetadata, LifecycleHookMetadata]]:
     """
     Parse a Python file via AST without importing/executing it.
 
@@ -337,7 +360,7 @@ def parse_python_file(file_path: Path) -> list[Union[PythonFunction, DiscoveredE
         raise ValueError(f"Syntax error in Python file {file_path}: {e}")
 
     module_name = _infer_module_name(file_path)
-    parsed_items: list[Union[PythonFunction, DiscoveredEntity]] = []
+    parsed_items: list[Union[PythonFunction, DiscoveredEntity, ProviderMetadata, LifecycleHookMetadata]] = []
 
     for node, kind, kwargs in _find_brimley_decorators(tree):
         if kind == "function" and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -397,6 +420,38 @@ def parse_python_file(file_path: Path) -> list[Union[PythonFunction, DiscoveredE
             }
             try:
                 parsed_items.append(DiscoveredEntity(**entity_meta))
+            except ValidationError as e:
+                raise ValueError(f"Validation error in {file_path}: {e}")
+
+        elif kind == "provider" and isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            provider_name = kwargs.get("name") if isinstance(kwargs.get("name"), str) else None
+            scope = kwargs.get("scope", "singleton")
+            eager = bool(kwargs.get("eager", False))
+            provider_meta: dict[str, Any] = {
+                "module_path": module_name,
+                "func_name": node.name,
+                "handler": f"{module_name}.{node.name}",
+                "scope": scope,
+                "eager": eager,
+            }
+            if provider_name is not None:
+                provider_meta["name"] = provider_name
+            try:
+                parsed_items.append(ProviderMetadata(**provider_meta))
+            except ValidationError as e:
+                raise ValueError(f"Validation error in {file_path}: {e}")
+
+        elif kind in ("on_startup", "on_shutdown") and isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            hook_meta: dict[str, Any] = {
+                "hook_type": kind,
+                "module_path": module_name,
+                "func_name": node.name,
+                "handler": f"{module_name}.{node.name}",
+            }
+            try:
+                parsed_items.append(LifecycleHookMetadata(**hook_meta))
             except ValidationError as e:
                 raise ValueError(f"Validation error in {file_path}: {e}")
 
