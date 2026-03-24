@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from brimley.core.entity import Entity, ContentBlock, PromptMessage
 from brimley.core.registry import Registry
@@ -12,6 +14,9 @@ from brimley.core.models import (
     ExecutionSettings,
 )
 from brimley.utils.diagnostics import BrimleyDiagnostic
+
+if TYPE_CHECKING:
+    from brimley.core.container import BrimleyContainer
 
 
 class RuntimeErrorRecord(BaseModel):
@@ -71,6 +76,11 @@ class BrimleyContext(Entity):
 
     # Runtime Error History Capacity
     runtime_error_history_limit: int = Field(default=200)
+
+    # DI Container: populated by the startup sequence (B08-S6).
+    # Typed as Any to avoid a circular import at runtime; the actual type is
+    # BrimleyContainer (see brimley.core.container).
+    container: Optional[Any] = Field(default=None, exclude=True)
 
     _runtime_error_sequence: int = PrivateAttr(default=0)
 
