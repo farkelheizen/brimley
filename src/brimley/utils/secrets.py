@@ -1,16 +1,17 @@
 """
-Brimley 0.7 secrets resolution.
+Brimley secrets resolution.
 
 ``resolve_secrets`` implements the ordered-source resolution defined in ADR-0003.
-In v0.7 only ``env`` sources are supported; ``provider`` sources raise
-``BrimleySecretResolutionError`` at **scanner load time** (not call time).
+In v0.8+ both ``env`` and ``provider`` sources are supported.  ``provider``
+sources are resolved via the :class:`~brimley.core.container.BrimleyContainer`
+injected at call time.
 """
 
 from __future__ import annotations
 
 import os
 import threading
-from typing import TYPE_CHECKING, Collection, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Collection, Dict, List, Optional
 
 if TYPE_CHECKING:
     from brimley.core.models import SecretSource
@@ -99,16 +100,25 @@ def validate_secrets_no_provider(
 def resolve_secrets(
     secrets: Optional[Dict[str, List["SecretSource"]]],
     func_name: str,
+    container: Optional[Any] = None,
 ) -> Dict[str, str]:
     """
     Resolve all named secrets from their declared sources.
 
     For each named secret the ordered source list is tried in sequence; the
-    first non-empty value wins.  In v0.7 only ``env`` sources are evaluated.
+    first non-empty value wins.  Both ``env`` and ``provider`` sources are
+    evaluated.  ``provider`` sources require *container* to be supplied.
+
+    Args:
+        secrets: Mapping of secret name → ordered list of :class:`SecretSource`.
+        func_name: Name of the calling function (used in error messages).
+        container: Optional :class:`~brimley.core.container.BrimleyContainer`
+            instance.  Required when any source has ``provider`` set.
 
     Raises:
         BrimleySecretResolutionError: If all sources for any secret are
-            exhausted without producing a value.
+            exhausted without producing a value, or if a ``provider`` source
+            is encountered without a container.
     """
     if not secrets:
         return {}
@@ -121,7 +131,28 @@ def resolve_secrets(
                 value = os.environ.get(source.env)
                 if value is not None:
                     break
-            # provider: deferred to v0.8 DI — skip silently at call time
+            elif source.provider is not None:
+                if container is None:
+                    raise BrimleySecretResolutionError(
+                        f"Secret '{key}' for function '{func_name}' declares a "
+                        f"'provider' source ('{source.provider}') but no DI container "
+                        f"is available."
+                    )
+                try:
+                    provider_value = container.resolve(source.provider)
+                except Exception as exc:
+                    raise BrimleySecretResolutionError(
+                        f"Failed to resolve provider '{source.provider}' for secret "
+                        f"'{key}' in function '{func_name}': {exc}"
+                    ) from exc
+                if not isinstance(provider_value, str):
+                    raise BrimleySecretResolutionError(
+                        f"Provider '{source.provider}' returned a non-string value "
+                        f"({type(provider_value).__name__}) for secret '{key}' in "
+                        f"function '{func_name}'. Provider secrets must return str."
+                    )
+                value = provider_value
+                break
         if value is None:
             raise BrimleySecretResolutionError(
                 f"Could not resolve secret '{key}' for function '{func_name}'. "

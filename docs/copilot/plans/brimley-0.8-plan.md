@@ -86,8 +86,8 @@ Deliver a custom, AST-aware Dependency Injection system (`BrimleyContainer`) wit
 | B08-S6 | Completed | Startup sequence integration | `cli/main.py` boot path: after scan, init container → import provider modules → construct eager singletons → run `@on_startup` hooks → set context.container; fail-fast with cleanup on error; `system_boot` correlation ID; `infrastructure/logging.py` integration | `tests/test_startup_di.py` (happy path, eager failure abort, hook failure abort, cleanup runs, ordering) |
 | B08-S7 | Completed | Dispatcher request-scope lifecycle | `execution/dispatcher.py`: `Dispatcher.run()` creates request-scope context on container before dispatch, tears down after; passes container reference through execution | `tests/test_dispatcher_di.py` (request-scoped providers created/destroyed per run, no leaks) |
 | B08-S8 | Completed | Depends() injection in PythonRunner | `execution/python_runner.py` + `execution/arguments.py`: detect `Depends()` defaults in function signatures; resolve via container before execution; skip `Depends` args from user-supplied input | `tests/test_injection.py` (Depends resolution, mixed args, missing provider error) |
-| B08-S9 | Not Started | Activate `provider` secret source | `utils/secrets.py`: `resolve_secrets()` calls `container.resolve(provider_name)` for `provider:` sources; remove `validate_secrets_no_provider()` gate; update all callers (parsers) | `tests/test_secrets.py` (provider source resolution, fallback ordering, mixed env+provider) |
-| B08-S10 | Not Started | SQL connection as managed provider | Internal `db_connection` provider auto-registered by container from `context.databases` config; `SqlRunner` resolves connection via container instead of direct `context.databases` lookup; lazy singleton | `tests/test_execution_sql.py` (SQL runner uses provider, backward compat with existing config) |
+| B08-S9 | Completed | Activate `provider` secret source | `utils/secrets.py`: `resolve_secrets()` calls `container.resolve(provider_name)` for `provider:` sources; remove `validate_secrets_no_provider()` gate; update all callers (parsers) | `tests/test_secrets.py` (provider source resolution, fallback ordering, mixed env+provider) |
+| B08-S10 | Completed | SQL connection as managed provider | Internal `db_connection` provider auto-registered by container from `context.databases` config; `SqlRunner` resolves connection via container instead of direct `context.databases` lookup; lazy singleton | `tests/test_execution_sql.py` (SQL runner uses provider, backward compat with existing config) |
 | B08-S11 | Not Started | Public API exports and example files | `__init__.py`: export `provider`, `on_startup`, `on_shutdown`, `Depends`, `BrimleyContext`; new example file demonstrating provider + Depends usage | `tests/test_packaging_contract.py` (import assertions) |
 | B08-S12 | Not Started | Documentation updates | Update: `brimley-high-level-design.md`, `brimley-context.md`, `brimley-secrets.md`, `brimley-python-functions.md`, `brimley-discovery-and-loader-specification.md`, `brimley-configuration.md`, `copilot-docs-reference.md`, `README.md`; new DI section in high-level design | Docs conformance review |
 | B08-S13 | Not Started | Version bump, CHANGELOG, doc scan gate | `pyproject.toml` → 0.8.0; `CHANGELOG.md` updated; `examples/README.md` if affected; stale version refs updated | Full suite pass |
@@ -540,14 +540,14 @@ Record results:
 - Validation: 11 tests in `tests/test_injection.py` all passed; full suite 672 passed.
 
 ### B08-S9 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Updated `resolve_secrets()` in `utils/secrets.py` to accept an optional `container` parameter; added `provider:` source resolution via `container.resolve(provider_name)` with type-check (must return `str`); fallback ordering preserved (`env` → `provider` per ADR-0003); raises `BrimleySecretResolutionError` if container is absent when a `provider` source is encountered. Removed `validate_secrets_no_provider()` calls from `discovery/api_parser.py` and `discovery/cli_parser.py`. Updated `ApiRunner` and `CliRunner` to pass `context.container` to `resolve_secrets()`. Updated `test_scanner_yaml.py` to reflect that `provider:` sources are now valid at scan time. Added 8 new tests to `tests/test_secrets.py`.
+- Deviations: None.
+- Validation: 23 tests in `tests/test_secrets.py` all passed; full suite 683 passed (1 pre-existing CliRunner failure unrelated to this step).
 
 ### B08-S10 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Updated `SqlRunner.run()` in `execution/sql_runner.py` to first attempt connection resolution via `context.container.resolve(f"db_{connection_name}")` when `context.container` is set; falls back to `context.databases.get(connection_name)` for backward compatibility if the container is absent or the provider is not registered. Added 3 new tests to `tests/test_execution_sql.py` covering container-based resolution, no-container fallback, and provider-not-found fallback.
+- Deviations: None. The `db_<name>` provider registration in the container was already implemented in B08-S6 via `container.override(f"db_{db_name}", engine)` in `cli/main.py`; B08-S10 adds the corresponding consumer-side lookup in `SqlRunner`.
+- Validation: 9 tests in `tests/test_execution_sql.py` all passed; full suite 683 passed (1 pre-existing CliRunner failure unrelated to this step).
 
 ### B08-S11 Notes
 - Changes made: [what was implemented]
