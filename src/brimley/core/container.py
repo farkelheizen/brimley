@@ -462,6 +462,80 @@ class BrimleyContainer:
         for name in eager_names:
             self.resolve(name, context)
 
+    def startup(
+        self,
+        lifecycle_hooks: Optional[List[Any]] = None,
+        context: Optional[Any] = None,
+    ) -> None:
+        """
+        Orchestrate the full DI startup sequence.
+
+        Steps:
+        1. Validate the provider dependency graph (cycle detection).
+        2. Eagerly initialise all ``eager=True`` singleton providers.
+        3. Execute all ``@on_startup`` lifecycle hooks in declaration order.
+
+        Fail-fast: if any step raises, :meth:`shutdown` is called for cleanup
+        before the exception is propagated to the caller.
+
+        Args:
+            lifecycle_hooks: List of :class:`~brimley.core.models.LifecycleHookMetadata`
+                discovered during the scan phase. Only hooks with
+                ``hook_type == "on_startup"`` are executed; ``on_shutdown``
+                hooks are deferred until :meth:`shutdown`.
+            context: Optional ``BrimleyContext`` forwarded to eager providers
+                and startup hooks that declare a ``BrimleyContext`` parameter.
+        """
+        from brimley.core.resolver import CircularDependencyError, DependencyResolver
+
+        # Step 1: validate dependency graph
+        resolver = DependencyResolver(self)
+        try:
+            resolver.detect_cycles()
+        except (CircularDependencyError, ProviderResolutionError) as exc:
+            self.shutdown()
+            raise
+
+        # Step 2: eagerly initialise marked providers
+        try:
+            self.init_eager(context)
+        except Exception:
+            self.shutdown()
+            raise
+
+        # Step 3: run @on_startup hooks in declaration order
+        if lifecycle_hooks:
+            for hook in lifecycle_hooks:
+                if hook.hook_type != "on_startup":
+                    continue
+                try:
+                    self._run_lifecycle_hook(hook, context)
+                except Exception:
+                    self.shutdown()
+                    raise
+
+    def _run_lifecycle_hook(self, hook: Any, context: Optional[Any]) -> None:
+        """
+        Import and call a lifecycle hook function, injecting ``BrimleyContext``
+        and ``Depends()``-marked arguments where applicable.
+
+        Supports both sync and async (``async def``) hook functions.  Generator
+        hooks (``yield``-based) are not supported; the first yielded value is
+        consumed and teardown is ignored.
+
+        Args:
+            hook: A :class:`~brimley.core.models.LifecycleHookMetadata` instance.
+            context: Optional ``BrimleyContext`` to inject.
+        """
+        handler_path = hook.handler or f"{hook.module_path}.{hook.func_name}"
+        fn = self._import_handler(handler_path)
+        kwargs = self._build_kwargs(fn, context, scope=None)
+        result = fn(**kwargs)
+
+        if asyncio.iscoroutine(result):
+            loop = self._get_or_create_loop()
+            loop.run_until_complete(result)
+
     def shutdown(self) -> None:
         """
         Tear down all singleton providers in reverse initialisation order.

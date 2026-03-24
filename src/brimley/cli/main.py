@@ -12,7 +12,7 @@ from prompt_toolkit.history import FileHistory
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
-from brimley.infrastructure.logging import initialize_logging_for_context
+from brimley.infrastructure.logging import initialize_logging_for_context, set_correlation_id, SYSTEM_BOOT_CORRELATION_ID
 from brimley.discovery.scanner import Scanner
 from brimley.discovery.schema_converter import convert_json_schema_to_fieldspec
 from brimley.core.registry import Registry
@@ -41,6 +41,44 @@ from brimley.runtime.repl_rpc import ReplRPCDaemon, send_repl_rpc_command
 BrimleyMCPAdapter = BrimleyProvider
 
 app = typer.Typer(name="brimley", help="Brimley CLI Interface", rich_markup_mode=None)
+
+
+def _run_di_startup(scan_result: object, context: "BrimleyContext") -> None:
+    """
+    Wire the DI container into the startup sequence after scan & register.
+
+    Steps:
+    1. Set ``system_boot`` correlation ID for startup-phase log filtering.
+    2. Create ``BrimleyContainer``.
+    3. Register all discovered ``@provider`` functions.
+    4. Register active database engines as ``db_<name>`` built-in providers.
+    5. Call ``container.startup()`` — validates the graph, eagerly loads
+       singletons, and runs ``@on_startup`` hooks in declaration order.
+    6. Attach the live container to ``context.container``.
+
+    Fail-fast: any exception during steps 3–5 propagates to the caller after
+    ``container.shutdown()`` has been called for cleanup.  The caller is
+    responsible for non-zero exit handling.
+    """
+    from brimley.core.container import BrimleyContainer
+
+    set_correlation_id(SYSTEM_BOOT_CORRELATION_ID)
+
+    container = BrimleyContainer()
+
+    # Register discovered @provider functions
+    for provider_meta in getattr(scan_result, "providers", []):
+        container.register(provider_meta)
+
+    # Register active database engines as built-in db_<name> providers
+    for db_name, engine in (context.databases or {}).items():
+        container.override(f"db_{db_name}", engine)
+
+    # Validate graph + eager load + @on_startup hooks
+    lifecycle_hooks = getattr(scan_result, "lifecycle_hooks", [])
+    container.startup(lifecycle_hooks=lifecycle_hooks, context=context)
+
+    context.container = container
 
 
 def _coerce_bool_like(value: object) -> bool:
@@ -770,6 +808,13 @@ def mcp_serve(
         context.functions.register_all(scan_result.functions)
         context.entities.register_all(scan_result.entities)
 
+        # DI startup: container, eager providers, @on_startup hooks
+        try:
+            _run_di_startup(scan_result, context)
+        except Exception as exc:
+            OutputFormatter.log(f"DI startup failed: {exc}", severity="error")
+            raise typer.Exit(code=1)
+
         adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
         tools = adapter.discover_tools()
         if not tools:
@@ -1203,6 +1248,13 @@ def invoke(
     # Register everything into context
     context.functions.register_all(scan_result.functions)
     context.entities.register_all(scan_result.entities)
+
+    # 2b. DI startup: container, eager providers, @on_startup hooks
+    try:
+        _run_di_startup(scan_result, context)
+    except Exception as exc:
+        OutputFormatter.log(f"DI startup failed: {exc}", severity="error")
+        raise typer.Exit(code=1)
 
     # 3. Parse Input
     parsed_input = {}
