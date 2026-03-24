@@ -84,8 +84,8 @@ Deliver a custom, AST-aware Dependency Injection system (`BrimleyContainer`) wit
 | B08-S4 | Completed | BrimleyContainer core (singleton lifecycle) | New `core/container.py`: `BrimleyContainer` class with `register_provider()`, `resolve()`, `override()`, `reset()`; singleton scope; lazy and eager modes; yield-based teardown | `tests/test_container.py` (register, resolve, override, eager, lazy, teardown, error cases) |
 | B08-S5 | Completed | DependencyResolver and request scope | New `core/resolver.py`: topological sort, cycle detection, `BrimleyContext` injection; `BrimleyContainer` gains request-scoped provider support with enter/exit request context | `tests/test_resolver.py` (topological order, cycle detection, BrimleyContext injection); `tests/test_container.py` (request scope lifecycle) |
 | B08-S6 | Completed | Startup sequence integration | `cli/main.py` boot path: after scan, init container → import provider modules → construct eager singletons → run `@on_startup` hooks → set context.container; fail-fast with cleanup on error; `system_boot` correlation ID; `infrastructure/logging.py` integration | `tests/test_startup_di.py` (happy path, eager failure abort, hook failure abort, cleanup runs, ordering) |
-| B08-S7 | Not Started | Dispatcher request-scope lifecycle | `execution/dispatcher.py`: `Dispatcher.run()` creates request-scope context on container before dispatch, tears down after; passes container reference through execution | `tests/test_dispatcher_di.py` (request-scoped providers created/destroyed per run, no leaks) |
-| B08-S8 | Not Started | Depends() injection in PythonRunner | `execution/python_runner.py` + `execution/arguments.py`: detect `Depends()` defaults in function signatures; resolve via container before execution; skip `Depends` args from user-supplied input | `tests/test_injection.py` (Depends resolution, mixed args, missing provider error) |
+| B08-S7 | Completed | Dispatcher request-scope lifecycle | `execution/dispatcher.py`: `Dispatcher.run()` creates request-scope context on container before dispatch, tears down after; passes container reference through execution | `tests/test_dispatcher_di.py` (request-scoped providers created/destroyed per run, no leaks) |
+| B08-S8 | Completed | Depends() injection in PythonRunner | `execution/python_runner.py` + `execution/arguments.py`: detect `Depends()` defaults in function signatures; resolve via container before execution; skip `Depends` args from user-supplied input | `tests/test_injection.py` (Depends resolution, mixed args, missing provider error) |
 | B08-S9 | Not Started | Activate `provider` secret source | `utils/secrets.py`: `resolve_secrets()` calls `container.resolve(provider_name)` for `provider:` sources; remove `validate_secrets_no_provider()` gate; update all callers (parsers) | `tests/test_secrets.py` (provider source resolution, fallback ordering, mixed env+provider) |
 | B08-S10 | Not Started | SQL connection as managed provider | Internal `db_connection` provider auto-registered by container from `context.databases` config; `SqlRunner` resolves connection via container instead of direct `context.databases` lookup; lazy singleton | `tests/test_execution_sql.py` (SQL runner uses provider, backward compat with existing config) |
 | B08-S11 | Not Started | Public API exports and example files | `__init__.py`: export `provider`, `on_startup`, `on_shutdown`, `Depends`, `BrimleyContext`; new example file demonstrating provider + Depends usage | `tests/test_packaging_contract.py` (import assertions) |
@@ -530,14 +530,14 @@ Record results:
 - Validation: 20 focused tests in `tests/test_startup_di.py` all passed; full suite 656 passed (3 pre-existing CliRunner failures unrelated to this step).
 
 ### B08-S7 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Added `contextlib.nullcontext` import to `dispatcher.py`. Added `request_ctx: Optional[Any] = None` parameter to `_dispatch_sync_call()`. In `Dispatcher.run()`, both the FastMCP sync path and the ThreadPoolExecutor path now wrap the dispatch call in `context.container.request_scope(context)` (via `nullcontext(None)` when no container). The `request_ctx` (_RequestScope or None) is passed explicitly through `_dispatch_sync_call()` to `PythonRunner.run()`. Updated pre-existing mocks in `tests/test_execution.py` and `tests/test_execute_function_helper.py` to accept the new `request_ctx` keyword arg.
+- Deviations: None. Used `nullcontext` to eliminate code duplication between the two dispatch paths.
+- Validation: 9 focused tests in `tests/test_dispatch_di.py` all passed; full suite 672 passed.
 
 ### B08-S8 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Added `Depends` and `ProviderResolutionError` imports to `python_runner.py`. Added `request_ctx` and `func_name` parameters to `_resolve_dependencies()`. For each parameter whose default is a `Depends()` instance: resolves via `request_ctx.resolve()` (if request scope present) or `context.container.resolve()` (singleton fallback), raising `BrimleyExecutionError` on missing provider or missing container. Caller-supplied args take precedence over `Depends()` injection. Added 8 new tests in `tests/test_injection.py` covering: basic injection, multiple Depends params, mixed signatures (user args + Depends + BrimleyContext), caller precedence, missing provider error, no-container error, request-scoped freshness, and string provider name.
+- Deviations: None.
+- Validation: 11 tests in `tests/test_injection.py` all passed; full suite 672 passed.
 
 ### B08-S9 Notes
 - Changes made: [what was implemented]
