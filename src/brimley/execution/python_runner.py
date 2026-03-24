@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional, get_args, get_origin, Annotated
 from brimley.core.models import PythonFunction
 from brimley.core.context import BrimleyContext
-from brimley.core.di import AppState, Config, Connection
+from brimley.core.di import AppState, Config, Connection, Depends
+from brimley.core.container import ProviderResolutionError
 from brimley.execution.result_mapper import ResultMapper
+from brimley.utils.diagnostics import BrimleyExecutionError
 
 class PythonRunner:
     """
@@ -21,6 +23,7 @@ class PythonRunner:
         args: Dict[str, Any],
         context: BrimleyContext,
         runtime_injections: Optional[Dict[str, Any]] = None,
+        request_ctx: Optional[Any] = None,
     ) -> Any:
         """
         Executes the function handler.
@@ -37,7 +40,7 @@ class PythonRunner:
             handler = self._load_handler(func.handler)
         
         # Prepare arguments
-        final_args = self._resolve_dependencies(handler, args, context, runtime_injections=runtime_injections)
+        final_args = self._resolve_dependencies(handler, args, context, runtime_injections=runtime_injections, request_ctx=request_ctx, func_name=func.name)
         
         raw_result = handler(**final_args)
 
@@ -185,6 +188,8 @@ class PythonRunner:
         resolved_args: Dict[str, Any],
         context: BrimleyContext,
         runtime_injections: Optional[Dict[str, Any]] = None,
+        request_ctx: Optional[Any] = None,
+        func_name: str = "unknown",
     ) -> Dict[str, Any]:
         """
         Inspects the handler signature and injects dependencies.
@@ -212,6 +217,33 @@ class PythonRunner:
             
             if param_name in resolved_args:
                 final_kwargs[param_name] = resolved_args[param_name]
+                continue
+
+            # Check for Depends() default (B08-S8): resolve via container / request scope
+            if param.default is not inspect.Parameter.empty and isinstance(param.default, Depends):
+                provider_name = param.default.provider_name
+                try:
+                    if request_ctx is not None:
+                        value = request_ctx.resolve(provider_name)
+                    elif context.container is not None:
+                        value = context.container.resolve(provider_name, context)
+                    else:
+                        raise BrimleyExecutionError(
+                            message=(
+                                f"Cannot resolve dependency '{provider_name}' for parameter "
+                                f"'{param_name}' in '{func_name}': no DI container is configured."
+                            ),
+                            func_name=func_name,
+                        )
+                except ProviderResolutionError as exc:
+                    raise BrimleyExecutionError(
+                        message=(
+                            f"Failed to resolve dependency '{provider_name}' for parameter "
+                            f"'{param_name}' in '{func_name}': {exc}"
+                        ),
+                        func_name=func_name,
+                    ) from exc
+                final_kwargs[param_name] = value
                 continue
             
             # Check for Dependency Injection via Annotation

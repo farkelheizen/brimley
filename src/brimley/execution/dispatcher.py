@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from typing import Any, Dict, Optional
 import importlib.util
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -59,10 +60,11 @@ class Dispatcher:
         args: Dict[str, Any],
         context: BrimleyContext,
         runtime_injections: Optional[Dict[str, Any]],
+        request_ctx: Optional[Any] = None,
     ) -> Any:
         if func.type == "python_function":
             if isinstance(func, PythonFunction):
-                return self.python_runner.run(func, args, context, runtime_injections=runtime_injections)
+                return self.python_runner.run(func, args, context, runtime_injections=runtime_injections, request_ctx=request_ctx)
         elif func.type == "sql_function":
             if isinstance(func, SqlFunction):
                 return self.sql_runner.run(func, args, context)
@@ -177,13 +179,19 @@ class Dispatcher:
             self._screen_for_prompt_injection(args, func.name)
 
         if func.type == "python_function" and self._has_fastmcp_runtime_injection(runtime_injections):
-            try:
-                result = self._dispatch_sync_call(func, args, context, runtime_injections)
-                _logger.trace("Function '{}' completed (type={})", func.name, func.type)
-                return result
-            except Exception as exc:
-                _logger.trace("Function '{}' failed (type={}): {}", func.name, func.type, exc)
-                raise
+            scope_ctx = (
+                context.container.request_scope(context)
+                if context.container is not None
+                else nullcontext(None)
+            )
+            with scope_ctx as request_ctx:
+                try:
+                    result = self._dispatch_sync_call(func, args, context, runtime_injections, request_ctx)
+                    _logger.trace("Function '{}' completed (type={})", func.name, func.type)
+                    return result
+                except Exception as exc:
+                    _logger.trace("Function '{}' failed (type={}): {}", func.name, func.type, exc)
+                    raise
 
         self._ensure_runtime_controls(context)
         timeout_seconds = self._resolve_timeout_seconds(func, context)
@@ -205,27 +213,34 @@ class Dispatcher:
                 func_name=func.name,
             )
 
-        try:
-            future: Future = self._executor.submit(
-                self._dispatch_sync_call,
-                func,
-                args,
-                context,
-                runtime_injections,
-            )
+        scope_ctx = (
+            context.container.request_scope(context)
+            if context.container is not None
+            else nullcontext(None)
+        )
+        with scope_ctx as request_ctx:
             try:
-                result = future.result(timeout=timeout_seconds)
-                _logger.trace("Function '{}' completed (type={})", func.name, func.type)
-                return result
-            except FuturesTimeoutError as exc:
-                future.cancel()
-                _logger.trace("Function '{}' timed out after {}s (type={})", func.name, timeout_seconds, func.type)
-                raise BrimleyExecutionError(
-                    message=f"Execution timed out after {timeout_seconds:.3f}s.",
-                    func_name=func.name,
-                ) from exc
-            except Exception as exc:
-                _logger.trace("Function '{}' failed (type={}): {}", func.name, func.type, exc)
-                raise
-        finally:
-            self._inflight_slots.release()
+                future: Future = self._executor.submit(
+                    self._dispatch_sync_call,
+                    func,
+                    args,
+                    context,
+                    runtime_injections,
+                    request_ctx,
+                )
+                try:
+                    result = future.result(timeout=timeout_seconds)
+                    _logger.trace("Function '{}' completed (type={})", func.name, func.type)
+                    return result
+                except FuturesTimeoutError as exc:
+                    future.cancel()
+                    _logger.trace("Function '{}' timed out after {}s (type={})", func.name, timeout_seconds, func.type)
+                    raise BrimleyExecutionError(
+                        message=f"Execution timed out after {timeout_seconds:.3f}s.",
+                        func_name=func.name,
+                    ) from exc
+                except Exception as exc:
+                    _logger.trace("Function '{}' failed (type={}): {}", func.name, func.type, exc)
+                    raise
+            finally:
+                self._inflight_slots.release()

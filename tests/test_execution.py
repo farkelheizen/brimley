@@ -19,7 +19,7 @@ def test_dispatcher_passes_runtime_injections_to_python_runner() -> None:
 
 	captured: dict[str, object] = {}
 
-	def fake_python_run(f, args, ctx, runtime_injections=None):
+	def fake_python_run(f, args, ctx, runtime_injections=None, request_ctx=None):
 		captured["func"] = f
 		captured["args"] = args
 		captured["ctx"] = ctx
@@ -95,7 +95,7 @@ def test_dispatcher_defaults_runtime_injections_to_none() -> None:
 
 	captured: dict[str, object] = {}
 
-	def fake_python_run(f, args, ctx, runtime_injections=None):
+	def fake_python_run(f, args, ctx, runtime_injections=None, request_ctx=None):
 		captured["runtime_injections"] = runtime_injections
 		return "ok"
 
@@ -119,7 +119,7 @@ def test_dispatcher_bypasses_threadpool_for_python_with_mcp_context() -> None:
 
 	captured: dict[str, object] = {}
 
-	def fake_python_run(f, args, ctx, runtime_injections=None):
+	def fake_python_run(f, args, ctx, runtime_injections=None, request_ctx=None):
 		captured["func"] = f
 		captured["args"] = args
 		captured["ctx"] = ctx
@@ -164,7 +164,7 @@ def test_dispatcher_function_timeout_precedence_over_global() -> None:
 		timeout_seconds=0.2,
 	)
 
-	def fake_python_run(_func, _args, _context, runtime_injections=None):
+	def fake_python_run(_func, _args, _context, runtime_injections=None, request_ctx=None):
 		time.sleep(0.05)
 		return "ok"
 
@@ -193,7 +193,7 @@ def test_dispatcher_times_out_without_function_override() -> None:
 		handler="pkg.mod.fn",
 	)
 
-	def fake_python_run(_func, _args, _context, runtime_injections=None):
+	def fake_python_run(_func, _args, _context, runtime_injections=None, request_ctx=None):
 		time.sleep(0.05)
 		return "too-late"
 
@@ -225,7 +225,7 @@ def test_dispatcher_rejects_when_bounded_queue_is_full() -> None:
 	started = Event()
 	release = Event()
 
-	def blocking_python_run(_func, _args, _context, runtime_injections=None):
+	def blocking_python_run(_func, _args, _context, runtime_injections=None, request_ctx=None):
 		started.set()
 		release.wait(timeout=1)
 		return "done"
