@@ -22,6 +22,10 @@ if TYPE_CHECKING:
 _correlation_id: ContextVar[str] = ContextVar("_correlation_id", default="")
 _external_trace_id: ContextVar[str] = ContextVar("_external_trace_id", default="")
 
+# Fixed correlation ID used during the startup sequence so startup-phase log
+# records can be filtered separately from per-request records.
+SYSTEM_BOOT_CORRELATION_ID: str = "system_boot"
+
 
 def get_correlation_id() -> str:
     """Return the current correlation ID, or empty string if none is set."""

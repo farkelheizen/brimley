@@ -83,7 +83,7 @@ Deliver a custom, AST-aware Dependency Injection system (`BrimleyContainer`) wit
 | B08-S3 | Completed | Scanner extension for providers and hooks | `discovery/scanner.py`: `BrimleyScanResult` gains `providers` and `lifecycle_hooks` fields; validation (name collisions, diagnostics) | `tests/test_discovery_di.py` (scanner integration, duplicate detection, diagnostics) |
 | B08-S4 | Completed | BrimleyContainer core (singleton lifecycle) | New `core/container.py`: `BrimleyContainer` class with `register_provider()`, `resolve()`, `override()`, `reset()`; singleton scope; lazy and eager modes; yield-based teardown | `tests/test_container.py` (register, resolve, override, eager, lazy, teardown, error cases) |
 | B08-S5 | Completed | DependencyResolver and request scope | New `core/resolver.py`: topological sort, cycle detection, `BrimleyContext` injection; `BrimleyContainer` gains request-scoped provider support with enter/exit request context | `tests/test_resolver.py` (topological order, cycle detection, BrimleyContext injection); `tests/test_container.py` (request scope lifecycle) |
-| B08-S6 | Not Started | Startup sequence integration | `cli/main.py` boot path: after scan, init container → import provider modules → construct eager singletons → run `@on_startup` hooks → set context.container; fail-fast with cleanup on error; `system_boot` correlation ID; `infrastructure/logging.py` integration | `tests/test_startup.py` (happy path, eager failure abort, hook failure abort, cleanup runs, ordering) |
+| B08-S6 | Completed | Startup sequence integration | `cli/main.py` boot path: after scan, init container → import provider modules → construct eager singletons → run `@on_startup` hooks → set context.container; fail-fast with cleanup on error; `system_boot` correlation ID; `infrastructure/logging.py` integration | `tests/test_startup_di.py` (happy path, eager failure abort, hook failure abort, cleanup runs, ordering) |
 | B08-S7 | Not Started | Dispatcher request-scope lifecycle | `execution/dispatcher.py`: `Dispatcher.run()` creates request-scope context on container before dispatch, tears down after; passes container reference through execution | `tests/test_dispatcher_di.py` (request-scoped providers created/destroyed per run, no leaks) |
 | B08-S8 | Not Started | Depends() injection in PythonRunner | `execution/python_runner.py` + `execution/arguments.py`: detect `Depends()` defaults in function signatures; resolve via container before execution; skip `Depends` args from user-supplied input | `tests/test_injection.py` (Depends resolution, mixed args, missing provider error) |
 | B08-S9 | Not Started | Activate `provider` secret source | `utils/secrets.py`: `resolve_secrets()` calls `container.resolve(provider_name)` for `provider:` sources; remove `validate_secrets_no_provider()` gate; update all callers (parsers) | `tests/test_secrets.py` (provider source resolution, fallback ordering, mixed env+provider) |
@@ -521,9 +521,13 @@ Record results:
 - Validation: 19 focused tests in `tests/test_resolver.py` all passed; full suite 750 passed.
 
 ### B08-S6 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made:
+  - `src/brimley/infrastructure/logging.py`: Added `SYSTEM_BOOT_CORRELATION_ID = "system_boot"` constant.
+  - `src/brimley/core/container.py`: Added `startup(lifecycle_hooks, context)` orchestration method (cycle detection → eager load → @on_startup hooks, fail-fast with cleanup) and `_run_lifecycle_hook(hook, context)` helper (handles sync + async hooks).
+  - `src/brimley/cli/main.py`: Added `_run_di_startup(scan_result, context)` helper; wired into both the `invoke` and `mcp-serve` boot paths after scan & register. Sets `system_boot` correlation ID, creates container, registers discovered @provider functions, registers `db_<name>` built-in providers for active databases, calls `container.startup()`, attaches container to `context.container`. Fail-fast: DI errors log + exit(1).
+  - `tests/test_startup_di.py`: 20 new tests covering happy path, eager failure abort, hook failure abort, cleanup, declaration order, async hooks, context injection, db providers, cycle detection, system_boot ID, and no-regression empty scan result.
+- Deviations: None.
+- Validation: 20 focused tests in `tests/test_startup_di.py` all passed; full suite 656 passed (3 pre-existing CliRunner failures unrelated to this step).
 
 ### B08-S7 Notes
 - Changes made: [what was implemented]
