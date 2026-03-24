@@ -81,8 +81,8 @@ Deliver a custom, AST-aware Dependency Injection system (`BrimleyContainer`) wit
 | B08-S1 | Completed | Domain models for providers, hooks, and Depends marker | `core/models.py`: `ProviderMetadata`, `LifecycleHookMetadata`; `core/di.py`: `Depends` class; `__init__.py`: `@provider`, `@on_startup`, `@on_shutdown` decorators | `tests/test_di_models.py` (models validation); `tests/test_decorators.py` (decorator attachment) |
 | B08-S2 | Completed | AST detection of DI decorators | `discovery/python_parser.py`: detect `@provider`, `@on_startup`, `@on_shutdown` via AST; extract scope, eager, name kwargs | `tests/test_discovery_di.py` (AST parsing for providers + hooks) |
 | B08-S3 | Completed | Scanner extension for providers and hooks | `discovery/scanner.py`: `BrimleyScanResult` gains `providers` and `lifecycle_hooks` fields; validation (name collisions, diagnostics) | `tests/test_discovery_di.py` (scanner integration, duplicate detection, diagnostics) |
-| B08-S4 | Not Started | BrimleyContainer core (singleton lifecycle) | New `core/container.py`: `BrimleyContainer` class with `register_provider()`, `resolve()`, `override()`, `reset()`; singleton scope; lazy and eager modes; yield-based teardown | `tests/test_container.py` (register, resolve, override, eager, lazy, teardown, error cases) |
-| B08-S5 | Not Started | DependencyResolver and request scope | New `core/resolver.py`: topological sort, cycle detection, `BrimleyContext` injection; `BrimleyContainer` gains request-scoped provider support with enter/exit request context | `tests/test_resolver.py` (topological order, cycle detection, BrimleyContext injection); `tests/test_container.py` (request scope lifecycle) |
+| B08-S4 | Completed | BrimleyContainer core (singleton lifecycle) | New `core/container.py`: `BrimleyContainer` class with `register_provider()`, `resolve()`, `override()`, `reset()`; singleton scope; lazy and eager modes; yield-based teardown | `tests/test_container.py` (register, resolve, override, eager, lazy, teardown, error cases) |
+| B08-S5 | Completed | DependencyResolver and request scope | New `core/resolver.py`: topological sort, cycle detection, `BrimleyContext` injection; `BrimleyContainer` gains request-scoped provider support with enter/exit request context | `tests/test_resolver.py` (topological order, cycle detection, BrimleyContext injection); `tests/test_container.py` (request scope lifecycle) |
 | B08-S6 | Not Started | Startup sequence integration | `cli/main.py` boot path: after scan, init container → import provider modules → construct eager singletons → run `@on_startup` hooks → set context.container; fail-fast with cleanup on error; `system_boot` correlation ID; `infrastructure/logging.py` integration | `tests/test_startup.py` (happy path, eager failure abort, hook failure abort, cleanup runs, ordering) |
 | B08-S7 | Not Started | Dispatcher request-scope lifecycle | `execution/dispatcher.py`: `Dispatcher.run()` creates request-scope context on container before dispatch, tears down after; passes container reference through execution | `tests/test_dispatcher_di.py` (request-scoped providers created/destroyed per run, no leaks) |
 | B08-S8 | Not Started | Depends() injection in PythonRunner | `execution/python_runner.py` + `execution/arguments.py`: detect `Depends()` defaults in function signatures; resolve via container before execution; skip `Depends` args from user-supplied input | `tests/test_injection.py` (Depends resolution, mixed args, missing provider error) |
@@ -511,14 +511,14 @@ Record results:
 - Validation: See B08-S2 Notes (same test run covers both steps).
 
 ### B08-S4 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Created `src/brimley/core/container.py` with `BrimleyContainer` (register, resolve, override, reset_overrides, init_eager, shutdown, request_scope context manager) and `_RequestScope` helper; `DuplicateProviderError` and `ProviderResolutionError` exception types. Singleton resolution uses per-provider threading locks. Yield-based teardown supported for both sync and async generators. PEP 563 string annotations handled via `typing.get_type_hints` with fallback. Added `container: Optional[Any]` field to `BrimleyContext`.
+- Deviations: Used `Optional[Any]` for `BrimleyContext.container` field type instead of `Optional[BrimleyContainer]` to avoid circular Pydantic forward-reference issue; IDE/mypy support via `TYPE_CHECKING` guard.
+- Validation: 38 focused tests in `tests/test_container.py` all passed; full suite 750 passed.
 
 ### B08-S5 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Created `src/brimley/core/resolver.py` with `DependencyResolver` (topological_sort, detect_cycles, get_dependencies); `CircularDependencyError` exception type. DFS-based topological sort with in-progress tracking for O(V+E) cycle detection. BrimleyContext-annotated parameters excluded from dependency graph. PEP 563 string annotations handled.
+- Deviations: None.
+- Validation: 19 focused tests in `tests/test_resolver.py` all passed; full suite 750 passed.
 
 ### B08-S6 Notes
 - Changes made: [what was implemented]
