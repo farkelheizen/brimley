@@ -134,7 +134,7 @@ class BrimleyContext(Entity):
 
     - **Type**: `Optional[BrimleyContainer]`
 
-    - **Purpose**: The active `BrimleyContainer` instance, populated at the end of the DI startup phase (after all singletons are initialised and `@on_startup` hooks have run). `None` before startup completes or when no providers are declared. Providers and `@function`-decorated callables may use `ctx.container.resolve(name)` to obtain managed dependencies, though the preferred pattern is `Depends()` injection.
+    - **Purpose**: The active `BrimleyContainer` instance, populated at the end of the DI startup phase (after all singletons are initialized and `@on_startup` hooks have run). `None` before startup completes or when no providers are declared. Providers and `@function`-decorated callables may use `ctx.container.resolve(name)` to obtain managed dependencies, though the preferred pattern is `Depends()` injection.
 
     - **Access**: `ctx.container`
 
@@ -170,7 +170,7 @@ class BrimleyContext(Entity):
     - `DependencyResolver` validates the dependency graph (cycle detection).
     - Eager providers (`eager=True`) are constructed.
     - `@on_startup` hooks run in declaration order.
-    - `ctx.container` is set to the initialised container.
+    - `ctx.container` is set to the initialized container.
     - If any step fails, startup aborts (fail-fast), `@on_shutdown` teardowns run, and the process exits non-zero.
 
 5. **Execution**:
