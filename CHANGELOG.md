@@ -6,13 +6,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.0] - 2026-03-25
+
+### Added
+
+- **`@provider` decorator** — marks a callable as a DI-managed dependency provider. Supports `scope="singleton"` (default) and `scope="request"`. Yield-based providers run setup code before `yield` and teardown on `shutdown()`. Eager providers (`eager=True`) are constructed during the startup phase. Provider name may be overridden with `name="..."`.
+- **`@on_startup` decorator** — marks a callable as a lifecycle hook executed after all singleton providers are initialised. Hooks run in declaration order. Supports both sync and async callables.
+- **`@on_shutdown` decorator** — marks a callable as a teardown lifecycle hook executed on graceful shutdown, in reverse declaration order.
+- **`Depends()` marker** — used as a parameter default in `@function` signatures to inject a named provider at execution time. `Depends`-annotated parameters are excluded from CLI/REPL/MCP argument schemas.
+- **`BrimleyContainer`** — central DI container with `register_provider()`, `resolve()`, `override()`, `reset_overrides()`, `shutdown()`, `load_eager_providers()`, and `request_scope()` context manager. Stored on `BrimleyContext.container` after startup.
+- **`DependencyResolver`** — topological sort and cycle detection for the provider dependency graph. Validates the full graph at startup; aborts with a clear cycle-path message on circular dependencies.
+- **`container.override()` seam** — replaces a provider factory for testing or mock integration. `reset_overrides()` restores the original. This is the stable seam for v0.9 Mocking integration.
+- **Request-scoped providers** — `Dispatcher.run()` wraps every invocation in `container.request_scope(context)`. Request-scoped providers are constructed fresh per call and torn down after (even on error).
+- **Activated `provider` secret source** — `secrets:` blocks on API/CLI functions may now declare `- provider: name` sources. Resolved via `container.resolve(name)` at call time. The provider must return a `str`. Previously blocked with `BrimleySecretResolutionError` at scan time (v0.7).
+- **Database connection providers** — connections declared in `databases:` are auto-registered as lazy singleton providers (`db_<name>`). `SqlRunner` resolves connections through the container with a fallback to `context.databases` for backward compatibility.
+- **AST detection of DI decorators** — `@provider`, `@on_startup`, `@on_shutdown` are detected by `parse_python_file()` via `ast.parse()` (zero-execution). Scope, eager, and name kwargs are extracted from AST literal arguments.
+- **`BrimleyScanResult` DI fields** — `providers: List[ProviderMetadata]` and `lifecycle_hooks: List[LifecycleHookMetadata]` fields added. Duplicate provider names produce `ERR_DUPLICATE_PROVIDER` diagnostics.
+- **DI startup sequence** — boot path extended: after scan, `BrimleyContainer` is created, provider modules are imported, the dependency graph is validated, eager providers are loaded, `@on_startup` hooks run, and `context.container` is set. Fail-fast with `@on_shutdown` cleanup on any error. `system_boot` correlation ID is active during startup.
+- **`BrimleyContext.container` field** — `Optional[BrimleyContainer]` field (defaults to `None`). Populated at the end of the DI startup phase.
+- **Top-level exports** — `provider`, `on_startup`, `on_shutdown`, `Depends`, and `BrimleyContext` are now importable directly from `brimley` (`from brimley import provider, Depends, BrimleyContext`).
+- **`examples/di_provider.py`** — new example demonstrating `@provider` with yield teardown, `@on_startup` hook, and `@function` with `Depends()` injection.
+
+### Changed
+
+- `pyproject.toml` version bumped to `0.8.0`.
+- `resolve_secrets()` gains an optional `container` parameter; `ApiRunner` and `CliRunner` pass `context.container` through.
+- `SqlRunner` resolves database connections via `container.resolve(f"db_{connection_name}")` when a container is set; falls back to `context.databases` for backward compatibility.
+- `Dispatcher._dispatch_sync_call()` and `PythonRunner.run()` accept a `request_ctx` parameter for request-scoped provider resolution.
+- `validate_secrets_no_provider()` removed from `api_parser.py` and `cli_parser.py` — `provider:` sources are now accepted at scan time.
+
+---
+
 ## [0.7.0] - 2026-03-20
 
 ### Added
 
 - **`api_function` type** — YAML-declared HTTP integrations backed by `httpx` async execution. Fields: `request` (method, url, headers, body, timeout), `response` (status-code → handler map with `type`, `parse.path`, and `error` keys), `secrets`, `mcp`, `return_shape`. Introduced in Brimley 0.7 (ADR-0002).
 - **`cli_function` type** — YAML-declared shell command wrappers backed by `asyncio.create_subprocess_exec` (`shell=False` enforced). Fields: `command`, `args` (Jinja2 template list), `timeout_seconds` (required, no default), `cwd` (defaults to project root), `env` (explicit whitelist), `parsing` (text/json/regex strategies), `secrets`, `mcp`, `return_shape`. Introduced in Brimley 0.7 (ADR-0002).
-- **`secrets:` block** — Uniform ordered-source resolution for `api_function` and `cli_function` YAML definitions (ADR-0003). Each named secret declares an ordered list of sources; the first non-empty value wins. `env:` sources are fully resolved in v0.7. `provider:` sources are structurally recognised but raise `BrimleySecretResolutionError` at scanner load time until DI (v0.8).
+- **`secrets:` block** — Uniform ordered-source resolution for `api_function` and `cli_function` YAML definitions (ADR-0003). Each named secret declares an ordered list of sources; the first non-empty value wins. `env:` sources are fully resolved in v0.7. `provider:` sources were structurally recognised but raised `BrimleySecretResolutionError` at scanner load time until DI (v0.8, now resolved).
 - **`BaseRunner` abstract interface** — `execution/base_runner.py` defines `can_handle(func)` and `run(func, args, context)` as the internal runner contract (ADR-0004; external plugin loading deferred to v0.13).
 - **`ApiRunner`** — Implements `BaseRunner`. Jinja2 `StrictUndefined` templating for URL, headers, and body. Correlation ID available as `{{ correlation_id }}` in templates. Secrets available as `{{ secrets.<name> }}`. Minimal JSONPath extraction (`$.key`, `$.key.sub`) from JSON responses. Async httpx execution.
 - **`CliRunner`** — Implements `BaseRunner`. `asyncio.create_subprocess_exec` only (no `shell=True` ever). Args rendered via Jinja2 from the declared `args:` list. Only explicitly declared `env:` keys forwarded to subprocess. `asyncio.wait_for` timeout with process kill on expiry. Stdout parsing: `text` (passthrough), `json` (stdlib), `regex` (named capture group support).
@@ -31,7 +62,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Known Gaps (v0.7 Release)
 
-- **`provider` secret sources** raise `BrimleySecretResolutionError` at startup until DI (v0.8) is available.
+- **`provider` secret sources** raised `BrimleySecretResolutionError` at startup until DI was available. *(Resolved in 0.8.)*
 - **MockRegistry intercept** for `ApiRunner`/`CliRunner` is deferred to v0.9 Mocking. Stub intercept points are in place in `Dispatcher._dispatch_sync_call()`.
 - **Full JSONPath** support (wildcards, filters) in `ApiRunner` requires an external library; deferred. Only `$.key` and `$.key.subkey` patterns are currently supported.
 

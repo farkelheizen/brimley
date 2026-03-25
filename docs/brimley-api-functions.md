@@ -200,4 +200,4 @@ See [MCP integration](brimley-model-context-protocol-integration.md) for full de
 - **`provider` secret source:** Any `provider` source raises `BrimleySecretResolutionError` at scan time in v0.7, even if `env` is also declared. See [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md).
 - **MockRegistry intercept:** `ApiRunner` cannot be intercepted in offline tests until v0.9 Mocking. Stub intercept point left in `Dispatcher`.
 - **`httpx.AsyncClient` singleton:** Created per-call in v0.7; refactored to a singleton provider in v0.8 DI.
-- **Internal SSRF blocking:** URL scheme validation rejects non-HTTP(S) schemes. RFC-1918 host blocking is deferred to v0.8 (network-level controls recommended for production).
+- **Internal SSRF blocking:** URL scheme validation rejects non-HTTP(S) schemes. RFC-1918 host blocking is deferred to a future release (network-level controls recommended for production).

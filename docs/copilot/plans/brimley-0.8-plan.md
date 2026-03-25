@@ -89,9 +89,9 @@ Deliver a custom, AST-aware Dependency Injection system (`BrimleyContainer`) wit
 | B08-S9 | Completed | Activate `provider` secret source | `utils/secrets.py`: `resolve_secrets()` calls `container.resolve(provider_name)` for `provider:` sources; remove `validate_secrets_no_provider()` gate; update all callers (parsers) | `tests/test_secrets.py` (provider source resolution, fallback ordering, mixed env+provider) |
 | B08-S10 | Completed | SQL connection as managed provider | Internal `db_connection` provider auto-registered by container from `context.databases` config; `SqlRunner` resolves connection via container instead of direct `context.databases` lookup; lazy singleton | `tests/test_execution_sql.py` (SQL runner uses provider, backward compat with existing config) |
 | B08-S11 | Completed | Public API exports and example files | `__init__.py`: export `provider`, `on_startup`, `on_shutdown`, `Depends`, `BrimleyContext`; new example file demonstrating provider + Depends usage | `tests/test_packaging_contract.py` (import assertions) |
-| B08-S12 | Not Started | Documentation updates | Update: `brimley-high-level-design.md`, `brimley-context.md`, `brimley-secrets.md`, `brimley-python-functions.md`, `brimley-discovery-and-loader-specification.md`, `brimley-configuration.md`, `copilot-docs-reference.md`, `README.md`; new DI section in high-level design | Docs conformance review |
-| B08-S13 | Not Started | Version bump, CHANGELOG, doc scan gate | `pyproject.toml` → 0.8.0; `CHANGELOG.md` updated; `examples/README.md` if affected; stale version refs updated | Full suite pass |
-| B08-S14 | Not Started | Final validation and release gate | Full test suite; regression check; review approval | Full suite pass |
+| B08-S12 | Completed | Documentation updates | Update: `brimley-high-level-design.md`, `brimley-context.md`, `brimley-secrets.md`, `brimley-python-functions.md`, `brimley-discovery-and-loader-specification.md`, `brimley-configuration.md`, `copilot-docs-reference.md`, `README.md`; new DI section in high-level design | Docs conformance review |
+| B08-S13 | Completed | Version bump, CHANGELOG, doc scan gate | `pyproject.toml` → 0.8.0; `CHANGELOG.md` updated; `examples/README.md` if affected; stale version refs updated | Full suite pass |
+| B08-S14 | Completed | Final validation and release gate | Full test suite; regression check; review approval | Full suite pass |
 
 Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 
@@ -555,19 +555,19 @@ Record results:
 - Validation: `poetry run pytest tests/test_packaging_contract.py` → 4 passed; full suite → 800 passed.
 
 ### B08-S12 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Updated `docs/brimley-high-level-design.md` (baseline → 0.8.x; new §3.I DI/Container subsection; §5 reference map gains 0.8 link). Updated `docs/brimley-context.md` (baseline → 0.8.x; `container` field added to table and Fields section; DI Startup phase added to Lifecycle). Updated `docs/brimley-secrets.md` (baseline → 0.8.x; Source Types table and Resolution Behavior section updated to reflect `provider` source active in 0.8). Updated `docs/brimley-python-functions.md` (baseline → 0.8.x; new §7 Provider Injection with `Depends()` added). Updated `docs/brimley-discovery-and-loader-specification.md` (baseline → 0.8.x; §2 extended with `@provider`/`@on_startup`/`@on_shutdown` and `Depends()` detection; §5 updated with `providers`/`lifecycle_hooks` fields). Updated `docs/copilot/copilot-docs-reference.md` (baseline → 0.8.x; DI topic row and keyword entry added). Updated `README.md` (DI added to Design Goals; Runtime Model baseline → 0.8; DI link added to Documentation Map).
+- Deviations: `docs/brimley-configuration.md` had no new 0.8 config keys — no changes needed.
+- Validation: Docs conformance review complete.
 
 ### B08-S13 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: `pyproject.toml` version bumped to `0.8.0`. `CHANGELOG.md` updated with full v0.8.0 Added/Changed section; v0.7 Known Gaps `provider` entry updated (resolved in 0.8); v0.7 `secrets:` description past-tensed. Doc scan gate: `docs/brimley-api-functions.md` RFC-1918 deferral updated from "deferred to v0.8" to "deferred to a future release" (not implemented in 0.8). Historical plan and ADR files left unchanged (correct historical record). Baseline headers updated in all docs with content changes.
+- Deviations: None.
+- Validation: Full suite pending (B08-S14).
 
 ### B08-S14 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: No code changes — validation only.
+- Deviations: None.
+- Validation: Full suite — 800 passed. Code review returned no comments. CodeQL — no code changes to analyze. Release gate complete.
 
 ---
 
