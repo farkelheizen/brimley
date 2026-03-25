@@ -37,7 +37,7 @@ class RequestCounter:
 def provide_request_counter() -> Generator[RequestCounter, None, None]:
     """Creates a RequestCounter singleton and logs teardown on shutdown."""
     counter = RequestCounter()
-    logger.info("RequestCounter provider initialised")
+    logger.info("RequestCounter provider initialized")
     yield counter
     logger.info("RequestCounter provider torn down (total calls: {})", counter.total)
 

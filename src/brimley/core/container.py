@@ -228,7 +228,7 @@ class BrimleyContainer:
     ) -> Any:
         """Thread-safe lazy singleton resolution with per-provider locking."""
         with self._provider_locks[name]:
-            # Double-checked locking: another thread may have initialised while
+            # Double-checked locking: another thread may have initialized while
             # we waited for the provider lock.
             with self._registry_lock:
                 if name in self._singletons:
@@ -324,7 +324,7 @@ class BrimleyContainer:
         try:
             module = importlib.import_module(module_path)
         except ImportError as exc:
-            # Retry with project root on sys.path (mirrors PythonRunner behaviour)
+            # Retry with project root on sys.path (mirrors PythonRunner behavior)
             if self._project_root is not None:
                 root_str = str(self._project_root.resolve())
                 added = root_str not in sys.path
