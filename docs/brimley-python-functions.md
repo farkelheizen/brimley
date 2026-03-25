@@ -1,4 +1,5 @@
 # Brimley Python Functions
+> Docs baseline: 0.8.x
 
 Python Functions are native Python callables registered with the `@function` decorator. This is the primary Python discovery model.
 
@@ -118,7 +119,40 @@ def orchestrate(user_id: int, ctx: BrimleyContext) -> dict:
     return {"user_id": user_id, "profile": profile}
 ```
 
-## 7. Return Shape Inference
+## 7. Provider Injection with `Depends()` *(0.8+)*
+
+`Depends()` is the preferred way to inject DI-managed dependencies into `@function`-decorated callables. It is used as a parameter default value — the container resolves the named provider at execution time and injects the resolved object as the argument value.
+
+```python
+from brimley import function, Depends
+
+@function
+def greet(name: str, counter=Depends("request_counter")) -> str:
+    counter.increment()
+    return f"Hello, {name}! (call #{counter.value})"
+```
+
+### Rules
+
+- The argument to `Depends()` is the provider name (a string matching a `@provider`-decorated function's name or its `name=` override).
+- `Depends` parameters are **invisible to external callers** — they are excluded from CLI/REPL/MCP argument schemas. Do not expose provider state through user-facing schemas.
+- If no container is set on the context (e.g., tests without DI), a `BrimleyExecutionError` is raised. Use `container.override()` or supply a request-scoped context in tests.
+- If the named provider is not registered, a `BrimleyExecutionError` is raised with a clear message.
+- Caller-supplied values for a `Depends` parameter take precedence over the container resolution (useful in testing).
+
+### Injection in `BrimleyContext`-typed Parameters
+
+Providers may also declare a `ctx: BrimleyContext` parameter; the container injects the current context automatically. This is handled at the provider-resolution level, not via `Depends()`.
+
+```python
+from brimley import provider, BrimleyContext
+
+@provider(scope="singleton")
+def get_app_name(ctx: BrimleyContext) -> str:
+    return ctx.settings.app_name
+```
+
+## 8. Return Shape Inference
 
 Return annotations are mapped to Brimley return shapes.
 

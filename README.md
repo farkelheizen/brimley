@@ -13,6 +13,7 @@ Brimley is an authoring and execution engine for function-based AI tooling. It i
 - **Live runtime ergonomics:** use a thin REPL client attached to a daemon-owned runtime, with optional watch-mode reload.
 - **MCP integration path:** expose selected functions as MCP tools via FastMCP when needed.
 - **Declarative HTTP and CLI integration (0.7+):** wrap external APIs and shell commands as first-class Brimley functions using YAML — no boilerplate code required.
+- **Managed dependency injection (0.8+):** `@provider`, `Depends()`, `@on_startup`/`@on_shutdown` hooks, and `BrimleyContainer` with singleton and request scopes — shared resources with proper lifecycle semantics.
 - **Operations clarity:** built-in reload diagnostics, runtime error surfacing, and explicit daemon lifecycle controls.
 
 ## Architectural approach
@@ -116,7 +117,7 @@ Then serve tools with:
 PYTHONPATH=src poetry run brimley mcp-serve --root .
 ```
 
-## Runtime Model (0.7 architecture baseline)
+## Runtime Model (0.8 architecture baseline)
 
 - REPL uses a **thin client** attached to a daemon-owned runtime.
 - Daemon owns state, watcher lifecycle, and embedded MCP hosting.
@@ -134,3 +135,4 @@ PYTHONPATH=src poetry run brimley mcp-serve --root .
 - [CLI Functions](docs/brimley-cli-functions.md) *(0.7+)*
 - [Secrets](docs/brimley-secrets.md) *(0.7+)*
 - [Security — Threat Model](docs/security/brimley-0.7-threat-model.md) *(0.7+)*
+- [Dependency Injection & Managed Objects](docs/roadmap/brimley-0.8-dependency-injection-and-managed-objects.md) *(0.8+)*

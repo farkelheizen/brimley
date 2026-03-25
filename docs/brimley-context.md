@@ -1,4 +1,5 @@
 # Brimley Context
+> Docs baseline: 0.8.x
 
 The `BrimleyContext` is the central nervous system of a Brimley application.
 
@@ -16,6 +17,7 @@ class BrimleyContext(Entity):
     functions: Registry[BrimleyFunction]
     entities: Registry[Entity]
     databases: Dict[str, Engine]
+    container: Optional[BrimleyContainer]  # DI container (0.8+)
 ```
 
 |**Attribute**|**Source (YAML)**|**Mutability**|**Description**|
@@ -31,6 +33,7 @@ class BrimleyContext(Entity):
 |`databases`|`databases:`|**Managed**|Active SQLAlchemy engines.|
 |`correlation_id`|N/A|**Read-Only**|Unique 8-char request correlation ID (ContextVar-backed). Generated per top-level `Dispatcher.run()` call; inherited by nested calls. Available as `ctx.correlation_id` (0.6+).|
 |`external_trace_id`|N/A|**Read-Only**|Upstream trace ID from FastMCP `request_id`, or falls back to `correlation_id` for local-only runs. Available as `ctx.external_trace_id` (0.6+).|
+|`container`|N/A|**Managed**|`BrimleyContainer` instance populated during DI startup phase. `None` before startup completes or when no providers are declared. Available as `ctx.container` (0.8+).|
 
 ## Fields
 
@@ -127,6 +130,14 @@ class BrimleyContext(Entity):
 
     - **Access**: `ctx.external_trace_id`        
 
+12. **`container`** *(0.8+)*:
+
+    - **Type**: `Optional[BrimleyContainer]`
+
+    - **Purpose**: The active `BrimleyContainer` instance, populated at the end of the DI startup phase (after all singletons are initialised and `@on_startup` hooks have run). `None` before startup completes or when no providers are declared. Providers and `@function`-decorated callables may use `ctx.container.resolve(name)` to obtain managed dependencies, though the preferred pattern is `Depends()` injection.
+
+    - **Access**: `ctx.container`
+
 ## Lifecycle
 
 1. **Initialization**:
@@ -151,16 +162,26 @@ class BrimleyContext(Entity):
     - Found **Functions** are registered into `ctx.functions`.
         
     - Found **Entities** (typically decorated Python classes) are registered into `ctx.entities`.
-        
-3. **Execution**:
+
+4. **DI Startup** *(0.8+)*:
+
+    - `BrimleyContainer` is created and providers from the scan result are registered.
+    - Provider modules are imported and factory callables are wired.
+    - `DependencyResolver` validates the dependency graph (cycle detection).
+    - Eager providers (`eager=True`) are constructed.
+    - `@on_startup` hooks run in declaration order.
+    - `ctx.container` is set to the initialised container.
+    - If any step fails, startup aborts (fail-fast), `@on_shutdown` teardowns run, and the process exits non-zero.
+
+5. **Execution**:
     
-    - When a request comes in (or a CLI command is run), the `context` is passed to the dispatcher.
+    - When a request comes in (or a CLI command is run), the `context` is passed to the dispatcher.
         
     - Functions receive context objects via dependency injection (for example, `BrimleyContext` or `fastmcp.Context` type hints), allowing access to settings, config, state, and runtime services.
 
     - Dispatcher queue/thread/timeout behavior follows `ctx.execution` settings.
 
-4. **Optional Runtime Reload**:
+6. **Optional Runtime Reload**:
 
     - REPL watch mode and host runtime controller read `ctx.auto_reload` to configure polling/debounce behavior.
 
