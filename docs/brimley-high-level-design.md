@@ -130,7 +130,7 @@ Defined in [Dependency Injection & Managed Objects](../roadmap/brimley-0.8-depen
 
 - **`BrimleyContainer`**: Central DI container with `register_provider()`, `resolve()`, `override()`, `shutdown()`, and request-scope lifecycle management. Stored on `BrimleyContext.container` after startup.
 - **`@provider` decorator**: Marks a callable as a managed dependency provider. Supports `scope="singleton"` (default) and `scope="request"`. Yield-based providers run setup code before `yield` and cleanup on `shutdown()`.
-- **`@on_startup` / `@on_shutdown` hooks**: Lifecycle callables executed after all singletons are initialised (`@on_startup`) and on graceful shutdown (`@on_shutdown`). Hooks execute in declaration order; `@on_shutdown` in reverse.
+- **`@on_startup` / `@on_shutdown` hooks**: Lifecycle callables executed after all singletons are initialized (`@on_startup`) and on graceful shutdown (`@on_shutdown`). Hooks execute in declaration order; `@on_shutdown` in reverse.
 - **`Depends()` injection**: Default value marker for `@function` parameters. At execution time the container resolves the named provider and injects the value. `Depends` parameters are excluded from CLI/REPL/MCP argument schemas.
 - **Two-phase discovery**: `@provider`, `@on_startup`, `@on_shutdown` are detected via AST scan (zero-execution) alongside `@function` and `@entity`. Provider factories are imported and wired during the startup phase.
 - **`DependencyResolver`**: Topological sort with cycle detection. Validates the provider dependency graph at startup; aborts with a clear cycle-path message on circular dependencies.

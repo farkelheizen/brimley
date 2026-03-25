@@ -6,14 +6,14 @@
 
 This directory contains exploratory Brimley examples and configuration for Python, SQL, and Template functions.
 
-These examples are for development iteration and behaviour validation. They are not production deployment guidance.
+These examples are for development iteration and behavior validation. They are not production deployment guidance.
 
 ## What's New in 0.8
 
 Brimley 0.8 introduces a managed dependency injection (DI) system:
 
 - **`@provider`** (`di_provider.py`): marks a function (or generator) as a DI-managed singleton or request-scoped dependency; supports yield-based setup/teardown.
-- **`@on_startup`** (`di_provider.py`): lifecycle hook called after all eager singletons are initialised; receives `BrimleyContext`.
+- **`@on_startup`** (`di_provider.py`): lifecycle hook called after all eager singletons are initialized; receives `BrimleyContext`.
 - **`@on_shutdown`**: lifecycle hook called on graceful shutdown; executes in reverse declaration order.
 - **`Depends(name)`** (`di_provider.py`): default value marker used in `@function` signatures to inject a named provider; resolved by the container at call time.
 - **`BrimleyContext`** is now importable directly from `brimley` (`from brimley import BrimleyContext`).
@@ -43,7 +43,7 @@ After running any invoke command you should now see a `logs/brimley.log` file cr
 Examples must be updated whenever a new Brimley version introduces a user-visible feature or API change that affects them. When adding or merging a plan:
 
 - Update the version header above to match the release.
-- Add, update, or remove example files and CLI invocations to reflect the new behaviour.
+- Add, update, or remove example files and CLI invocations to reflect the new behavior.
 - If the `brimley.yaml` config schema changes, update `examples/brimley.yaml` accordingly.
 
 ---
@@ -149,7 +149,7 @@ PYTHONPATH=../src poetry run brimley invoke get_system_load --root . --input '{}
 
 ### 9. DI Provider Function (`greet_with_counter`)
 
-Demonstrates dependency injection: the `RequestCounter` singleton is initialised by `@provider`, and `Depends("request_counter")` injects it into the function automatically.
+Demonstrates dependency injection: the `RequestCounter` singleton is initialized by `@provider`, and `Depends("request_counter")` injects it into the function automatically.
 
 ```bash
 PYTHONPATH=../src poetry run brimley invoke greet_with_counter --root . --input '{"name": "Alice"}'

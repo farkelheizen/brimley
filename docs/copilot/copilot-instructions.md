@@ -98,6 +98,8 @@ This repository is a **Poetry-managed Python project**.
     
 - Include docstrings for public methods.
 
+- Use American English spelling in all user-facing documentation and text (for example: `initialized`, `behavior`, `organization`, `authorization`).
+
 ## 7. CHANGELOG & Examples Gate
 
 Every plan that introduces a user-visible feature, API change, or bug fix **must** include steps (or at minimum acceptance criteria items) for:

@@ -11,7 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **`@provider` decorator** — marks a callable as a DI-managed dependency provider. Supports `scope="singleton"` (default) and `scope="request"`. Yield-based providers run setup code before `yield` and teardown on `shutdown()`. Eager providers (`eager=True`) are constructed during the startup phase. Provider name may be overridden with `name="..."`.
-- **`@on_startup` decorator** — marks a callable as a lifecycle hook executed after all singleton providers are initialised. Hooks run in declaration order. Supports both sync and async callables.
+- **`@on_startup` decorator** — marks a callable as a lifecycle hook executed after all singleton providers are initialized. Hooks run in declaration order. Supports both sync and async callables.
 - **`@on_shutdown` decorator** — marks a callable as a teardown lifecycle hook executed on graceful shutdown, in reverse declaration order.
 - **`Depends()` marker** — used as a parameter default in `@function` signatures to inject a named provider at execution time. `Depends`-annotated parameters are excluded from CLI/REPL/MCP argument schemas.
 - **`BrimleyContainer`** — central DI container with `register_provider()`, `resolve()`, `override()`, `reset_overrides()`, `shutdown()`, `load_eager_providers()`, and `request_scope()` context manager. Stored on `BrimleyContext.container` after startup.
@@ -43,7 +43,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **`api_function` type** — YAML-declared HTTP integrations backed by `httpx` async execution. Fields: `request` (method, url, headers, body, timeout), `response` (status-code → handler map with `type`, `parse.path`, and `error` keys), `secrets`, `mcp`, `return_shape`. Introduced in Brimley 0.7 (ADR-0002).
 - **`cli_function` type** — YAML-declared shell command wrappers backed by `asyncio.create_subprocess_exec` (`shell=False` enforced). Fields: `command`, `args` (Jinja2 template list), `timeout_seconds` (required, no default), `cwd` (defaults to project root), `env` (explicit whitelist), `parsing` (text/json/regex strategies), `secrets`, `mcp`, `return_shape`. Introduced in Brimley 0.7 (ADR-0002).
-- **`secrets:` block** — Uniform ordered-source resolution for `api_function` and `cli_function` YAML definitions (ADR-0003). Each named secret declares an ordered list of sources; the first non-empty value wins. `env:` sources are fully resolved in v0.7. `provider:` sources were structurally recognised but raised `BrimleySecretResolutionError` at scanner load time until DI (v0.8, now resolved).
+- **`secrets:` block** — Uniform ordered-source resolution for `api_function` and `cli_function` YAML definitions (ADR-0003). Each named secret declares an ordered list of sources; the first non-empty value wins. `env:` sources are fully resolved in v0.7. `provider:` sources were structurally recognized but raised `BrimleySecretResolutionError` at scanner load time until DI (v0.8, now resolved).
 - **`BaseRunner` abstract interface** — `execution/base_runner.py` defines `can_handle(func)` and `run(func, args, context)` as the internal runner contract (ADR-0004; external plugin loading deferred to v0.13).
 - **`ApiRunner`** — Implements `BaseRunner`. Jinja2 `StrictUndefined` templating for URL, headers, and body. Correlation ID available as `{{ correlation_id }}` in templates. Secrets available as `{{ secrets.<name> }}`. Minimal JSONPath extraction (`$.key`, `$.key.sub`) from JSON responses. Async httpx execution.
 - **`CliRunner`** — Implements `BaseRunner`. `asyncio.create_subprocess_exec` only (no `shell=True` ever). Args rendered via Jinja2 from the declared `args:` list. Only explicitly declared `env:` keys forwarded to subprocess. `asyncio.wait_for` timeout with process kill on expiry. Stdout parsing: `text` (passthrough), `json` (stdlib), `regex` (named capture group support).
@@ -99,7 +99,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- `load_config` was silently discarding the top-level `logging:` key because it was not in the allowed-keys allowlist. Log file sinks configured in `brimley.yaml` were never initialised.
+- `load_config` was silently discarding the top-level `logging:` key because it was not in the allowed-keys allowlist. Log file sinks configured in `brimley.yaml` were never initialized.
 - `BrimleyContext` was not forwarding the top-level `logging` dict to `FrameworkSettings`, so file sink settings (path, rotation, retention) were always `None` even when present in the config.
 
 ### Changed
