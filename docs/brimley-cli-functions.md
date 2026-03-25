@@ -1,7 +1,8 @@
 # Brimley CLI Functions
 
-> **Introduced in:** Brimley 0.7
+> **Introduced in:** Brimley 0.7; `provider` secrets activated in 0.8
 > **ADR References:** [ADR-0002](decisions/0002-accelerate-api-cli-to-v0.7.md) — accelerated from v0.9. [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md) — `secrets:` block schema.
+> **Docs baseline: 0.8.x**
 
 CLI Functions wrap shell commands as first-class Brimley functions. They enable tool-use for system utilities, legacy scripts, or any command-line tool within the Brimley ecosystem, providing a structured interface over subprocess execution.
 
@@ -190,7 +191,7 @@ See [MCP integration](brimley-model-context-protocol-integration.md) for full de
 ## 6. Execution Flow
 
 1. Scanner detects `.yaml` files with `type: cli_function`.
-2. `timeout_seconds` is validated (required, must be > 0) and `validate_secrets_no_provider()` runs.
+2. `timeout_seconds` is validated (required, must be > 0). `provider:` secret sources are accepted at scan time (0.8+) and resolved via the DI container at call time.
 3. If `mcp:` block is present, function is registered with the FastMCP provider.
 4. At invocation, `Dispatcher` routes to `CliRunner`.
 5. `CliRunner` resolves secrets, renders `command_arguments` templates, validates rendered entries for metacharacters.
@@ -198,9 +199,10 @@ See [MCP integration](brimley-model-context-protocol-integration.md) for full de
 7. stdout is matched against the `results:` block (ordered first-match).
 8. Matched parser extracts and returns the result, which is validated against `return_shape`.
 
-## 7. Known Gaps (v0.7)
+## 7. Known Gaps / Open Items
 
-- **`provider` secret source:** Any `provider` source raises `BrimleySecretResolutionError` at scan time in v0.7, even if `env` is also declared. See [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md).
 - **MockRegistry intercept:** `CliRunner` cannot be intercepted in offline tests until v0.9 Mocking. Stub intercept point left in `Dispatcher`.
 - **Path traversal:** `../` sequences in `command_arguments` are not rejected (shell=False already prevents shell interpretation of path sequences). Document in threat model.
-- **Resource limits:** `timeout_seconds` is the only resource constraint in v0.7. Memory and file descriptor limits are a future enhancement.
+- **Resource limits:** `timeout_seconds` is the only resource constraint. Memory and file descriptor limits are a future enhancement.
+
+> **Resolved in 0.8:** `provider` secret sources now resolve via `BrimleyContainer.resolve()` at call time. `validate_secrets_no_provider()` is no longer called at scan time.
