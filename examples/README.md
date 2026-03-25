@@ -2,11 +2,21 @@
 
 > **Note:** The version header is kept at `0.6.x` for the pre-existing examples. New 0.7 additions are described in the **What's New in 0.7** section above.
 
-> Examples baseline: 0.6.x
+> Examples baseline: 0.8.x
 
 This directory contains exploratory Brimley examples and configuration for Python, SQL, and Template functions.
 
 These examples are for development iteration and behaviour validation. They are not production deployment guidance.
+
+## What's New in 0.8
+
+Brimley 0.8 introduces a managed dependency injection (DI) system:
+
+- **`@provider`** (`di_provider.py`): marks a function (or generator) as a DI-managed singleton or request-scoped dependency; supports yield-based setup/teardown.
+- **`@on_startup`** (`di_provider.py`): lifecycle hook called after all eager singletons are initialised; receives `BrimleyContext`.
+- **`@on_shutdown`**: lifecycle hook called on graceful shutdown; executes in reverse declaration order.
+- **`Depends(name)`** (`di_provider.py`): default value marker used in `@function` signatures to inject a named provider; resolved by the container at call time.
+- **`BrimleyContext`** is now importable directly from `brimley` (`from brimley import BrimleyContext`).
 
 ## What's New in 0.7
 
@@ -137,6 +147,14 @@ Returns the current system load average using the `uptime` command. Demonstrates
 PYTHONPATH=../src poetry run brimley invoke get_system_load --root . --input '{}'
 ```
 
+### 9. DI Provider Function (`greet_with_counter`)
+
+Demonstrates dependency injection: the `RequestCounter` singleton is initialised by `@provider`, and `Depends("request_counter")` injects it into the function automatically.
+
+```bash
+PYTHONPATH=../src poetry run brimley invoke greet_with_counter --root . --input '{"name": "Alice"}'
+```
+
 ---
 
 ## 🔄 Running via REPL (Interactive)
@@ -208,5 +226,6 @@ PYTHONPATH=../src poetry run brimley mcp-serve --root . --host 127.0.0.1 --port 
 - `nested_greeting.py`: Decorator-based Python function that composes another Brimley function by name via `BrimleyContext`.
 - `sha256_file.py`: Decorator-based Python function that computes SHA256 digest for a file path.
 - `hello.md`: Template function definition using Jinja2.
+- `di_provider.py`: DI example — `@provider` singleton with yield teardown, `@on_startup` hook, and `@function` with `Depends()` injection (0.8+).
 - `github_profile.yaml`: API function — fetches a GitHub user profile via the GitHub REST API (0.7+).
 - `system_metrics.yaml`: CLI function — reports system load average via `uptime` with regex result parsing (0.7+).

@@ -3,8 +3,8 @@
 Use this file to identify the active implementation plan before starting work.
 
 - Active plan: `docs/copilot/plans/brimley-0.8-plan.md`
-- Current step: `B08-S11 Not Started`
-- Last updated: `2026-03-24`
+- Current step: `B08-S11 Complete — next: B08-S12`
+- Last updated: `2026-03-25`
 - Owner: `Copilot`
 
 ## Update Rules
