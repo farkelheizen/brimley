@@ -73,7 +73,7 @@ class ApiRunner(BaseRunner):
 
         # 1. Resolve secrets.
         try:
-            secrets = resolve_secrets(func.secrets, func.name)
+            secrets = resolve_secrets(func.secrets, func.name, container=context.container)
         except BrimleySecretResolutionError as exc:
             raise BrimleyExecutionError(message=str(exc), func_name=func.name) from exc
 
