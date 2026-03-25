@@ -434,3 +434,41 @@ class CliFunction(BrimleyFunction):
     def args(self) -> List[str]:
         """Backward-compatible alias for ``command_arguments``."""
         return self.command_arguments
+
+
+# ---------------------------------------------------------------------------
+# Brimley 0.8: DI — provider and lifecycle hook metadata
+# ---------------------------------------------------------------------------
+
+class ProviderMetadata(BaseModel):
+    """
+    Metadata describing a ``@provider``-decorated callable discovered during
+    the AST scan phase.
+
+    Introduced in Brimley 0.8.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: Optional[str] = None
+    scope: Literal["singleton", "request"] = "singleton"
+    eager: bool = False
+    module_path: str
+    func_name: str
+    handler: Optional[str] = None
+
+
+class LifecycleHookMetadata(BaseModel):
+    """
+    Metadata describing an ``@on_startup`` or ``@on_shutdown``-decorated
+    callable discovered during the AST scan phase.
+
+    Introduced in Brimley 0.8.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    hook_type: Literal["on_startup", "on_shutdown"]
+    module_path: str
+    func_name: str
+    handler: Optional[str] = None

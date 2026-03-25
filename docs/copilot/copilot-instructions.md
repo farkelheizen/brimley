@@ -98,6 +98,8 @@ This repository is a **Poetry-managed Python project**.
     
 - Include docstrings for public methods.
 
+- Use American English spelling in all user-facing documentation and text (for example: `initialized`, `behavior`, `organization`, `authorization`).
+
 ## 7. CHANGELOG & Examples Gate
 
 Every plan that introduces a user-visible feature, API change, or bug fix **must** include steps (or at minimum acceptance criteria items) for:
@@ -154,3 +156,24 @@ Before starting implementation, verify the active plan includes:
 - `Step Notes Log`
 
 If any section is missing, update the plan first, then implement.
+
+## 10. Autonomous Agent Execution
+
+Autonomous agent-based execution is permitted when **explicitly instructed** by the user. This is the exception, not the default workflow.
+
+### Agent Files
+
+- Agent files live in `.github/agents/` and use `.agent.md` format with YAML frontmatter.
+- Each agent owns specific plan steps and chains to the next agent via `handoffs:` frontmatter.
+- The active plan's **Agent Map** (in the Copilot Execution Protocol section) defines which agent owns which steps.
+
+### Scope Discipline
+
+- An agent **must not** perform work outside the steps listed in its scope.
+- All §1–§9 rules still apply (test-first, status tracking, commit protocol, etc.).
+- Review & commit protocol (§5) remains mandatory — agents must ask for approval before committing.
+
+### Handoff Protocol
+
+- When an agent completes all its gates, it declares completion and names the next agent.
+- The user (or orchestrating agent) invokes the next agent to continue.

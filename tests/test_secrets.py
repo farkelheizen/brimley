@@ -1,4 +1,4 @@
-"""Tests for SecretSource model and secrets utility functions (Brimley 0.7)."""
+"""Tests for SecretSource model and secrets utility functions."""
 
 import os
 import pytest
@@ -136,3 +136,94 @@ def test_resolve_secrets_second_wins_when_first_missing(monkeypatch: pytest.Monk
     }
     resolved = resolve_secrets(secrets, "fn")
     assert resolved["token"] == "found"
+
+
+# ---------------------------------------------------------------------------
+# resolve_secrets — provider source (B08-S9)
+# ---------------------------------------------------------------------------
+
+
+class _MockContainer:
+    """Minimal container stub for testing provider secret resolution."""
+
+    def __init__(self, providers: dict) -> None:
+        self._providers = providers
+
+    def resolve(self, name: str) -> str:
+        if name not in self._providers:
+            raise KeyError(f"No provider '{name}'")
+        return self._providers[name]
+
+
+def test_resolve_secrets_provider_source() -> None:
+    container = _MockContainer({"get_token": "secret-value"})
+    secrets = {"token": [SecretSource(provider="get_token")]}
+    resolved = resolve_secrets(secrets, "fn", container=container)
+    assert resolved == {"token": "secret-value"}
+
+
+def test_resolve_secrets_provider_no_container_raises() -> None:
+    secrets = {"token": [SecretSource(provider="get_token")]}
+    with pytest.raises(BrimleySecretResolutionError, match="no DI container"):
+        resolve_secrets(secrets, "fn", container=None)
+
+
+def test_resolve_secrets_provider_resolution_failure_raises() -> None:
+    container = _MockContainer({})  # provider not registered
+    secrets = {"token": [SecretSource(provider="missing_provider")]}
+    with pytest.raises(BrimleySecretResolutionError, match="missing_provider"):
+        resolve_secrets(secrets, "fn", container=container)
+
+
+def test_resolve_secrets_provider_non_string_raises() -> None:
+    class _BadContainer:
+        def resolve(self, _name: str) -> int:
+            return 42
+
+    secrets = {"token": [SecretSource(provider="get_token")]}
+    with pytest.raises(BrimleySecretResolutionError, match="non-string"):
+        resolve_secrets(secrets, "fn", container=_BadContainer())
+
+
+def test_resolve_secrets_env_then_provider_env_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """env source checked first; if set, provider is not called."""
+    monkeypatch.setenv("MY_TOKEN", "from-env")
+    container = _MockContainer({"get_token": "from-provider"})
+    secrets = {
+        "token": [
+            SecretSource(env="MY_TOKEN"),
+            SecretSource(provider="get_token"),
+        ]
+    }
+    resolved = resolve_secrets(secrets, "fn", container=container)
+    assert resolved["token"] == "from-env"
+
+
+def test_resolve_secrets_env_missing_falls_back_to_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When env source is missing, the provider source is used as fallback."""
+    monkeypatch.delenv("MISSING_VAR", raising=False)
+    container = _MockContainer({"get_token": "from-provider"})
+    secrets = {
+        "token": [
+            SecretSource(env="MISSING_VAR"),
+            SecretSource(provider="get_token"),
+        ]
+    }
+    resolved = resolve_secrets(secrets, "fn", container=container)
+    assert resolved["token"] == "from-provider"
+
+
+def test_resolve_secrets_mixed_keys_with_provider() -> None:
+    """Multiple secrets, some from env, some from provider."""
+    container = _MockContainer({"db_pass": "db-secret"})
+    secrets = {
+        "api_key": [SecretSource(provider="db_pass")],
+        "other": [SecretSource(provider="db_pass")],
+    }
+    resolved = resolve_secrets(secrets, "fn", container=container)
+    assert resolved["api_key"] == "db-secret"
+    assert resolved["other"] == "db-secret"

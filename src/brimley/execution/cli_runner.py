@@ -44,7 +44,7 @@ class CliRunner(BaseRunner):
     - ``timeout_seconds`` is required and validated at scanner load time.
     - ``cwd`` defaults to ``context.app["root_dir"]`` or CWD; never inherited.
     - Shell metacharacters in rendered ``command_arguments`` entries are rejected.
-    - Environment follows two-mode behaviour: if ``env:`` is declared, only
+    - Environment follows two-mode behavior: if ``env:`` is declared, only
       declared keys are passed; if ``env:`` is omitted, parent environment is
       inherited.
 
@@ -65,7 +65,7 @@ class CliRunner(BaseRunner):
 
         # 1. Resolve secrets.
         try:
-            secrets = resolve_secrets(func.secrets, func.name)
+            secrets = resolve_secrets(func.secrets, func.name, container=context.container)
         except BrimleySecretResolutionError as exc:
             raise BrimleyExecutionError(message=str(exc), func_name=func.name) from exc
 
@@ -95,7 +95,7 @@ class CliRunner(BaseRunner):
             for rendered in rendered_args:
                 _validate_arg_no_metachar(rendered, func.name)
 
-            # 4. Build subprocess env (two-mode behaviour per spec / OQ-8 resolution).
+            # 4. Build subprocess env (two-mode behavior per spec / OQ-8 resolution).
             subprocess_env: Optional[Dict[str, str]] = None
             if func.env is not None:
                 # env: declared — strict whitelist mode: only declared keys forwarded.
@@ -138,7 +138,7 @@ class CliRunner(BaseRunner):
                     self._async_exec(func, rendered_args, subprocess_env, cwd)
                 )
 
-            # 7. Apply results: block (per-exit-code) or fall back to legacy behaviour.
+            # 7. Apply results: block (per-exit-code) or fall back to legacy behavior.
             if func.results:
                 return self._handle_results_block(
                     exit_code, stdout_bytes, stderr_bytes, func, context
@@ -247,7 +247,7 @@ class CliRunner(BaseRunner):
         func: CliFunction,
         context: BrimleyContext,
     ) -> Any:
-        """Apply legacy single-strategy parsing and non-zero-as-error behaviour."""
+        """Apply legacy single-strategy parsing and non-zero-as-error behavior."""
         if exit_code != 0:
             stderr_text = stderr_bytes.decode(errors="replace").strip()
             raise BrimleyExecutionError(

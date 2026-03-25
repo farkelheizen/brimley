@@ -1,5 +1,5 @@
 # Brimley High-Level Design
-> Docs baseline: 0.7.x
+> Docs baseline: 0.8.x
 
 > Status note: Brimley is currently experimental and this design is intended to support fast MCP development iteration, not to claim production readiness.
 
@@ -124,6 +124,21 @@ Defined in [Logging Architecture](../roadmap/brimley-0.6-logging-architecture.md
 - **Runtime log control**: REPL commands `/log-level`, `/log-modules`, and `/log-reset` allow changing log verbosity without restarting the daemon.
     
 
+### I. Dependency Injection & Managed Objects
+
+Defined in [Dependency Injection & Managed Objects](../roadmap/brimley-0.8-dependency-injection-and-managed-objects.md) (0.8+):
+
+- **`BrimleyContainer`**: Central DI container with `register_provider()`, `resolve()`, `override()`, `shutdown()`, and request-scope lifecycle management. Stored on `BrimleyContext.container` after startup.
+- **`@provider` decorator**: Marks a callable as a managed dependency provider. Supports `scope="singleton"` (default) and `scope="request"`. Yield-based providers run setup code before `yield` and cleanup on `shutdown()`.
+- **`@on_startup` / `@on_shutdown` hooks**: Lifecycle callables executed after all singletons are initialized (`@on_startup`) and on graceful shutdown (`@on_shutdown`). Hooks execute in declaration order; `@on_shutdown` in reverse.
+- **`Depends()` injection**: Default value marker for `@function` parameters. At execution time the container resolves the named provider and injects the value. `Depends` parameters are excluded from CLI/REPL/MCP argument schemas.
+- **Two-phase discovery**: `@provider`, `@on_startup`, `@on_shutdown` are detected via AST scan (zero-execution) alongside `@function` and `@entity`. Provider factories are imported and wired during the startup phase.
+- **`DependencyResolver`**: Topological sort with cycle detection. Validates the provider dependency graph at startup; aborts with a clear cycle-path message on circular dependencies.
+- **Fail-fast startup**: Unhandled exceptions in eager providers or startup hooks abort startup, run `@on_shutdown` teardowns, and exit with a non-zero status.
+- **`container.override()` seam**: Replaces a provider factory for testing (v0.9 Mocking integration seam). `reset_overrides()` restores originals.
+- **`provider` secret source**: `secrets:` blocks on API/CLI functions may declare `- provider: name` sources. Resolved via `container.resolve(name)` at call time (activated in 0.8; deferred in 0.7).
+- **Database providers**: Connections declared in `databases:` are auto-registered as lazy singleton providers (`db_<name>`), resolved by `SqlRunner` through the container.
+
 ## 4. Data Flow
 
 1. **User Input** (CLI Args / YAML File)  ⬇
@@ -144,6 +159,7 @@ Defined in [Logging Architecture](../roadmap/brimley-0.6-logging-architecture.md
 
 - [What’s New in 0.4](brimley-0.4-whats-new.md)
 - [What's New in 0.6 — Logging Architecture](../roadmap/brimley-0.6-logging-architecture.md)
+- [What's New in 0.8 — Dependency Injection & Managed Objects](../roadmap/brimley-0.8-dependency-injection-and-managed-objects.md)
 - [CHANGELOG](../CHANGELOG.md)- [Wish List — Deferred Ideas](../roadmap/brimley-wish-list.md)- [Project Structure](brimley-application-structure.md)
 - [Function Arguments](brimley-function-arguments.md)
 - [Return Shapes](brimley-function-return-shape.md)

@@ -153,3 +153,76 @@ def test_sql_execution_missing_connection(runner):
     
     with pytest.raises(RuntimeError, match="Database connection 'missing' not found"):
         runner.run(func, {}, context)
+
+# ---------------------------------------------------------------------------
+# B08-S10: Container-based connection resolution
+# ---------------------------------------------------------------------------
+
+# SqlRunner instance shared by the container-based tests below
+_sql_runner = SqlRunner()
+
+
+class _MockContainer:
+    """Minimal container stub that returns engines by provider name."""
+
+    def __init__(self, providers: dict) -> None:
+        self._providers = providers
+
+    def resolve(self, name: str):
+        if name not in self._providers:
+            from brimley.core.container import ProviderResolutionError
+            raise ProviderResolutionError(f"No provider '{name}'")
+        return self._providers[name]
+
+
+def test_sql_runner_uses_container_engine(engine):
+    """SqlRunner resolves connection via container when context.container is set."""
+    container = _MockContainer({"db_default": engine})
+    ctx = BrimleyContext()
+    ctx.container = container
+    # Intentionally leave ctx.databases empty to prove container is used
+    ctx.databases = {}
+
+    func = SqlFunction(
+        name="get_users",
+        type="sql_function",
+        return_shape="dict[]",
+        sql_body="SELECT id, name FROM users",
+    )
+    result = _sql_runner.run(func, {}, ctx)
+    assert len(result) == 2
+    names = {r["name"] for r in result}
+    assert names == {"Alice", "Bob"}
+
+
+def test_sql_runner_falls_back_to_databases_when_no_container(engine):
+    """SqlRunner falls back to context.databases when context.container is None."""
+    ctx = BrimleyContext()
+    ctx.container = None
+    ctx.databases = {"default": engine}
+
+    func = SqlFunction(
+        name="get_users",
+        type="sql_function",
+        return_shape="dict[]",
+        sql_body="SELECT id, name FROM users",
+    )
+    result = SqlRunner().run(func, {}, ctx)
+    assert len(result) == 2
+
+
+def test_sql_runner_container_provider_not_found_falls_back_to_databases(engine):
+    """If container does not have the db_<name> provider, fall back to databases."""
+    container = _MockContainer({})  # db_default not registered
+    ctx = BrimleyContext()
+    ctx.container = container
+    ctx.databases = {"default": engine}
+
+    func = SqlFunction(
+        name="get_users",
+        type="sql_function",
+        return_shape="dict[]",
+        sql_body="SELECT id, name FROM users",
+    )
+    result = SqlRunner().run(func, {}, ctx)
+    assert len(result) == 2

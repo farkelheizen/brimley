@@ -63,7 +63,7 @@ def test_scanner_api_function_with_env_secret(tmp_path: Path) -> None:
 
 
 def test_scanner_api_function_with_provider_secret_becomes_diagnostic(tmp_path: Path) -> None:
-    """Provider sources are rejected at scan time with a diagnostic (ADR-0003)."""
+    """Provider sources are now accepted at scan time (v0.8+ per ADR-0003)."""
     write_yaml(
         tmp_path / "get_user.yaml",
         """
@@ -78,9 +78,10 @@ def test_scanner_api_function_with_provider_secret_becomes_diagnostic(tmp_path: 
         """,
     )
     result = Scanner(tmp_path).scan()
-    assert len(result.functions) == 0
-    assert len(result.diagnostics) == 1
-    assert "provider" in result.diagnostics[0].message.lower()
+    # Function is accepted — provider sources are valid in v0.8
+    assert len(result.diagnostics) == 0
+    assert len(result.functions) == 1
+    assert result.functions[0].name == "get_user"
 
 
 def test_scanner_api_function_missing_request_becomes_diagnostic(tmp_path: Path) -> None:
@@ -156,6 +157,7 @@ def test_scanner_cli_function_missing_timeout_becomes_diagnostic(tmp_path: Path)
 
 
 def test_scanner_cli_function_with_provider_secret_becomes_diagnostic(tmp_path: Path) -> None:
+    """Provider sources are now accepted at scan time (v0.8+ per ADR-0003)."""
     write_yaml(
         tmp_path / "aws_cmd.yaml",
         """
@@ -170,9 +172,10 @@ def test_scanner_cli_function_with_provider_secret_becomes_diagnostic(tmp_path: 
         """,
     )
     result = Scanner(tmp_path).scan()
-    assert len(result.functions) == 0
-    assert len(result.diagnostics) == 1
-    assert "provider" in result.diagnostics[0].message.lower()
+    # Function is accepted — provider sources are valid in v0.8
+    assert len(result.diagnostics) == 0
+    assert len(result.functions) == 1
+    assert result.functions[0].name == "aws_cmd"
 
 
 def test_scanner_mixed_functions(tmp_path: Path) -> None:

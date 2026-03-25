@@ -1,7 +1,8 @@
 # Brimley API Functions
 
-> **Introduced in:** Brimley 0.7
+> **Introduced in:** Brimley 0.7; `provider` secrets activated in 0.8
 > **ADR References:** [ADR-0002](decisions/0002-accelerate-api-cli-to-v0.7.md) — accelerated from v0.9. [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md) — `secrets:` block schema.
+> **Docs baseline: 0.8.x**
 
 API Functions allow developers to define HTTP-based integrations declaratively using YAML. These functions wrap `httpx` calls, treating external web services as first-class Brimley functions with full MCP exposure.
 
@@ -188,16 +189,16 @@ See [MCP integration](brimley-model-context-protocol-integration.md) for full de
 ## 6. Execution Flow
 
 1. Scanner detects `.yaml` files with `type: api_function`.
-2. `validate_secrets_no_provider()` runs at scan time — raises if `provider` is the only source.
+2. `timeout_seconds` is validated (required, must be > 0). `provider:` secret sources are accepted at scan time (0.8+) and resolved via the DI container at call time.
 3. If `mcp:` block is present, function is registered with the FastMCP provider.
 4. At invocation, `Dispatcher` routes to `ApiRunner`.
 5. `ApiRunner` resolves secrets, renders templates, validates URL scheme and headers, then executes the HTTP call via `httpx.AsyncClient`.
 6. Response is matched against the `results:` block (ordered first-match).
 7. Matched parser extracts and returns the result, which is validated against `return_shape`.
 
-## 7. Known Gaps (v0.7)
+## 7. Known Gaps / Open Items
 
-- **`provider` secret source:** Any `provider` source raises `BrimleySecretResolutionError` at scan time in v0.7, even if `env` is also declared. See [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md).
 - **MockRegistry intercept:** `ApiRunner` cannot be intercepted in offline tests until v0.9 Mocking. Stub intercept point left in `Dispatcher`.
-- **`httpx.AsyncClient` singleton:** Created per-call in v0.7; refactored to a singleton provider in v0.8 DI.
-- **Internal SSRF blocking:** URL scheme validation rejects non-HTTP(S) schemes. RFC-1918 host blocking is deferred to v0.8 (network-level controls recommended for production).
+- **Internal SSRF blocking:** URL scheme validation rejects non-HTTP(S) schemes. RFC-1918 host blocking is deferred to a future release (network-level controls recommended for production).
+
+> **Resolved in 0.8:** `provider` secret sources now resolve via `BrimleyContainer.resolve()` at call time. `validate_secrets_no_provider()` is no longer called at scan time.

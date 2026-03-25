@@ -112,7 +112,14 @@ class BrimleyREPL:
         # Register everything into context
         self.context.functions.register_all(scan_result.functions)
         self.context.entities.register_all(scan_result.entities)
-        
+
+        # DI startup: container, eager providers, @on_startup hooks
+        try:
+            from brimley.cli.main import _run_di_startup
+            _run_di_startup(scan_result, self.context, root_dir=self.root_dir)
+        except Exception as exc:
+            OutputFormatter.log(f"DI startup failed: {exc}", severity="warning")
+
         func_names = [f.name for f in self.context.functions]
         OutputFormatter.log(f"Loaded {len(self.context.functions)} functions: {', '.join(func_names)}", severity="success")
         OutputFormatter.log(f"Loaded {len(scan_result.entities)} entities.", severity="success")

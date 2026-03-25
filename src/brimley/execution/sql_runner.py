@@ -3,6 +3,7 @@ from typing import Any, Dict
 from sqlalchemy import text
 from brimley.core.models import SqlFunction
 from brimley.core.context import BrimleyContext
+from brimley.core.container import ProviderResolutionError
 from brimley.execution.arguments import ArgumentResolver
 from brimley.execution.result_mapper import ResultMapper
 
@@ -18,9 +19,21 @@ class SqlRunner:
         # 1. Resolve Arguments (merges user input, context, defaults)
         resolved_params = ArgumentResolver.resolve(func, args, context)
         
-        # 2. Get Engine
+        # 2. Get Engine — prefer container-managed provider, fall back to
+        #    direct context.databases lookup for backward compatibility.
         connection_name = func.connection
-        engine = context.databases.get(connection_name)
+        engine = None
+
+        if context.container is not None:
+            provider_name = f"db_{connection_name}"
+            try:
+                engine = context.container.resolve(provider_name)
+            except ProviderResolutionError:
+                # Provider not registered; fall back to direct lookup below
+                engine = None
+
+        if engine is None:
+            engine = context.databases.get(connection_name)
 
         if not engine:
             avail = list(context.databases.keys())

@@ -47,7 +47,7 @@ def test_execute_function_helper_success_path(monkeypatch: pytest.MonkeyPatch) -
         return {"resolved": True}
 
     class FakeDispatcher:
-        def run(self, func, args, ctx, runtime_injections=None):
+        def run(self, func, args, ctx, runtime_injections=None, request_ctx=None):
             calls["ran_func"] = func
             calls["ran_args"] = args
             calls["ran_ctx"] = ctx
@@ -129,7 +129,7 @@ def test_execute_function_helper_dispatch_failure(
         return {"resolved": True}
 
     class FakeDispatcher:
-        def run(self, func, args, ctx, runtime_injections=None):
+        def run(self, func, args, ctx, runtime_injections=None, request_ctx=None):
             raise RuntimeError("child runtime failed")
 
     monkeypatch.setattr(execute_helper_module.ArgumentResolver, "resolve", fake_resolve)

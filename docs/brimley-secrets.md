@@ -1,6 +1,7 @@
 # Brimley Secrets
 
-> **Introduced in:** Brimley 0.7
+> **Introduced in:** Brimley 0.7; `provider` sources activated in 0.8
+> **Docs baseline: 0.8.x**
 > **ADR Reference:** [ADR-0003](decisions/0003-secrets-block-ordered-resolution.md) — ordered-source resolution schema.
 
 The `secrets:` block on `ApiFunction` and `CliFunction` provides structured, ordered-source resolution for sensitive values. Resolved secret values are automatically redacted from all log output.
@@ -10,46 +11,42 @@ The `secrets:` block on `ApiFunction` and `CliFunction` provides structured, ord
 ```yaml
 secrets:
   github_token:
-    - env: GITHUB_TOKEN           # checked first (v0.7)
-    - provider: github_creds      # fallback when DI available (v0.8+)
+    - env: GITHUB_TOKEN           # checked first
+    - provider: github_creds      # fallback when env is absent (0.8+)
   api_key:
     - env: MY_API_KEY
 ```
 
-> **Note:** The `github_token` entry above includes a `provider` source and **will not load in v0.7** (see [Source Types](#source-types)). For v0.7, use only `env` sources.
 
 Each named secret maps to an **ordered list of sources**. Sources are tried in declaration order; the first source that returns a non-`None` value wins. An empty string (`""`) returned by an `env` source is treated as a valid resolved value.
 
 ### Source Types
 
-| Source | Syntax | v0.7 Status |
+| Source | Syntax | Status |
 |---|---|---|
 | `env` | `- env: ENV_VAR_NAME` | Supported — reads from `os.environ` at call time. |
-| `provider` | `- provider: provider_name` | **Not supported in v0.7.** Any secret declaring a `provider` source raises `BrimleySecretResolutionError` at scanner load time, regardless of whether `env` is also listed. Provider support requires Dependency Injection (v0.8+). |
+| `provider` | `- provider: provider_name` | Supported in 0.8+ — resolved via `BrimleyContainer.resolve(provider_name)` at call time. The provider must return a `str`. Raises `BrimleySecretResolutionError` if the container is absent or the provider fails. |
 
 ## 2. Resolution Behavior
-
-At **scanner load time** (`validate_secrets_no_provider`):
-- Raises `BrimleySecretResolutionError` (converted to a `BrimleyDiagnostic`) if **any** secret declares a `provider` source — regardless of whether `env` is also listed. In v0.7 only `env` sources are supported.
 
 At **call time** (`resolve_secrets`):
 - Iterates sources in declaration order.
 - For `env` sources: reads `os.environ.get(env_var_name)`.
-- `provider` sources are skipped silently (DI not available in v0.7).
+- For `provider` sources *(0.8+)*: calls `container.resolve(provider_name)`. The resolved value must be a `str`. Raises `BrimleySecretResolutionError` if the container is absent, the provider is not registered, or the provider returns a non-string value.
 - If all sources are exhausted without a value, raises `BrimleySecretResolutionError`.
 
-### Forward-Compatible Pattern
+### Env + Provider Pattern
 
-The following pattern is intended to work in both v0.7 (env only) and v0.8+ (env + provider):
+The following pattern declares `env` as the primary source with `provider` as the fallback:
 
 ```yaml
 secrets:
   api_token:
-    - env: API_TOKEN        # v0.7 and v0.8+
-    - provider: my_vault    # v0.8+ fallback when env is absent
+    - env: API_TOKEN        # checked first
+    - provider: my_vault    # fallback when env is absent (0.8+)
 ```
 
-> **v0.7 limitation:** This pattern **will not load** in v0.7 — any `provider` source triggers `BrimleySecretResolutionError` at scan time. For v0.7, declare only `env` sources. The `provider` fallback line can be added once v0.8 DI is available.
+The `env` source is tried first; `provider` is only called when the environment variable is not set.
 
 ## 3. Template Access
 
