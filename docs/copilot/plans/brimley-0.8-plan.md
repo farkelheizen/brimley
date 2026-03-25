@@ -91,7 +91,7 @@ Deliver a custom, AST-aware Dependency Injection system (`BrimleyContainer`) wit
 | B08-S11 | Completed | Public API exports and example files | `__init__.py`: export `provider`, `on_startup`, `on_shutdown`, `Depends`, `BrimleyContext`; new example file demonstrating provider + Depends usage | `tests/test_packaging_contract.py` (import assertions) |
 | B08-S12 | Completed | Documentation updates | Update: `brimley-high-level-design.md`, `brimley-context.md`, `brimley-secrets.md`, `brimley-python-functions.md`, `brimley-discovery-and-loader-specification.md`, `brimley-configuration.md`, `copilot-docs-reference.md`, `README.md`; new DI section in high-level design | Docs conformance review |
 | B08-S13 | Completed | Version bump, CHANGELOG, doc scan gate | `pyproject.toml` → 0.8.0; `CHANGELOG.md` updated; `examples/README.md` if affected; stale version refs updated | Full suite pass |
-| B08-S14 | In Progress | Final validation and release gate | Full test suite; regression check; review approval | Full suite pass |
+| B08-S14 | Completed | Final validation and release gate | Full test suite; regression check; review approval | Full suite pass |
 
 Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 
@@ -565,9 +565,9 @@ Record results:
 - Validation: Full suite pending (B08-S14).
 
 ### B08-S14 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: No code changes — validation only.
+- Deviations: None.
+- Validation: Full suite — 800 passed. Code review returned no comments. CodeQL — no code changes to analyze. Release gate complete.
 
 ---
 
