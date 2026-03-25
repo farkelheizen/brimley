@@ -8,7 +8,7 @@ Covers:
 - @on_startup hook failure: startup aborts, cleanup runs, exception propagates.
 - Missing provider module: startup aborts, ProviderResolutionError propagates.
 - Cycle detection: circular dependency aborts startup.
-- Existing startup behaviour preserved when no providers/hooks are declared.
+- Existing startup behavior preserved when no providers/hooks are declared.
 - Built-in db_<name> providers registered from context.databases.
 - system_boot correlation ID set during startup.
 """

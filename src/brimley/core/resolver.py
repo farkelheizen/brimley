@@ -35,7 +35,7 @@ class DependencyResolver:
 
     * Build the directed acyclic graph (DAG) of provider ``Depends()``
       relationships.
-    * Return providers in the order they must be initialised (dependencies
+    * Return providers in the order they must be initialized (dependencies
       first).
     * Detect circular dependencies early—at startup, before any provider is
       called—so failures are deterministic and easy to diagnose.
