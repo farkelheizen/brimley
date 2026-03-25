@@ -43,7 +43,7 @@ BrimleyMCPAdapter = BrimleyProvider
 app = typer.Typer(name="brimley", help="Brimley CLI Interface", rich_markup_mode=None)
 
 
-def _run_di_startup(scan_result: object, context: "BrimleyContext") -> None:
+def _run_di_startup(scan_result: object, context: "BrimleyContext", root_dir: "Optional[Path]" = None) -> None:
     """
     Wire the DI container into the startup sequence after scan & register.
 
@@ -64,7 +64,7 @@ def _run_di_startup(scan_result: object, context: "BrimleyContext") -> None:
 
     set_correlation_id(SYSTEM_BOOT_CORRELATION_ID)
 
-    container = BrimleyContainer()
+    container = BrimleyContainer(project_root=root_dir)
 
     # Register discovered @provider functions
     for provider_meta in getattr(scan_result, "providers", []):
@@ -810,7 +810,7 @@ def mcp_serve(
 
         # DI startup: container, eager providers, @on_startup hooks
         try:
-            _run_di_startup(scan_result, context)
+            _run_di_startup(scan_result, context, root_dir=root_path)
         except Exception as exc:
             OutputFormatter.log(f"DI startup failed: {exc}", severity="error")
             raise typer.Exit(code=1)
@@ -1251,7 +1251,7 @@ def invoke(
 
     # 2b. DI startup: container, eager providers, @on_startup hooks
     try:
-        _run_di_startup(scan_result, context)
+        _run_di_startup(scan_result, context, root_dir=root_path)
     except Exception as exc:
         OutputFormatter.log(f"DI startup failed: {exc}", severity="error")
         raise typer.Exit(code=1)

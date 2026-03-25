@@ -26,6 +26,7 @@ _ENTITY_DECORATORS = {"entity", "brimley.entity"}
 _PROVIDER_DECORATORS = {"provider", "brimley.provider"}
 _STARTUP_DECORATORS = {"on_startup", "brimley.on_startup"}
 _SHUTDOWN_DECORATORS = {"on_shutdown", "brimley.on_shutdown"}
+_DEPENDS_CALL_NAMES = {"Depends", "brimley.Depends"}
 _RELOAD_HAZARD_IDENTIFIERS = {"open", "connect", "start", "run", "thread", "popen", "call"}
 
 
@@ -224,6 +225,18 @@ def _is_injected_annotation(annotation_name: str | None) -> bool:
     return False
 
 
+def _is_depends_call(node: ast.AST) -> bool:
+    """Return True if *node* is a ``Depends(...)`` call (DI marker)."""
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id in _DEPENDS_CALL_NAMES
+    if isinstance(func, ast.Attribute):
+        return ast.unparse(func) in _DEPENDS_CALL_NAMES
+    return False
+
+
 def _infer_arguments_from_handler(tree: ast.Module, handler_name: str) -> dict[str, Any]:
     """
     Infer Brimley inline argument definitions from a handler function signature.
@@ -292,6 +305,14 @@ def _infer_arguments_from_handler(tree: ast.Module, handler_name: str) -> dict[s
             arg_type = _map_annotation_to_arg_type(normalized_annotation_name)
 
         has_default = idx >= defaults_offset
+
+        # Skip parameters whose default is a Depends() call — these are
+        # DI-injected and must not appear as user-facing arguments.
+        if has_default:
+            default_value = defaults[idx - defaults_offset]
+            if _is_depends_call(default_value):
+                continue
+
         arg_spec: Any
 
         if from_context:

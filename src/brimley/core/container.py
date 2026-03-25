@@ -12,8 +12,10 @@ from __future__ import annotations
 import asyncio
 import importlib
 import inspect
+import sys
 import threading
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Dict, Generator, Iterator, List, Optional
 
 from loguru import logger
@@ -128,7 +130,7 @@ class BrimleyContainer:
     Introduced in Brimley 0.8.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, project_root: Optional[Path] = None) -> None:
         # Provider registry: canonical_name -> ProviderMetadata
         self._registry: Dict[str, ProviderMetadata] = {}
         # Per-provider lock: prevents double-initialisation of singletons
@@ -142,6 +144,8 @@ class BrimleyContainer:
         # Overrides: name -> mock value (testing seam)
         self._overrides: Dict[str, Any] = {}
         self._overrides_lock = threading.Lock()
+        # Project root for module import fallback
+        self._project_root = project_root
 
     # ------------------------------------------------------------------
     # Registration
@@ -320,9 +324,27 @@ class BrimleyContainer:
         try:
             module = importlib.import_module(module_path)
         except ImportError as exc:
-            raise ProviderResolutionError(
-                f"Cannot import module '{module_path}' for handler '{handler}': {exc}"
-            ) from exc
+            # Retry with project root on sys.path (mirrors PythonRunner behaviour)
+            if self._project_root is not None:
+                root_str = str(self._project_root.resolve())
+                added = root_str not in sys.path
+                if added:
+                    sys.path.insert(0, root_str)
+                try:
+                    module = importlib.import_module(module_path)
+                except ImportError:
+                    if added:
+                        try:
+                            sys.path.remove(root_str)
+                        except ValueError:
+                            pass
+                    raise ProviderResolutionError(
+                        f"Cannot import module '{module_path}' for handler '{handler}': {exc}"
+                    ) from exc
+            else:
+                raise ProviderResolutionError(
+                    f"Cannot import module '{module_path}' for handler '{handler}': {exc}"
+                ) from exc
         if not hasattr(module, func_name):
             raise ProviderResolutionError(
                 f"Module '{module_path}' has no attribute '{func_name}'."
