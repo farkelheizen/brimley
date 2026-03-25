@@ -7,6 +7,7 @@ __version__ = version("brimley")
 from collections.abc import Callable
 from typing import Any, TypeVar, overload
 
+from brimley.core.context import BrimleyContext
 from brimley.core.di import AppState, Config, Connection, Depends
 
 DecoratedCallable = TypeVar("DecoratedCallable", bound=Callable[..., Any])
@@ -251,6 +252,7 @@ def on_shutdown(
 
 __all__ = [
 	"AppState",
+	"BrimleyContext",
 	"Config",
 	"Connection",
 	"Depends",

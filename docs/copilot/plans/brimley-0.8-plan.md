@@ -88,7 +88,7 @@ Deliver a custom, AST-aware Dependency Injection system (`BrimleyContainer`) wit
 | B08-S8 | Completed | Depends() injection in PythonRunner | `execution/python_runner.py` + `execution/arguments.py`: detect `Depends()` defaults in function signatures; resolve via container before execution; skip `Depends` args from user-supplied input | `tests/test_injection.py` (Depends resolution, mixed args, missing provider error) |
 | B08-S9 | Completed | Activate `provider` secret source | `utils/secrets.py`: `resolve_secrets()` calls `container.resolve(provider_name)` for `provider:` sources; remove `validate_secrets_no_provider()` gate; update all callers (parsers) | `tests/test_secrets.py` (provider source resolution, fallback ordering, mixed env+provider) |
 | B08-S10 | Completed | SQL connection as managed provider | Internal `db_connection` provider auto-registered by container from `context.databases` config; `SqlRunner` resolves connection via container instead of direct `context.databases` lookup; lazy singleton | `tests/test_execution_sql.py` (SQL runner uses provider, backward compat with existing config) |
-| B08-S11 | Not Started | Public API exports and example files | `__init__.py`: export `provider`, `on_startup`, `on_shutdown`, `Depends`, `BrimleyContext`; new example file demonstrating provider + Depends usage | `tests/test_packaging_contract.py` (import assertions) |
+| B08-S11 | Completed | Public API exports and example files | `__init__.py`: export `provider`, `on_startup`, `on_shutdown`, `Depends`, `BrimleyContext`; new example file demonstrating provider + Depends usage | `tests/test_packaging_contract.py` (import assertions) |
 | B08-S12 | Not Started | Documentation updates | Update: `brimley-high-level-design.md`, `brimley-context.md`, `brimley-secrets.md`, `brimley-python-functions.md`, `brimley-discovery-and-loader-specification.md`, `brimley-configuration.md`, `copilot-docs-reference.md`, `README.md`; new DI section in high-level design | Docs conformance review |
 | B08-S13 | Not Started | Version bump, CHANGELOG, doc scan gate | `pyproject.toml` → 0.8.0; `CHANGELOG.md` updated; `examples/README.md` if affected; stale version refs updated | Full suite pass |
 | B08-S14 | Not Started | Final validation and release gate | Full test suite; regression check; review approval | Full suite pass |
@@ -550,9 +550,9 @@ Record results:
 - Validation: 9 tests in `tests/test_execution_sql.py` all passed; full suite 683 passed (1 pre-existing CliRunner failure unrelated to this step).
 
 ### B08-S11 Notes
-- Changes made: [what was implemented]
-- Deviations: [none / description]
-- Validation: [tests run + result]
+- Changes made: Added `BrimleyContext` import and re-export to `src/brimley/__init__.py`; added `"BrimleyContext"` to `__all__`; created `examples/di_provider.py` demonstrating `@provider` (singleton with yield teardown), `@on_startup` hook, and `@function` with `Depends()` injection; updated `examples/README.md` (version header → 0.8.x, new "What's New in 0.8" section, file structure entry, running example #9); extended `tests/test_packaging_contract.py` with three new tests (`test_top_level_di_exports_importable`, `test_di_symbols_in_dunder_all`, `test_brimley_context_is_top_level_reexport`).
+- Deviations: Example return type changed from `dict` to `str` — bare `dict` is not a valid Brimley return type (`normalize_type_expression` requires primitives or entities). `@on_startup` hook signature simplified to not access `ctx.project_name` (no such field on `BrimleyContext`).
+- Validation: `poetry run pytest tests/test_packaging_contract.py` → 4 passed; full suite → 800 passed.
 
 ### B08-S12 Notes
 - Changes made: [what was implemented]
