@@ -1508,3 +1508,15 @@ Hello
     assert any("reload success" in message.lower() for _, message in logs)
 
     repl.stop_auto_reload()
+
+
+# ── version in REPL welcome ────────────────────────────────────────────────
+
+
+def test_repl_welcome_shows_version(tmp_path):
+    from brimley import __version__
+
+    (tmp_path / "funcs").mkdir()
+    result = runner.invoke(app, ["repl", "--root", str(tmp_path / "funcs")], input="quit\n")
+    assert result.exit_code == 0
+    assert __version__ in _combined_output(result)

@@ -9,6 +9,7 @@ from typing import Callable, Optional
 import sys
 from prompt_toolkit import PromptSession
 
+from brimley import __version__
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
@@ -192,7 +193,7 @@ class BrimleyREPL:
         self.mcp_server_thread = None
 
     def start(self):
-        OutputFormatter.log("Brimley REPL. Type '/help' for admin commands or '/quit' to exit.", severity="info")
+        OutputFormatter.log(f"Brimley REPL v{__version__}. Type '/help' for admin commands or '/quit' to exit.", severity="info")
         self.load()
         self.start_auto_reload()
 

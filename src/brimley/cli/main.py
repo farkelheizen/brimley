@@ -9,6 +9,7 @@ from typing import Optional
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 
+from brimley import __version__
 from brimley.core.context import BrimleyContext
 from brimley.config.loader import load_config
 from brimley.infrastructure.database import initialize_databases
@@ -183,7 +184,7 @@ def _run_repl_thin_client_loop(root_dir: Path, daemon_host: str, daemon_port: in
         f"Attached thin client to daemon control API at {daemon_host}:{daemon_port}.",
         severity="success",
     )
-    OutputFormatter.log("Brimley REPL thin client. Type '/help' for admin commands or '/quit' to exit.", severity="info")
+    OutputFormatter.log(f"Brimley REPL thin client v{__version__}. Type '/help' for admin commands or '/quit' to exit.", severity="info")
 
     prompt_session: Optional[PromptSession] = None
     if sys.stdin.isatty():
@@ -616,7 +617,7 @@ def repl_daemon(
     )
     write_daemon_metadata(effective_root, metadata)
     OutputFormatter.log(
-        f"Daemon process started (pid={metadata.pid}, control_port={metadata.port}).",
+        f"Brimley v{__version__} | Daemon process started (pid={metadata.pid}, control_port={metadata.port}).",
         severity="info",
     )
 
@@ -1299,6 +1300,13 @@ def invoke(
 
     # 5. Output
     OutputFormatter.print_data(result)
+
+
+@app.command()
+def version() -> None:
+    """Print the installed Brimley version."""
+    typer.echo(__version__)
+
 
 if __name__ == "__main__":
     app()
