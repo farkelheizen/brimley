@@ -1415,3 +1415,34 @@ def test_schema_convert_fail_on_warning_returns_non_zero(tmp_path):
 
     assert result.exit_code == 1
     assert "WARN_SCHEMA_NUMBER_TO_FLOAT" in _combined_output(result)
+
+
+# ── version command ────────────────────────────────────────────────
+
+
+def test_version_command_prints_version():
+    from brimley import __version__
+
+    result = runner.invoke(app, ["version"])
+    assert result.exit_code == 0
+    assert __version__ in result.stdout.strip()
+
+
+def test_thin_client_welcome_shows_version(capsys, monkeypatch, tmp_path):
+    from brimley import __version__
+
+    monkeypatch.setattr(
+        "brimley.cli.main.typer.prompt",
+        lambda *args, **kwargs: "/detach",
+    )
+    monkeypatch.setattr(
+        "brimley.cli.main.send_repl_rpc_command",
+        lambda host, port, command, timeout_seconds=5.0: SimpleNamespace(
+            ok=True, continue_session=True, output="", error=None
+        ),
+    )
+
+    _run_repl_thin_client_loop(tmp_path, "127.0.0.1", 9010)
+
+    captured = capsys.readouterr()
+    assert __version__ in captured.out + captured.err

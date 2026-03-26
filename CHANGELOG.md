@@ -6,6 +6,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.8.1] - 2026-03-26
+
+### Added
+
+- **`brimley version` command** — prints the installed Brimley package version to stdout and exits.
+- **Version in startup output** — `brimley repl` (in-process), the REPL thin client, and the daemon process now log the installed version (`v{version}`) at startup.
+
+---
+
 ## [0.8.0] - 2026-03-25
 
 ### Added

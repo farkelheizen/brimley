@@ -12,7 +12,7 @@ brimley [ROOT_DIR] [COMMAND] [ARGS]
 
 - **`ROOT_DIR`**: (Optional) The directory to scan for Brimley functions. Defaults to the current working directory (`.`).
     
-- **`COMMAND`**: One of `invoke`, `repl`, `mcp-serve`, `build`, `validate`, or `schema-convert`.
+- **`COMMAND`**: One of `invoke`, `repl`, `mcp-serve`, `build`, `validate`, `schema-convert`, or `version`.
     
 
 ## 2. Commands
@@ -139,6 +139,13 @@ Runs discovery/validation and emits a deterministic diagnostics report suitable 
     - renders report in text or JSON
     - supports threshold-based failure (`--fail-on error|warning`)
     - supports writing the same rendered report to `--output`
+
+### `brimley version`
+
+Prints the installed Brimley version and exits.
+
+- **Output:** The version string (e.g., `0.8.0`) on stdout.
+- **Exit code:** 0.
 
 ### `brimley schema-convert --in PATH --out PATH [--allow-lossy] [--format text|json] [--fail-on warning|error]`
 
