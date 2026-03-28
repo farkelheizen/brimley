@@ -1,10 +1,10 @@
 # Brimley
 
-Early-stage MCP tooling runtime focused on faster iteration loops.
+Application server for function-based AI tooling, focused on faster iteration loops.
 
 > Status: Brimley is not yet ready for production use. It is aimed at improving the MCP development workflow and is still under active development.
 
-Brimley is an authoring and execution engine for function-based AI tooling. It is focused on reducing the change/test loop during MCP tool development: change code -> reload -> re-test.
+Brimley is an application server that discovers, validates, and executes function-based AI tooling. It owns its own process and event loop, providing three operating modes: an interactive **REPL** for development, a headless **MCP server** for production, and a one-shot **invoke** mode for scripting and CI. The core focus is reducing the change/test loop during MCP tool development: change code → reload → re-test.
 
 ## Design goals
 
@@ -14,16 +14,25 @@ Brimley is an authoring and execution engine for function-based AI tooling. It i
 - **MCP integration path:** expose selected functions as MCP tools via FastMCP when needed.
 - **Declarative HTTP and CLI integration (0.7+):** wrap external APIs and shell commands as first-class Brimley functions using YAML — no boilerplate code required.
 - **Managed dependency injection (0.8+):** `@provider`, `Depends()`, `@on_startup`/`@on_shutdown` hooks, and `BrimleyContainer` with singleton and request scopes — shared resources with proper lifecycle semantics.
+- **Application server ownership (0.9+):** Brimley owns its process and event loop. No embedding inside other Python applications — integrate externally via MCP.
 - **Operations clarity:** built-in reload diagnostics, runtime error surfacing, and explicit daemon lifecycle controls.
 
 ## Architectural approach
 
-Brimley separates **tool authoring/execution semantics** from **MCP transport hosting**:
+Brimley is an **application server** — it always owns its process and event loop. It separates **tool authoring/execution semantics** from **MCP transport hosting**:
 
 - Brimley handles discovery, schemas, argument resolution, execution, reload policy, and diagnostics.
 - FastMCP (optional) handles MCP server transport.
 
-Keeping function logic separate from transport makes it reusable across local REPL workflows, dedicated MCP serving, and host-embedded deployments.
+Keeping function logic separate from transport makes it reusable across all three operating modes:
+
+| Mode | Command | Purpose |
+|---|---|---|
+| **REPL** | `brimley repl` | Interactive development with hot-reload, admin commands, and optional embedded MCP. |
+| **MCP Server** | `brimley mcp-serve` | Headless production mode — serves tools over SSE/stdio. |
+| **Invoke** | `brimley invoke <name>` | One-shot function execution for scripting, CI, and debugging. No background services are started. |
+
+> **Note:** Embedding Brimley as a library inside another Python application (e.g., importing into FastAPI) is not supported. External applications integrate with Brimley via MCP as a sidecar process.
 
 ## Quick Start
 
@@ -60,7 +69,6 @@ auto_reload:
   enabled: true
 
 mcp:
-  embedded: true
   host: 127.0.0.1
   port: 8000
 ```
@@ -117,10 +125,13 @@ Then serve tools with:
 PYTHONPATH=src poetry run brimley mcp-serve --root .
 ```
 
-## Runtime Model (0.8 architecture baseline)
+## Runtime Model (0.9 architecture baseline)
 
-- REPL uses a **thin client** attached to a daemon-owned runtime.
-- Daemon owns state, watcher lifecycle, and embedded MCP hosting.
+Brimley is an application server that owns its process and event loop. It does not support being embedded as a library inside another Python application.
+
+- **REPL mode:** Thin client attached to a daemon-owned runtime. Daemon owns state, watcher lifecycle, and optional embedded MCP hosting.
+- **MCP server mode:** Headless process serving tools over SSE/stdio via FastMCP.
+- **Invoke mode:** One-shot function execution — no daemon, no background services, no task scheduler.
 - `/detach` leaves daemon running; `/quit` (or `--shutdown-daemon`) terminates daemon session.
 - Reload is partitioned and diagnostics-driven; schema-shape tool changes require MCP client reconnect.
 
@@ -136,3 +147,4 @@ PYTHONPATH=src poetry run brimley mcp-serve --root .
 - [Secrets](docs/brimley-secrets.md) *(0.7+)*
 - [Security — Threat Model](docs/security/brimley-0.7-threat-model.md) *(0.7+)*
 - [Dependency Injection & Managed Objects](docs/roadmap/brimley-0.8-dependency-injection-and-managed-objects.md) *(0.8+)*
+- [Application Server Boundary & Managed Tasks](docs/roadmap/brimley-0.9-application-server-and-managed-tasks.md) *(0.9+)*
