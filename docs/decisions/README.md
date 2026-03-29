@@ -23,6 +23,8 @@ Records follow the [MADR](https://adr.github.io/madr/) (Markdown Architectural D
 | [0003](0003-secrets-block-ordered-resolution.md) | Uniform `secrets:` block with ordered-source resolution | Accepted |
 | [0004](0004-defer-plugin-architecture-to-v0.14.md) | Defer Plugin Architecture (external runners) to v0.14 | Accepted |
 | [0005](0005-defer-manifest-to-v0.15.md) | Defer `brimley manifest` to v0.15 | Accepted |
+| [0006](0006-application-server-boundary.md) | Application Server Boundary | Accepted |
+| [0007](0007-managed-tasks-design-decisions.md) | Managed Tasks Design Decisions | Accepted |
 
 ## Process
 
