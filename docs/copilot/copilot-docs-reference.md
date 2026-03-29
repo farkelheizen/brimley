@@ -51,6 +51,7 @@ Use this file as the fast lookup index before implementation.
 | CLI function schema, subprocess exec, metachar validation, exit-code handling | `docs/brimley-cli-functions.md` | `docs/brimley-secrets.md`, `docs/brimley-model-context-protocol-integration.md`, `docs/roadmap/brimley-0.7-cli-functions.md` |
 | Secrets resolution, ordered sources, log redaction, `BrimleySecretResolutionError` | `docs/brimley-secrets.md` | `docs/brimley-api-functions.md`, `docs/brimley-cli-functions.md`, `docs/decisions/0003-secrets-block-ordered-resolution.md` |
 | Dependency injection, `BrimleyContainer`, `@provider`, `Depends()`, `@on_startup`, `@on_shutdown`, singleton/request scope, provider teardown | `docs/roadmap/brimley-0.8-dependency-injection-and-managed-objects.md` | `docs/brimley-python-functions.md`, `docs/brimley-context.md`, `docs/brimley-discovery-and-loader-specification.md`, `docs/brimley-secrets.md` |
+| Managed tasks, `TaskScheduler`, `TaskConfig`, `interval`, `retry_interval`, overlap guard, three-phase shutdown | `docs/roadmap/brimley-0.9-application-server-and-managed-tasks.md` | `docs/brimley-python-functions.md`, `docs/brimley-repl-admin-commands.md`, `docs/brimley-discovery-and-loader-specification.md`, `docs/decisions/0007-managed-tasks-design-decisions.md` |
 | Security: threat model, injection mitigations, SSRF, prompt injection screening | `docs/security/brimley-0.7-threat-model.md` | `docs/brimley-api-functions.md`, `docs/brimley-cli-functions.md`, `docs/brimley-configuration.md` |
 | MCP tool exposure, schema filtering, embedded server | `docs/brimley-model-context-protocol-integration.md` | `docs/brimley-cli-and-repl-harness.md`, `docs/brimley-python-functions.md`, `docs/brimley-api-functions.md`, `docs/brimley-cli-functions.md` |
 | Naming and identifier constraints | `docs/brimley-naming-conventions.md` | `docs/brimley-functions.md` |
@@ -81,6 +82,8 @@ Use this file as the fast lookup index before implementation.
 - **security, threat model, prompt injection, llm-guard, bandit, detect-secrets, SSRF** → `docs/security/brimley-0.7-threat-model.md`, `brimley-api-functions.md`, `brimley-cli-functions.md`, `brimley-configuration.md`
 - **ResultParser, result_parser, text parser, json parser, regex parser, results block** → `brimley-api-functions.md`, `brimley-cli-functions.md`
 - **`@provider`, `Depends`, `BrimleyContainer`, `on_startup`, `on_shutdown`, DI, dependency injection, singleton, request scope, provider teardown, override** → `docs/roadmap/brimley-0.8-dependency-injection-and-managed-objects.md`, `brimley-python-functions.md`, `brimley-context.md`, `brimley-discovery-and-loader-specification.md`
+- **task, TaskScheduler, TaskConfig, managed task, interval, retry_interval, overlap, /tasks, task quarantine, scheduler shutdown** → `brimley-python-functions.md`, `docs/roadmap/brimley-0.9-application-server-and-managed-tasks.md`, `docs/decisions/0007-managed-tasks-design-decisions.md`, `brimley-repl-admin-commands.md`, `brimley-discovery-and-loader-specification.md`
+- **application server, embedding, BrimleyRuntimeController, mcp-serve --transport, stdio transport** → `docs/decisions/0006-application-server-boundary.md`, `brimley-cli-and-repl-harness.md`, `brimley-configuration.md`
 
 ---
 

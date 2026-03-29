@@ -33,6 +33,28 @@ All functions share core properties.
 | [API Functions](brimley-api-functions.md) | `*.yaml` | Declarative HTTP integrations via `httpx`. Introduced in 0.7. |
 | [CLI Functions](brimley-cli-functions.md) | `*.yaml` | Declarative subprocess execution via `asyncio.create_subprocess_exec`. Introduced in 0.7. |
 
+### Task Functions *(Introduced in 0.9)*
+
+Task functions are Python functions that include scheduling metadata via `@function(task={...})`. They are not a separate function type — they use the same `python_function` type in the registry and are discovered, dispatched, and injected like any other Python function.
+
+The `task` dict tells the `TaskScheduler` how to run the function periodically:
+
+```python
+from brimley import function, BrimleyContext
+
+@function(name="reconciler", task={"interval": "5m", "immediate": True})
+async def reconciler(ctx: BrimleyContext) -> dict:
+    ...
+```
+
+Key distinctions:
+- Task functions **must be async** and **must not be MCP tools** (`mcpType` cannot be set alongside `task`).
+- Parameters are limited to `BrimleyContext` and `Depends()` injections — no user-facing arguments.
+- The `TaskScheduler` runs task functions on a dedicated daemon thread in `repl` and `mcp-serve` modes. In `invoke` mode, the function is available for one-shot invocation but the scheduler does not run.
+- Scheduling metadata (`interval`, `immediate`, `retries`, `retry_interval`) is immutable across hot reload; a restart is required to change the schedule.
+
+See [Python Functions — Section 9](brimley-python-functions.md) for full parameter reference and quarantine rules.
+
 ### The `mcp` Block
 
 The `mcp` block marks a function as eligible for MCP tool export via FastMCP.

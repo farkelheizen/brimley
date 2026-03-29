@@ -92,18 +92,23 @@ Used for an interactive, stateful thin-client session.
             
         - Parse the accumulated lines as YAML.
 
-### `brimley [ROOT_DIR] mcp-serve [--watch|--no-watch] [--host HOST] [--port PORT]`
+### `brimley [ROOT_DIR] mcp-serve [--watch|--no-watch] [--host HOST] [--port PORT] [--transport sse|stdio]`
 
-Runs Brimley as a dedicated, non-REPL MCP server using FastMCP over SSE.
+Runs Brimley as a dedicated, non-REPL MCP server using FastMCP over SSE or stdio.
 
 - **Watch Flags:**
     - `--watch`: enable host-managed auto-reload watcher lifecycle.
     - `--no-watch`: disable watcher lifecycle.
     - No flag: use configuration/default (`auto_reload.enabled` from `brimley.yaml`).
 
-- **Network Overrides:**
+- **Network Overrides (SSE mode only):**
     - `--host`: override `mcp.host`
     - `--port`: override `mcp.port`
+
+- **Transport Override** *(Introduced in 0.9)*:
+    - `--transport sse`: run FastMCP over SSE (HTTP). Uses `--host` / `--port` binding.
+    - `--transport stdio`: run FastMCP over stdio. No host/port binding. Recommended for local MCP client connections (Claude Desktop, VS Code MCP). Overrides `mcp.transport` from `brimley.yaml`.
+    - No flag: use `mcp.transport` from `brimley.yaml`, defaulting to `sse` if not set.
 
 - **Behavior:**
     - scans and registers Brimley functions/entities

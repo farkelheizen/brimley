@@ -204,3 +204,16 @@ The following security improvements are out of scope for v0.7 but planned for fu
 - **Cgroup resource limits:** subprocess memory and CPU limits via `cgroups` or `systemd-run`.
 - **Audit log:** Structured log entry for every API/CLI function invocation with arguments hash (not values) for post-incident analysis.
 - **llm-guard default-on:** Once performance characteristics are understood, default prompt injection screening to `true` for API/CLI functions exposed via MCP.
+
+---
+
+## 5. Task Function Trust Boundary *(Introduced in 0.9)*
+
+Managed task functions (declared via `@function(task={...})`) run with the same trust level as any other `@function` or `@provider` callable. The following security notes apply:
+
+- **Full `BrimleyContext` access.** Task functions receive a `BrimleyContext` at each invocation and may read configuration, access database connections, call other functions via `ctx.execute_function_by_name`, and resolve DI-managed providers. Apply the same code-review standards as for any other function.
+- **Developer-authored code only.** Tasks are declared in source files in the project root. They are not accepted from external callers. The attack surface is limited to the project's own source code — consistent with `@function` and `@provider`.
+- **No user-facing arguments.** The Scanner quarantines task functions that accept user-facing parameters (non-context, non-`Depends` parameters). This prevents externally supplied inputs from reaching scheduled background logic.
+- **No MCP exposure.** Task functions cannot be declared as MCP tools (`mcpType` and `task` are mutually exclusive). Tasks are not reachable via the MCP protocol.
+- **Daemon thread scope.** The `TaskScheduler` runs on a daemon thread; it terminates when the main process exits. Tasks do not outlive the server process.
+- **Retry and overlap.** Retry backoff and overlap prevention are enforced by the scheduler. Long-running tasks that fail to complete within the 30-second shutdown grace period are hard-cancelled — no resource leak on graceful shutdown.

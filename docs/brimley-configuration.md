@@ -143,6 +143,7 @@ class BrimleyContext(Entity):
   - `brimley repl --watch|--no-watch` overrides `auto_reload.enabled`.
   - `brimley mcp-serve --watch|--no-watch` overrides `auto_reload.enabled`.
   - `brimley mcp-serve --host/--port` overrides `mcp.host` and `mcp.port`.
+  - `brimley mcp-serve --transport sse|stdio` overrides `mcp.transport` for the current session. *(Introduced in 0.9)*
   - `brimley invoke|repl|mcp-serve --log-level LEVEL` overrides the global stderr log level for this session (Brimley 0.6+).
   - `brimley invoke|repl|mcp-serve --log-module MODULE:LEVEL` overrides a module-specific log level (may be repeated, Brimley 0.6+).
   - Runtime execution behavior is controlled by `execution.*`.
@@ -159,10 +160,15 @@ class BrimleyContext(Entity):
 
   Logs are **always routed to stderr** (never stdout) to preserve the MCP JSON-RPC stream.
 
-  ### Transport Note (0.7)
+  ### Transport Note *(Updated in 0.9)*
 
-  - `mcp.transport` is part of runtime settings, but current Brimley REPL/`mcp-serve` startup paths run FastMCP over SSE in Brimley 0.7.
+  - `mcp.transport` controls the MCP transport protocol. Supported values: `"sse"` (default) and `"stdio"`.
+  - `brimley mcp-serve --transport stdio` runs FastMCP over stdio — the preferred transport for local MCP client connections (Claude Desktop, VS Code MCP). No `host`/`port` binding is used in stdio mode.
+  - `brimley mcp-serve --transport sse` (or omitting `--transport`) binds to `mcp.host` / `mcp.port`.
+  - The REPL embedded MCP server always uses SSE; `--transport` does not affect REPL mode.
   - In hybrid workflows, REPL remains loopback-control-plane oriented and does not share terminal `stdio` with MCP transport.
+
+  **Task scheduling is configured per-function (not in `brimley.yaml`).** There is no top-level `task:` block in the YAML schema — tasks are declared via `@function(task={...})` in Python source files. See [Python Functions — Section 9](brimley-python-functions.md). *(Introduced in 0.9)*
 
   Precedence: CLI override > config > model default.
 ## 5. Security Configuration (Introduced in 0.7)

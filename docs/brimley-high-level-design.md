@@ -141,6 +141,14 @@ Defined in [Dependency Injection & Managed Objects](../roadmap/brimley-0.8-depen
 - **`provider` secret source**: `secrets:` blocks on API/CLI functions may declare `- provider: name` sources. Resolved via `container.resolve(name)` at call time (activated in 0.8; deferred in 0.7).
 - **Database providers**: Connections declared in `databases:` are auto-registered as lazy singleton providers (`db_<name>`), resolved by `SqlRunner` through the container.
 
+### J. Managed Tasks & TaskScheduler *(0.9+)*
+
+- **`@function(task={...})`**: Marks an async Python function as a periodic managed task. Scheduling metadata (`interval`, `immediate`, `retries`, `retry_interval`) is declared inline in the decorator.
+- **`TaskScheduler`**: Runs on a dedicated daemon thread with its own asyncio event loop. Polls registered tasks by their configured interval. Supports overlap prevention, retry policy (fixed/exponential/multiplier backoff), and a 30-second global grace period for in-flight tasks on shutdown.
+- **Lifecycle**: TaskScheduler starts in `repl` and `mcp-serve` modes after DI startup. It is the first component stopped in the three-phase shutdown sequence (tasks → `@on_shutdown` hooks → singleton teardown).
+- **Immutable schedule metadata**: Hot reload refreshes function logic only. Scheduling metadata changes require a restart. The reload engine emits `WARN_TASK_SCHEDULE_CHANGED` diagnostics when reloaded metadata diverges.
+- **Scanner quarantine**: Task functions that violate invariants (MCP exposure, non-async, user-facing arguments, interval below 5 seconds) are quarantined with a warning diagnostic — the server still boots.
+
 ## 4. Data Flow
 
 1. **User Input** (CLI Args / YAML File)  ⬇
