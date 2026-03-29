@@ -19,6 +19,7 @@ period for any in-flight run to complete.
 """
 
 import asyncio
+import json
 import logging
 
 from brimley import BrimleyContext, Depends, function, on_startup, provider
@@ -67,8 +68,8 @@ async def seed_ledger(ctx: BrimleyContext, ledger: dict = Depends("ledger")) -> 
 )
 async def reconciler(
     ctx: BrimleyContext,
-    ledger: dict = Depends("ledger"),
-) -> dict:
+    ledger=Depends("ledger"),
+) -> str:
     """Periodic reconciler: processes pending ledger items and reports status.
 
     In a real deployment this might:
@@ -94,4 +95,4 @@ async def reconciler(
     }
 
     logger.info("Reconciler complete: %s", result)
-    return result
+    return json.dumps(result)
