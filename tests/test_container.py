@@ -281,6 +281,182 @@ class TestYieldTeardown:
 
 
 # ---------------------------------------------------------------------------
+# Three-phase shutdown (B09-S9)
+# ---------------------------------------------------------------------------
+
+
+class TestThreePhaseShutdown:
+    """Tests for three-phase shutdown: TaskScheduler → @on_shutdown hooks → singletons."""
+
+    def _make_hook(self, module_name: str, func_name: str, fn: Any) -> Any:
+        """Create a fake LifecycleHookMetadata-like object."""
+        import types as _types
+        from brimley.core.models import LifecycleHookMetadata
+
+        mod = types.ModuleType(module_name)
+        setattr(mod, func_name, fn)
+        sys.modules[module_name] = mod
+
+        return LifecycleHookMetadata(
+            module_path=module_name,
+            func_name=func_name,
+            handler=f"{module_name}.{func_name}",
+            hook_type="on_shutdown",
+        )
+
+    def test_phase_ordering_tasks_then_hooks_then_singletons(self) -> None:
+        """Shutdown must execute: scheduler.stop → on_shutdown hook → singleton teardown."""
+        log: list = []
+
+        container = BrimleyContainer()
+
+        # Phase 1: mock TaskScheduler
+        mock_scheduler = type("MockScheduler", (), {"stop": lambda self: log.append("sched_stop")})()
+        container.task_scheduler = mock_scheduler
+
+        # Phase 2: @on_shutdown hook
+        def on_shutdown_hook() -> None:
+            log.append("shutdown_hook")
+
+        hook = self._make_hook("_t.phase_order.hooks", "on_shutdown_hook", on_shutdown_hook)
+        container._lifecycle_hooks = [hook]
+
+        # Phase 3: singleton
+        def factory() -> Iterator[str]:
+            yield "resource"
+            log.append("singleton_teardown")
+
+        _register(container, "_t.phase_order.svc", "svc", factory)
+        container.resolve("svc")
+
+        container.shutdown()
+
+        assert log == ["sched_stop", "shutdown_hook", "singleton_teardown"], \
+            f"Expected phase ordering, got: {log}"
+
+    def test_no_task_scheduler_is_noop_for_phase1(self) -> None:
+        """If task_scheduler is None, phase 1 is a no-op (backward compat)."""
+        log: list = []
+
+        def factory() -> Iterator[str]:
+            yield "x"
+            log.append("teardown")
+
+        container = BrimleyContainer()
+        _register(container, "_t.noop_sched", "svc", factory)
+        container.resolve("svc")
+        container.shutdown()  # must not raise
+        assert log == ["teardown"]
+
+    def test_shutdown_hooks_run_in_reverse_declaration_order(self) -> None:
+        """@on_shutdown hooks in _lifecycle_hooks run latest-first."""
+        log: list = []
+
+        def hook_a() -> None:
+            log.append("a")
+
+        def hook_b() -> None:
+            log.append("b")
+
+        def hook_c() -> None:
+            log.append("c")
+
+        container = BrimleyContainer()
+        container._lifecycle_hooks = [
+            self._make_hook("_t.ro.a", "hook_a", hook_a),
+            self._make_hook("_t.ro.b", "hook_b", hook_b),
+            self._make_hook("_t.ro.c", "hook_c", hook_c),
+        ]
+        container.shutdown()
+        assert log == ["c", "b", "a"], f"Expected reverse order, got: {log}"
+
+    def test_on_startup_hooks_skipped_during_shutdown(self) -> None:
+        """Only on_shutdown hooks are executed during shutdown, not on_startup."""
+        from brimley.core.models import LifecycleHookMetadata
+        import types
+
+        called: list = []
+
+        def startup_hook() -> None:
+            called.append("startup_hook")
+
+        mod = types.ModuleType("_t.skip_startup")
+        mod.startup_hook = startup_hook
+        sys.modules["_t.skip_startup"] = mod
+
+        hook = LifecycleHookMetadata(
+            module_path="_t.skip_startup",
+            func_name="startup_hook",
+            handler="_t.skip_startup.startup_hook",
+            hook_type="on_startup",
+        )
+        container = BrimleyContainer()
+        container._lifecycle_hooks = [hook]
+        container.shutdown()
+        assert called == [], "on_startup hook must not run during shutdown"
+
+    def test_shutdown_hook_exception_does_not_abort_phase3(self) -> None:
+        """Exception in @on_shutdown hook is logged; singleton teardown still runs."""
+        log: list = []
+
+        def bad_hook() -> None:
+            raise RuntimeError("hook blew up")
+
+        def factory() -> Iterator[str]:
+            yield "x"
+            log.append("teardown")
+
+        container = BrimleyContainer()
+        container._lifecycle_hooks = [self._make_hook("_t.exc_hook", "bad_hook", bad_hook)]
+        _register(container, "_t.exc_svc", "svc", factory)
+        container.resolve("svc")
+        container.shutdown()  # must not raise
+        assert log == ["teardown"], "singleton teardown must still run after hook exception"
+
+    def test_task_scheduler_stop_exception_does_not_abort_phase2_or_phase3(self) -> None:
+        """Exception in TaskScheduler.stop() is logged; remaining phases continue."""
+        log: list = []
+
+        class BrokenScheduler:
+            def stop(self) -> None:
+                raise RuntimeError("scheduler crash")
+
+        def factory() -> Iterator[str]:
+            yield "x"
+            log.append("teardown")
+
+        container = BrimleyContainer()
+        container.task_scheduler = BrokenScheduler()
+        _register(container, "_t.sched_exc", "svc", factory)
+        container.resolve("svc")
+        container.shutdown()  # must not raise
+        assert log == ["teardown"], "singleton teardown must still run after scheduler crash"
+
+    def test_lifecycle_hooks_stored_during_startup(self) -> None:
+        """startup() stores all lifecycle hooks for use by shutdown()."""
+        from brimley.core.models import LifecycleHookMetadata
+        import types
+
+        def noop_startup() -> None:
+            pass
+
+        mod = types.ModuleType("_t.store_hooks")
+        mod.noop_startup = noop_startup
+        sys.modules["_t.store_hooks"] = mod
+
+        hook = LifecycleHookMetadata(
+            module_path="_t.store_hooks",
+            func_name="noop_startup",
+            handler="_t.store_hooks.noop_startup",
+            hook_type="on_startup",
+        )
+        container = BrimleyContainer()
+        container.startup(lifecycle_hooks=[hook])
+        assert len(container._lifecycle_hooks) == 1
+        assert container._lifecycle_hooks[0] is hook
+
+
+# ---------------------------------------------------------------------------
 # Overrides
 # ---------------------------------------------------------------------------
 

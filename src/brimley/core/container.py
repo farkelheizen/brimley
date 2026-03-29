@@ -146,6 +146,10 @@ class BrimleyContainer:
         self._overrides_lock = threading.Lock()
         # Project root for module import fallback
         self._project_root = project_root
+        # Lifecycle hooks stored at startup for use in shutdown (B09-S9)
+        self._lifecycle_hooks: List[Any] = []
+        # TaskScheduler reference — set by startup integration (B09-S10)
+        self.task_scheduler: Optional[Any] = None
 
     # ------------------------------------------------------------------
     # Registration
@@ -525,6 +529,9 @@ class BrimleyContainer:
             self.shutdown()
             raise
 
+        # Store hooks so shutdown() can run @on_shutdown hooks in reverse order.
+        self._lifecycle_hooks = list(lifecycle_hooks) if lifecycle_hooks else []
+
         # Step 3: run @on_startup hooks in declaration order
         if lifecycle_hooks:
             for hook in lifecycle_hooks:
@@ -559,12 +566,40 @@ class BrimleyContainer:
             loop.run_until_complete(result)
 
     def shutdown(self) -> None:
-        """
-        Tear down all singleton providers in reverse initialisation order.
+        """Tear down resources in three phases (B09-S9).
 
-        For each provider that returned a generator (yield-based teardown),
-        ``next()`` is called to run the cleanup code after the ``yield``.
+        Phase 1 — TaskScheduler: cancel all running task coroutines (30 s grace
+            then hard-cancel). No-op when no scheduler is registered.
+        Phase 2 — @on_shutdown hooks: run in reverse declaration order.
+        Phase 3 — Singleton teardown: reverse initialisation order (existing
+            behaviour).
         """
+        # ---- Phase 1: TaskScheduler ------------------------------------------
+        if self.task_scheduler is not None:
+            try:
+                self.task_scheduler.stop()
+            except Exception as exc:
+                logger.warning(
+                    "Exception during TaskScheduler shutdown: {}", exc
+                )
+
+        # ---- Phase 2: @on_shutdown hooks in reverse declaration order ---------
+        shutdown_hooks = [
+            h for h in reversed(self._lifecycle_hooks)
+            if getattr(h, "hook_type", None) == "on_shutdown"
+        ]
+        context = None  # hooks were registered without a reference; call without context
+        for hook in shutdown_hooks:
+            try:
+                self._run_lifecycle_hook(hook, context)
+            except Exception as exc:
+                logger.warning(
+                    "Exception in @on_shutdown hook '{}': {}",
+                    getattr(hook, "func_name", hook),
+                    exc,
+                )
+
+        # ---- Phase 3: Singleton teardown ------------------------------------
         with self._registry_lock:
             generators = list(self._singleton_generators.items())
 
