@@ -290,6 +290,7 @@ class BrimleyREPL:
             "functions": self._cmd_functions,
             "entities": self._cmd_entities,
             "databases": self._cmd_databases,
+            "tasks": self._cmd_tasks,
             "log-level": self._cmd_log_level,
             "log-modules": self._cmd_log_modules,
             "log-reset": self._cmd_log_reset,
@@ -387,6 +388,7 @@ class BrimleyREPL:
             ("/entities", "Lists all registered entities."),
             ("/databases", "Lists configured database connections."),
             ("/errors [--limit N] [--offset N] [--history]", "Lists persisted runtime diagnostics."),
+            ("/tasks", "Lists all task functions and their scheduling state."),
             ("/reload", "Triggers one immediate reload cycle."),
             ("/log-level LEVEL", "Set global stderr log level (e.g. /log-level DEBUG)."),
             ("/log-level MODULE LEVEL", "Set module-specific log level (e.g. /log-level brimley.mcp DEBUG)."),
@@ -579,6 +581,34 @@ class BrimleyREPL:
         reset_tools = getattr(server, "reset_tools", None)
         if callable(reset_tools):
             reset_tools()
+
+    def _cmd_tasks(self, args) -> bool:
+        scheduler = None
+        if self.context.container is not None:
+            scheduler = getattr(self.context.container, "task_scheduler", None)
+
+        if scheduler is None:
+            OutputFormatter.log("Task scheduler not available.", severity="info")
+            return True
+
+        statuses = scheduler.get_task_status()
+        if not statuses:
+            OutputFormatter.log("No task functions registered.", severity="info")
+            return True
+
+        OutputFormatter.log(f"Scheduled Tasks ({len(statuses)}):", severity="info")
+        header = f"  {'NAME':<30} {'INTERVAL':<12} {'STATE':<10} {'FAILURES':<10} {'LAST RUN':<25} {'NEXT RUN'}"
+        typer.echo(header)
+        typer.echo("  " + "-" * (len(header) - 2))
+        for s in statuses:
+            name = s["name"]
+            interval = s["interval"] or "-"
+            state = s["status"]
+            failures = str(s["consecutive_failure_count"])
+            last_run = s["last_run"] or "-"
+            next_run = s["next_run"] or "-"
+            typer.echo(f"  {name:<30} {interval:<12} {state:<10} {failures:<10} {last_run:<25} {next_run}")
+        return True
 
     def _cmd_settings(self, args) -> bool:
         typer.echo(self.context.settings.model_dump_json(indent=2))
