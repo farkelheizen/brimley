@@ -1,4 +1,4 @@
-# Brimley 0.11: DuckDB Introspection & REPL Analytics
+# Brimley 0.12: DuckDB Introspection & REPL Analytics
 
 ## Overview
 

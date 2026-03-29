@@ -123,15 +123,15 @@ The `SqlRunner` is refactored to depend on a managed provider named `db_conne
 
 Dependencies can depend on other dependencies or the current `BrimleyContext`.
 
-### B. Dependency Overriding (Mocking — v0.9)
+### B. Dependency Overriding (Mocking — v0.10)
 
-`BrimleyContainer` exposes an `override()` API that the v0.9 Mocking framework consumes:
+`BrimleyContainer` exposes an `override()` API that the v0.10 Mocking framework consumes:
 
 ```python
 container.override(provider_name, mock_impl)
 ```
 
-The original standalone `MockRegistry` pattern from the v0.7 draft (parallel registry, Dispatcher-level intercept) is **abandoned**. The v0.9 Mocking spec is written from scratch on this interface. `@brimley.mock` becomes syntactic sugar for registering a test-scoped override. The `container.override()` method must be exposed in v0.8 — even though the Mocking framework is not yet built — so that v0.9 has a stable seam to integrate against.
+The original standalone `MockRegistry` pattern from the v0.7 draft (parallel registry, Dispatcher-level intercept) is **abandoned**. The v0.10 Mocking spec is written from scratch on this interface. `@brimley.mock` becomes syntactic sugar for registering a test-scoped override. The `container.override()` method must be exposed in v0.8 — even though the Mocking framework is not yet built — so that v0.10 has a stable seam to integrate against.
 
 ### C. SecretProvider: Activating the `provider` Secret Source
 

@@ -31,7 +31,7 @@ The Mocking spec will be redesigned after DI is stable to:
 
 **DI scope is intentionally minimal.** The v0.8 implementation is not a general-purpose injection framework. Supported: `singleton` scope, `request` scope, `Depends()`, `@on_startup`, `@on_shutdown`. Everything else (named bindings, multibindings, interceptors, hierarchical containers, circular dependency resolution) is explicitly out of scope and deferred indefinitely.
 
-**`MockRegistry` design is reset.** The original 0.7 Mocking spec's `MockRegistry` (standalone parallel registry, Dispatcher-level intercept) is dropped. The new 0.9 Mocking spec will be written from scratch: `MockRegistry` is a thin override layer on `BrimleyContainer.override()`, and `@brimley.mock` is syntactic sugar for a test-scoped provider override.
+**`MockRegistry` design is reset.** The original 0.7 Mocking spec's `MockRegistry` (standalone parallel registry, Dispatcher-level intercept) is dropped. The new 0.10 Mocking spec will be written from scratch: `MockRegistry` is a thin override layer on `BrimleyContainer.override()`, and `@brimley.mock` is syntactic sugar for a test-scoped provider override.
 
 ## Consequences
 
@@ -43,5 +43,5 @@ The Mocking spec will be redesigned after DI is stable to:
 
 **Trade-offs:**
 - A custom DI system requires more upfront design work than adopting an existing library. The narrow scope (§ Additional Constraints) bounds this risk.
-- The v0.7 Mocking spec is abandoned entirely; the new 0.9 spec must be written from scratch before that release begins.
+- The v0.7 Mocking spec is abandoned entirely; the new 0.10 spec must be written from scratch before that release begins.
 - Front-loading DI delays the developer-experience improvements (REPL interactive mocking, offline development) that original v0.7 Mocking was intended to deliver.

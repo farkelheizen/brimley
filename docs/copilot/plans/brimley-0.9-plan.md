@@ -69,7 +69,7 @@ Establish Brimley as an application server that always owns its process and even
 
 | Step ID | Status | Goal | Planned Changes | Test Coverage |
 |---|---|---|---|---|
-| B09-S1 | Not Started | Roadmap renumbering (file renames + content updates) | Rename spec files (0.9→0.10, 0.10→0.11, etc.), update H1 titles, cross-references in specs, ADRs, core docs, `index.md` | Manual verification of file renames and reference consistency |
+| B09-S1 | Completed | Roadmap renumbering (file renames + content updates) | Rename spec files (0.9→0.10, 0.10→0.11, etc.), update H1 titles, cross-references in specs, ADRs, core docs, `index.md` | Manual verification of file renames and reference consistency |
 | B09-S2 | Not Started | Remove embedding support | Remove/deprecate `BrimleyRuntimeController` from public API; archive `brimley-embedded-deployments-and-port-management.md` | `tests/test_packaging_contract.py` (removed export); regression on existing tests |
 | B09-S3 | Not Started | Human-time parser utility | New `utils/time_parser.py`: parse `"1h 30m"`, `"500ms"`, `"30s"` → seconds; parse retry_interval formats (`"10s exponential"`, `"10s x1.5"`, `"10s"`) | `tests/test_time_parser.py` (valid durations, edge cases, retry formats, errors) |
 | B09-S4 | Not Started | Task metadata model and @function extension | Extend `@function` decorator to accept `task` dict; `TaskConfig` Pydantic model; `PythonFunction` / `BrimleyFunction` gains optional `task` field | `tests/test_di_models.py` or `tests/test_task_models.py` (model validation); `tests/test_decorators.py` (task parameter) |
@@ -612,7 +612,7 @@ Record results:
 
 | Step ID | Date | Changes Made | Deviations | Validation |
 |---|---|---|---|---|
-| B09-S1 | — | — | — | — |
+| B09-S1 | 3/28/2026 | Renamed 5 roadmap spec files (0.9→0.10, 0.10→0.11, 0.11→0.12, 0.12→0.13, 0.13→0.14). Renamed 2 ADR files (0004→v0.14, 0005→v0.15). Updated H1 titles and self-referencing version numbers in all renamed files. Updated `index.md` with new v0.9 entry and renumbered all subsequent versions. Updated cross-references in v0.7/v0.8 specs, ADR-0001/0002/0004/0005, decisions README, core docs (api-functions, cli-functions), and schema reference guide. | None | Manual grep verification: no stale old-filename references or version mismatches found. |
 | B09-S2 | — | — | — | — |
 | B09-S3 | — | — | — | — |
 | B09-S4 | — | — | — | — |

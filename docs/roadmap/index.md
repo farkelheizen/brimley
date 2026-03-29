@@ -15,32 +15,37 @@ This document outlines the sequential release strategy for Brimley, focusing on 
 - **Why before Mocking?** Mocking is a consumer of DI — `MockRegistry` integrates via `BrimleyContainer.override()`. Building Mocking before DI would produce a redundant standalone registry that gets rewritten. See [ADR-0001](../decisions/0001-swap-di-and-mocking-order.md).
 - **Key Features:** Custom AST-aware `BrimleyContainer` (no off-the-shelf DI library — incompatible with zero-execution scanner), `@provider(scope="singleton"|"request")`, `Depends()`, `@on_startup`, `@on_shutdown`. Activates `provider` secret sources defined in v0.7 function YAMLs.
 
-## v0.9: Developer Loop (Mocking Framework)
-- **Significant Change:** [Mocking Framework & MCP Interactivity](brimley-0.9-mocking-framework-and-mcp-interactivity.md)
-- **Why after DI?** The v0.9 spec is a complete rewrite of the original v0.7 draft: `MockRegistry` is replaced by `BrimleyContainer.override()`; `@brimley.mock` becomes syntactic sugar for a test-scoped provider override. See [ADR-0001](../decisions/0001-swap-di-and-mocking-order.md).
+## v0.9: Application Server Boundary & Managed Tasks
+- **Significant Change:** [Application Server Boundary & Managed Tasks](brimley-0.9-application-server-and-managed-tasks.md)
+- **Why now?** Removing embedding support is a breaking change to the public API surface. Managed Tasks depend on Brimley owning its process and event loop. The `TaskScheduler` design is dramatically simpler without foreign event loop contention. See [ADR-0006](../decisions/0006-application-server-boundary.md), [ADR-0007](../decisions/0007-managed-tasks-design-decisions.md).
+- **Key Features:** `@function(task={...})` for periodic background coroutines, `TaskScheduler` (daemon thread), retry policy with exponential/multiplier/fixed backoff, overlap prevention, three-phase shutdown, `/tasks` REPL command, `mcp-serve` stdio transport.
+
+## v0.10: Developer Loop (Mocking Framework)
+- **Significant Change:** [Mocking Framework & MCP Interactivity](brimley-0.10-mocking-framework-and-mcp-interactivity.md)
+- **Why after DI?** The v0.10 spec is a complete rewrite of the original v0.7 draft: `MockRegistry` is replaced by `BrimleyContainer.override()`; `@brimley.mock` becomes syntactic sugar for a test-scoped provider override. See [ADR-0001](../decisions/0001-swap-di-and-mocking-order.md).
 - **Key Features:** `container.override(provider_name, mock_impl)`, `@brimley.mock` decorator, `mocks/` directory scanning, REPL offline development for API/CLI functions.
-## v0.10: The Quality Bar (Testing Framework)
-- **Significant Change:** [Testing Framework](brimley-0.10-testing-framework.md)
+## v0.11: The Quality Bar (Testing Framework)
+- **Significant Change:** [Testing Framework](brimley-0.11-testing-framework.md)
 - **Why?** Provides a unified way to verify Python, SQL, API, and CLI functions.
 - **Feature Extension (Agent Critique):** `brimley test --agent` mode using an LLM to "critique" tool descriptions and logic.
 - **Key Feature:** `brimley test --watch` and `pytest` integration
-## v0.11: Live Analytics (DuckDB Introspection)
-- **Significant Change:** [DuckDB Introspection & REPL Analytics](brimley-0.11-duckdb-introspection-and-repl-analytics.md)
+## v0.12: Live Analytics (DuckDB Introspection)
+- **Significant Change:** [DuckDB Introspection & REPL Analytics](brimley-0.12-duckdb-introspection-and-repl-analytics.md)
 - **Why?** Treats the app state and execution logs as a queryable database for deep debugging.
 - **Feature Extension (Agent Studio):** A local web UI to visualize the "Agent Trace" and tool-call sequences stored in DuckDB.
 - **Key Feature:** `/sql` command in REPL.
-## v0.12: Performance & Logic (Smart Caching & Chains)
-- **Significant Change:** [Smart Caching & Invalidation](brimley-0.12-smart-caching-and-invalidation.md)
+## v0.13: Performance & Logic (Smart Caching & Chains)
+- **Significant Change:** [Smart Caching & Invalidation](brimley-0.13-smart-caching-and-invalidation.md)
 - **Why?** Final structural enhancement. Optimizing execution via TTL and conditional watches.
 - **Feature Extension (Agentic Flows):** `type: workflow` for declarative, YAML-based multi-step agent "macros" (Chains).
 - **Key Feature:** `watch_sql` invalidation and LRU memory management.
-## v0.13: External Extensibility (Plugin Architecture)
-- **Significant Change:** [Plugin Architecture (Custom Function Types)](brimley-0.13-plugin-architecture-custom-function-types.md)
-- **Why deferred?** The `BaseRunner` interface ships as an internal contract in v0.7. Dynamic external plugin loading (arbitrary module loading, startup security surface, 200ms startup budget) is a distinct problem. See [ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.13.md).
+## v0.14: External Extensibility (Plugin Architecture)
+- **Significant Change:** [Plugin Architecture (Custom Function Types)](brimley-0.14-plugin-architecture-custom-function-types.md)
+- **Why deferred?** The `BaseRunner` interface ships as an internal contract in v0.7. Dynamic external plugin loading (arbitrary module loading, startup security surface, 200ms startup budget) is a distinct problem. See [ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.14.md).
 - **Key Features:** `plugins:` block in `brimley.yaml`, dynamic `can_handle`/scanner handshake for third-party runners, community runner ecosystem.
 
-## v0.14: Manifest & Schema Export
-- **Why deferred?** `brimley manifest` requires a stable, finalized API surface across all function types and runners. Deferring until v0.13+ ensures the schema is not a moving target. See [ADR-0005](../decisions/0005-defer-manifest-to-v0.14.md).
+## v0.15: Manifest & Schema Export
+- **Why deferred?** `brimley manifest` requires a stable, finalized API surface across all function types and runners. Deferring until v0.14+ ensures the schema is not a moving target. See [ADR-0005](../decisions/0005-defer-manifest-to-v0.15.md).
 - **Key Features:** `brimley manifest` command, exports function/entity schemas for external Copilot platforms.
 
 ## The Path to v1.0
@@ -53,7 +58,7 @@ Brimley will remain in the 0.x series until the following "Real-World Validation
 
 Feature ideas and enhancements that surfaced during development but were intentionally deferred to avoid blocking a release are tracked in the [Brimley Wish List](brimley-wish-list.md).
 
-1. **Production Adoption:** At least three distinct production-grade applications are running on the Brimley 0.12 core.
+1. **Production Adoption:** At least three distinct production-grade applications are running on the Brimley 0.13 core.
     
 2. **Community Feedback:** A stable API surface area that has survived at least 3 months without breaking changes.
     

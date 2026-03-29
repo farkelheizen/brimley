@@ -1,6 +1,6 @@
 # Copilot Schema Reference Guide
 
-This guide provides the primary documentation links for the schemas used by major Copilot and Agent platforms. These are the formats your `brimley manifest` (v0.9) will likely need to export or align with.
+This guide provides the primary documentation links for the schemas used by major Copilot and Agent platforms. These are the formats your `brimley manifest` (v0.15) will likely need to export or align with.
 
 ## 1. Microsoft 365 Copilot (Extensibility)
 
@@ -46,6 +46,6 @@ Your current Brimley definitions map almost 1:1 to these standards:
 |`mcp: type: tool`|`function` / `tool` (OpenAI/MCP Tool)|
 |`entities/`|`definitions` (JSON Schema)|
 
-## Summary for v0.9 "Manifest" Feature
+## Summary for v0.15 "Manifest" Feature
 
 When building the `brimley manifest` command, the goal should be to transform your internal `Registry` into a **valid OpenAPI 3.1 spec** accompanied by a **Microsoft API Manifest**, as these two combined cover roughly 90% of the agentic market.

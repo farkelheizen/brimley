@@ -1,4 +1,4 @@
-# ADR-0004: Defer Plugin Architecture (External Runners) to v0.13
+# ADR-0004: Defer Plugin Architecture (External Runners) to v0.14
 
 **Date:** 2026-03-17  
 **Status:** Accepted  
@@ -26,24 +26,24 @@ Neither concern is relevant to the first-party `ApiRunner` and `CliRunner`, whic
 
 ## Decision
 
-Defer external plugin loading to a new dedicated release: **v0.13**. The `BaseRunner` abstract interface ships in v0.7 as the stable internal contract for first-party runners. External plugin loading (dynamic module registration, the `plugins:` block in `brimley.yaml`, and the community runner ecosystem) is deferred entirely.
+Defer external plugin loading to a new dedicated release: **v0.14**. The `BaseRunner` abstract interface ships in v0.7 as the stable internal contract for first-party runners. External plugin loading (dynamic module registration, the `plugins:` block in `brimley.yaml`, and the community runner ecosystem) is deferred entirely.
 
-The existing `docs/roadmap/brimley-0.9-plugin-architecture-custom-function-types.md` spec is re-targeted to v0.13.
+The existing `docs/roadmap/brimley-0.9-plugin-architecture-custom-function-types.md` spec is re-targeted to v0.14.
 
 The revised roadmap tail:
 
 | Release | Feature |
 |---------|---------|
-| v0.12 | Smart Caching & Invalidation |
-| v0.13 | Plugin Architecture (External Runners) |
-| v0.14 | Manifest & Schema Export |
+| v0.13 | Smart Caching & Invalidation |
+| v0.14 | Plugin Architecture (External Runners) |
+| v0.15 | Manifest & Schema Export |
 
 ## Consequences
 
 **Positive:**
-- v0.7 through v0.12 remain tightly scoped. No release is burdened by unresolved security or performance design work.
-- The `BaseRunner` interface ships early as a stable internal contract. When v0.13 lands, community runners implement the same interface that first-party runners have been using since v0.7.
-- The startup-time and sandboxing concerns can be properly designed during the v0.12 cycle with full knowledge of the complete runner ecosystem.
+- v0.7 through v0.13 remain tightly scoped. No release is burdened by unresolved security or performance design work.
+- The `BaseRunner` interface ships early as a stable internal contract. When v0.14 lands, community runners implement the same interface that first-party runners have been using since v0.7.
+- The startup-time and sandboxing concerns can be properly designed during the v0.13 cycle with full knowledge of the complete runner ecosystem.
 
 **Trade-offs:**
-- Community extensibility (custom runners, third-party integrations) is not available until v0.13, which is later than the original v0.9 target. Developers who want custom function types before v0.13 must fork or monkey-patch rather than using a supported plugin mechanism.
+- Community extensibility (custom runners, third-party integrations) is not available until v0.14, which is later than the original v0.9 target. Developers who want custom function types before v0.14 must fork or monkey-patch rather than using a supported plugin mechanism.

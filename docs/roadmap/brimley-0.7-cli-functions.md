@@ -175,10 +175,10 @@ Before v0.7 can be released:
 
 These are prerequisites, not nice-to-haves. See [ADR-0002](../decisions/0002-accelerate-api-cli-to-v0.7.md) for rationale.
 
-## 6. Testing & Mocking (v0.9)
+## 6. Testing & Mocking (v0.10)
 
 - **Dry Run:** Available in v0.7 — logs the command without execution.
-- **Offline Mocking:** Deferred to v0.9 (Mocking framework). `CliRunner` cannot be intercepted in tests until `BrimleyContainer.override()` is available. A documented stub intercept point is left in `Dispatcher.run()` to avoid a structural change when v0.9 lands.
+- **Offline Mocking:** Deferred to v0.10 (Mocking framework). `CliRunner` cannot be intercepted in tests until `BrimleyContainer.override()` is available. A documented stub intercept point is left in `Dispatcher.run()` to avoid a structural change when v0.10 lands.
 
 ## 7. Execution Flow
 
@@ -196,5 +196,5 @@ These are prerequisites, not nice-to-haves. See [ADR-0002](../decisions/0002-acc
 ## 8. Known Gaps (v0.7 Release)
 
 - **`provider` secret source:** Raises `BrimleySecretResolutionError` at startup if `provider` is the **only** declared source (no `env` fallback). If `env` is listed first and `provider` is a fallback, a diagnostic **warning** is emitted (not error). Schema ([ADR-0003](../decisions/0003-secrets-block-ordered-resolution.md)) is forward-compatible.
-- **MockRegistry intercept:** Deferred to v0.9. Stub intercept point left in `Dispatcher.run()`.
-- **Plugin architecture:** `BaseRunner` is internal-only. External plugins deferred to v0.13 ([ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.13.md)).
+- **MockRegistry intercept:** Deferred to v0.10. Stub intercept point left in `Dispatcher.run()`.
+- **Plugin architecture:** `BaseRunner` is internal-only. External plugins deferred to v0.14 ([ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.14.md)).

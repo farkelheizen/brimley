@@ -1,12 +1,12 @@
-# Brimley 0.13: Plugin Architecture (External Runners)
+# Brimley 0.14: Plugin Architecture (External Runners)
 
-> **ADR Reference:** [ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.13.md) — deferred from the original v0.9 slot to v0.13.
+> **ADR Reference:** [ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.14.md) — deferred from the original v0.9 slot to v0.14.
 >
-> **Note on `BaseRunner`:** The `BaseRunner` interface ships in **v0.7** as Brimley's internal execution contract. `ApiRunner` and `CliRunner` implement it. v0.13 adds **dynamic external loading** of third-party runners — it does not redesign the interface.
+> **Note on `BaseRunner`:** The `BaseRunner` interface ships in **v0.7** as Brimley's internal execution contract. `ApiRunner` and `CliRunner` implement it. v0.14 adds **dynamic external loading** of third-party runners — it does not redesign the interface.
 
 ## Overview
 
-Brimley 0.13 opens the `BaseRunner` interface to the community. By adding dynamic plugin loading to the `brimley.yaml` `plugins:` block, developers can extend Brimley to support new execution environments (e.g., `lambda_function`, `grpc_function`, `deno_script`) without modifying the core.
+Brimley 0.14 opens the `BaseRunner` interface to the community. By adding dynamic plugin loading to the `brimley.yaml` `plugins:` block, developers can extend Brimley to support new execution environments (e.g., `lambda_function`, `grpc_function`, `deno_script`) without modifying the core.
 
 ## 1. The Runner Interface
 
@@ -79,13 +79,13 @@ class DenoRunner(BaseRunner):
 
 ## 6. Context: `BaseRunner` Ships in v0.7
 
-The `sql`, `api`, and `cli` runners already implement `BaseRunner` as first-party built-in runners starting in v0.7. They are **not** refactored in v0.13 — they already use the interface. v0.13 adds the dynamic loading mechanism so community-contributed runners can be registered via `brimley.yaml` without modifying core code.
+The `sql`, `api`, and `cli` runners already implement `BaseRunner` as first-party built-in runners starting in v0.7. They are **not** refactored in v0.14 — they already use the interface. v0.14 adds the dynamic loading mechanism so community-contributed runners can be registered via `brimley.yaml` without modifying core code.
 
 The 200ms startup budget concern is addressed by lazy-loading: third-party runner modules are imported only when a file matches their `can_handle()` predicate, not at startup.
 
 ## References
 
-- [ADR-0004: Defer Plugin Architecture to v0.13](../decisions/0004-defer-plugin-architecture-to-v0.13.md)
+- [ADR-0004: Defer Plugin Architecture to v0.14](../decisions/0004-defer-plugin-architecture-to-v0.14.md)
 - [Brimley 0.7 API Functions](brimley-0.7-api-functions.md)
 - [Brimley 0.7 CLI Functions](brimley-0.7-cli-functions.md)
 

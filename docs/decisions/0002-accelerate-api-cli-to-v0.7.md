@@ -3,7 +3,7 @@
 **Date:** 2026-03-17  
 **Status:** Accepted  
 **Superseded by:** —  
-**Related:** [ADR-0001](0001-swap-di-and-mocking-order.md), [ADR-0003](0003-secrets-block-ordered-resolution.md), [ADR-0004](0004-defer-plugin-architecture-to-v0.13.md)
+**Related:** [ADR-0001](0001-swap-di-and-mocking-order.md), [ADR-0003](0003-secrets-block-ordered-resolution.md), [ADR-0004](0004-defer-plugin-architecture-to-v0.14.md)
 
 ---
 
@@ -28,8 +28,9 @@ Accelerate the API & CLI function runners to v0.7. The post-ADR-0001 sequence be
 |---------|---------|
 | v0.7 | API & CLI Functions (`api_function`, `cli_function`, `BaseRunner` interface) |
 | v0.8 | Dependency Injection (`BrimleyContainer`, `@provider`, `Depends()`) |
-| v0.9 | Mocking Framework (`MockRegistry`, REPL offline development) |
-| v0.10–v0.12 | Testing, DuckDB, Caching (unchanged) |
+| v0.9 | Application Server Boundary & Managed Tasks |
+| v0.10 | Mocking Framework (`MockRegistry`, REPL offline development) |
+| v0.11–v0.13 | Testing, DuckDB, Caching (unchanged) |
 
 **v0.7 scope includes:**
 - `BaseRunner` abstract interface (`can_handle`, `run`) as the stable internal contract
@@ -44,7 +45,7 @@ Accelerate the API & CLI function runners to v0.7. The post-ADR-0001 sequence be
 
 **v0.7 scope explicitly excludes:**
 - `provider` secret source resolution (deferred to v0.8 DI)
-- `MockRegistry` intercept for ApiRunner/CliRunner (deferred to v0.9 Mocking); a documented stub intercept point is left in `Dispatcher.run()` to avoid a structural change later
+- `MockRegistry` intercept for ApiRunner/CliRunner (deferred to v0.10 Mocking); a documented stub intercept point is left in `Dispatcher.run()` to avoid a structural change later
 - External plugin loading (see ADR-0004)
 - `brimley manifest` command (see ADR-0005)
 
@@ -57,5 +58,5 @@ Accelerate the API & CLI function runners to v0.7. The post-ADR-0001 sequence be
 - When v0.8 DI lands, runners receive a free upgrade: `httpx.AsyncClient` becomes a `@provider` singleton and `SecretProvider` fills the credential gap — additive, not a rewrite.
 
 **Trade-offs:**
-- API/CLI functions cannot be unit-tested offline (no `MockRegistry` intercept) until v0.9 Mocking. This is a known, documented gap for the v0.7 release cycle.
+- API/CLI functions cannot be unit-tested offline (no `MockRegistry` intercept) until v0.10 Mocking. This is a known, documented gap for the v0.7 release cycle.
 - The Security Acceptance gate adds implementation overhead but is non-negotiable given MCP exposure of shell commands.
