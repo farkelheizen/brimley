@@ -2,11 +2,21 @@
 
 > **Note:** The version header is kept at `0.6.x` for the pre-existing examples. New 0.7 additions are described in the **What's New in 0.7** section above.
 
-> Examples baseline: 0.8.x
+> Examples baseline: 0.9.x
 
 This directory contains exploratory Brimley examples and configuration for Python, SQL, and Template functions.
 
 These examples are for development iteration and behavior validation. They are not production deployment guidance.
+
+## What's New in 0.9
+
+Brimley 0.9 establishes the application server boundary and introduces Managed Tasks:
+
+- **`@function(task={...})`** (`task_reconciler.py`): marks an async function as a periodic managed task; scheduling is described inline via `interval`, `immediate`, `retries`, and `retry_interval` parameters.
+- **`TaskScheduler`**: discovered task functions are registered with the scheduler automatically. The scheduler runs on a dedicated daemon thread with its own event loop. It starts in `repl` and `mcp-serve` modes; skipped in `invoke` mode.
+- **`/tasks` REPL command**: lists all task functions, their scheduling configuration, current state, failure count, last run time, and next scheduled run.
+- **`mcp-serve --transport stdio`**: the `mcp-serve` command now accepts a `--transport` flag (`sse` or `stdio`) to select the MCP transport protocol. Useful for local MCP client connections (Claude Desktop, VS Code).
+- **Embedding removed**: `BrimleyRuntimeController` is no longer part of the public API. The three supported runtime modes are `repl`, `mcp-serve`, and `invoke`.
 
 ## What's New in 0.8
 
@@ -155,6 +165,30 @@ Demonstrates dependency injection: the `RequestCounter` singleton is initialized
 PYTHONPATH=../src poetry run brimley invoke greet_with_counter --root . --input '{"name": "Alice"}'
 ```
 
+### 10. Task Function (`reconciler`)
+
+Demonstrates a managed task function declared with `@function(task={...})`. The `reconciler` task runs every 30 seconds with `immediate=True` (runs once at startup), retries up to 3 times on failure, and uses exponential backoff between retries.
+
+Invoke it manually (bypasses the overlap guard):
+
+```bash
+PYTHONPATH=../src poetry run brimley invoke reconciler --root . --input '{}'
+```
+
+Or start the REPL to see it scheduled automatically:
+
+```bash
+PYTHONPATH=../src poetry run brimley repl --root .
+```
+
+Then check task status:
+
+```text
+brimley > /tasks
+brimley > reconciler {}
+brimley > /quit
+```
+
 ---
 
 ## 🔄 Running via REPL (Interactive)
@@ -229,3 +263,4 @@ PYTHONPATH=../src poetry run brimley mcp-serve --root . --host 127.0.0.1 --port 
 - `di_provider.py`: DI example — `@provider` singleton with yield teardown, `@on_startup` hook, and `@function` with `Depends()` injection (0.8+).
 - `github_profile.yaml`: API function — fetches a GitHub user profile via the GitHub REST API (0.7+).
 - `system_metrics.yaml`: CLI function — reports system load average via `uptime` with regex result parsing (0.7+).
+- `task_reconciler.py`: Managed task function — periodic reconciler declared with `@function(task={...})`; demonstrates `interval`, `immediate`, `retries`, and `retry_interval` parameters (0.9+).
