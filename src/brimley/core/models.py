@@ -282,6 +282,7 @@ class PythonFunction(BrimleyFunction):
     reload: bool = True
     handler: Optional[str] = None  # e.g., "my_pkg.mod.func_name"
     task: Optional["TaskConfig"] = None  # populated by Scanner for task functions
+    is_async: bool = False  # set by python_parser; True for async def functions
 
 
 class DiscoveredEntity(BaseEntity):
