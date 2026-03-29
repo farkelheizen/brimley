@@ -96,3 +96,44 @@ async def reconciler(
 
     logger.info("Reconciler complete: %s", result)
     return json.dumps(result)
+
+
+# ---------------------------------------------------------------------------
+# A plain (non-task) function that returns the current ledger state on demand.
+#
+# Invoke from the REPL:
+#   brimley > ledger_status {}
+# ---------------------------------------------------------------------------
+
+
+@function(name="ledger_status")
+async def ledger_status(
+    ctx: BrimleyContext,
+    ledger=Depends("ledger"),
+) -> str:
+    """Return the current ledger counters as a JSON string."""
+    return json.dumps(dict(ledger))
+
+
+# ---------------------------------------------------------------------------
+# Increment the ledger's pending count.
+#
+# Invoke from the REPL (add 3 pending items):
+#   brimley > add_pending {"amount": 3}
+#
+# The `amount` argument is optional and defaults to 1; values below 1 are
+# clamped to 1.
+# ---------------------------------------------------------------------------
+
+
+@function(name="add_pending")
+async def add_pending(
+    ctx: BrimleyContext,
+    ledger=Depends("ledger"),
+    amount: int = 1,
+) -> str:
+    """Increment the ledger pending counter by `amount` (minimum 1)."""
+    amount = max(1, amount)
+    ledger["pending"] += amount
+    logger.info("Added %d pending item(s) — pending is now %d", amount, ledger["pending"])
+    return json.dumps({"added": amount, "pending": ledger["pending"]})
