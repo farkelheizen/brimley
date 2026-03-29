@@ -116,8 +116,9 @@ class BrimleyREPL:
 
         # DI startup: container, eager providers, @on_startup hooks
         try:
-            from brimley.cli.main import _run_di_startup
+            from brimley.cli.main import _run_di_startup, _setup_task_scheduler
             _run_di_startup(scan_result, self.context, root_dir=self.root_dir)
+            _setup_task_scheduler(scan_result, self.context, self.dispatcher, start=True)
         except Exception as exc:
             OutputFormatter.log(f"DI startup failed: {exc}", severity="warning")
 
