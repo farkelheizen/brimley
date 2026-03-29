@@ -28,6 +28,7 @@ def function(
 	mcpType: str | None = None,
 	reload: bool = True,
 	type: str = "python_function",
+	task: dict[str, Any] | None = None,
 	**kwargs: Any,
 ) -> Callable[[DecoratedCallable], DecoratedCallable]:
 	...
@@ -41,6 +42,7 @@ def function(
 	mcpType: str | None = None,
 	reload: bool = True,
 	type: str = "python_function",
+	task: dict[str, Any] | None = None,
 	**kwargs: Any,
 ) -> DecoratedCallable | Callable[[DecoratedCallable], DecoratedCallable]:
 	"""Decorator that marks a callable as a Brimley function.
@@ -48,6 +50,7 @@ def function(
 	Supports both bare and configured usage:
 	- ``@function``
 	- ``@function(name="my_name", mcpType="tool")``
+	- ``@function(name="my_task", task={"interval": "5m"})``
 	"""
 
 	def decorator(target: DecoratedCallable) -> DecoratedCallable:
@@ -60,6 +63,9 @@ def function(
 
 		if mcpType is not None:
 			meta["mcpType"] = mcpType
+
+		if task is not None:
+			meta["task"] = task
 
 		setattr(target, "_brimley_meta", meta)
 		return target

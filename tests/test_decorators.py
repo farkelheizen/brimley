@@ -220,3 +220,55 @@ def test_on_shutdown_decorator_does_not_alter_function_behavior():
 def test_depends_importable_from_brimley():
     d = Depends("my_provider")
     assert d.provider_name == "my_provider"
+
+
+# ---------------------------------------------------------------------------
+# @function task parameter (B09-S4)
+# ---------------------------------------------------------------------------
+
+
+def test_function_decorator_task_parameter_stored_in_meta():
+    @function(name="my_task", task={"interval": "5m"})
+    async def my_task():
+        pass
+
+    meta = getattr(my_task, "_brimley_meta")
+    assert meta["task"] == {"interval": "5m"}
+
+
+def test_function_decorator_task_full_config():
+    @function(
+        name="reconciler",
+        task={
+            "interval": "1m",
+            "immediate": True,
+            "retries": 3,
+            "retry_interval": "5s exponential",
+        },
+    )
+    async def reconciler():
+        pass
+
+    meta = getattr(reconciler, "_brimley_meta")
+    assert meta["task"]["interval"] == "1m"
+    assert meta["task"]["immediate"] is True
+    assert meta["task"]["retries"] == 3
+    assert meta["task"]["retry_interval"] == "5s exponential"
+
+
+def test_function_decorator_without_task_has_no_task_key():
+    @function(name="plain_func")
+    def plain():
+        pass
+
+    meta = getattr(plain, "_brimley_meta")
+    assert "task" not in meta
+
+
+def test_function_decorator_task_none_not_stored():
+    @function(name="plain_func2", task=None)
+    def plain2():
+        pass
+
+    meta = getattr(plain2, "_brimley_meta")
+    assert "task" not in meta
