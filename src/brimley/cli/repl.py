@@ -597,7 +597,7 @@ class BrimleyREPL:
             return True
 
         OutputFormatter.log(f"Scheduled Tasks ({len(statuses)}):", severity="info")
-        header = f"  {'NAME':<30} {'INTERVAL':<12} {'STATE':<10} {'FAILURES':<10} {'LAST RUN':<25} {'NEXT RUN'}"
+        header = f"  {'NAME':<30} {'INTERVAL':<12} {'STATE':<10} {'FAILURES':<10} {'SKIPS':<8} {'LAST RUN':<25} {'NEXT RUN'}"
         typer.echo(header)
         typer.echo("  " + "-" * (len(header) - 2))
         for s in statuses:
@@ -605,9 +605,10 @@ class BrimleyREPL:
             interval = s["interval"] or "-"
             state = s["status"]
             failures = str(s["consecutive_failure_count"])
+            skips = str(s.get("consecutive_skip_count", 0))
             last_run = s["last_run"] or "-"
             next_run = s["next_run"] or "-"
-            typer.echo(f"  {name:<30} {interval:<12} {state:<10} {failures:<10} {last_run:<25} {next_run}")
+            typer.echo(f"  {name:<30} {interval:<12} {state:<10} {failures:<10} {skips:<8} {last_run:<25} {next_run}")
         return True
 
     def _cmd_settings(self, args) -> bool:

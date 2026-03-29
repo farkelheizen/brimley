@@ -148,6 +148,11 @@ class TestCmdTasksOutput:
         output = self._run([_make_status(status="backoff")])
         assert "backoff" in output
 
+    def test_skip_count_in_output(self):
+        output = self._run([_make_status(consecutive_skip_count=5)])
+        assert "5" in output
+        assert "SKIPS" in output
+
     def test_returns_true(self):
         repl = _make_repl()
         scheduler = MagicMock()

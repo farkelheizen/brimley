@@ -273,6 +273,7 @@ class BrimleyFunction(BaseEntity):
     mcp: Optional[MCPConfig] = None
     timeout_seconds: Optional[float] = Field(default=None, gt=0)
     return_shape: Union[str, Dict[str, Any]]
+    task: Optional["TaskConfig"] = None  # populated by Scanner for task functions (v0.9)
 
 class PythonFunction(BrimleyFunction):
     """
@@ -281,7 +282,6 @@ class PythonFunction(BrimleyFunction):
     type: Literal["python_function"]
     reload: bool = True
     handler: Optional[str] = None  # e.g., "my_pkg.mod.func_name"
-    task: Optional["TaskConfig"] = None  # populated by Scanner for task functions
     is_async: bool = False  # set by python_parser; True for async def functions
 
 

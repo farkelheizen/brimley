@@ -905,7 +905,7 @@ def mcp_serve(
 def build(
     ctx: typer.Context,
 ):
-    """Compile SQL/template assets into a Python shim module for runtime discovery."""
+    """[Experimental] Compile SQL/template assets into a Python shim module for runtime discovery."""
     root_dir = Path(".")
     output: Optional[Path] = None
 

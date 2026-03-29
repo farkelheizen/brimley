@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -56,6 +57,10 @@ class _TaskState:
     # B09-S7: Retry state (reset by _run_iteration on success / exhaustion)
     retry_count: int = 0
     consecutive_failure_count: int = 0
+    # Structured metrics (Section 4 Telemetry & Metrics)
+    success_count: int = 0
+    failure_count: int = 0
+    total_duration_ms: float = 0.0
     # Introspection (read by get_task_status())
     status: str = "waiting"   # "running" | "waiting" | "backoff"
     last_run: Optional[datetime] = None
@@ -271,30 +276,55 @@ class TaskScheduler:
             else None
         )
         max_retries = task_cfg.retries  # None → unlimited
+        correlation_id = str(uuid.uuid4())
 
         state.is_executing = True
         try:
             while True:
                 state.status = "running"
                 state.last_run = datetime.now()
-                success = await self._execute_one(state)
+                start_time = datetime.now()
+                success = await self._execute_one(state, correlation_id)
+                duration_ms = (datetime.now() - start_time).total_seconds() * 1000
 
                 if success:
                     state.consecutive_skip_count = 0
                     state.retry_count = 0
                     state.consecutive_failure_count = 0
+                    state.success_count += 1
+                    state.total_duration_ms += duration_ms
+                    avg_duration = state.total_duration_ms / (state.success_count + state.failure_count)
                     state.status = "waiting"
+                    _logger.info(
+                        "[TaskScheduler] Task '{}' iteration completed | "
+                        "correlation_id={} status=success duration_ms={:.1f} "
+                        "success_count={} failure_count={} avg_duration_ms={:.1f}",
+                        state.func.name,
+                        correlation_id,
+                        duration_ms,
+                        state.success_count,
+                        state.failure_count,
+                        avg_duration,
+                    )
                     return
 
                 # Failure handling
                 state.consecutive_failure_count += 1
+                state.failure_count += 1
+                state.total_duration_ms += duration_ms
 
                 if max_retries is not None and state.retry_count >= max_retries:
+                    avg_duration = state.total_duration_ms / (state.success_count + state.failure_count)
                     _logger.warning(
-                        "[TaskScheduler] Task '{}' exhausted {} retries. "
+                        "[TaskScheduler] Task '{}' exhausted {} retries | "
+                        "correlation_id={} status=exhausted "
+                        "failure_count={} avg_duration_ms={:.1f}. "
                         "Waiting for next scheduled interval.",
                         state.func.name,
                         max_retries,
+                        correlation_id,
+                        state.failure_count,
+                        avg_duration,
                     )
                     state.retry_count = 0
                     state.status = "waiting"
@@ -304,9 +334,11 @@ class TaskScheduler:
                 state.retry_count += 1
                 state.status = "backoff"
                 _logger.warning(
-                    "[TaskScheduler] Task '{}' failed (attempt {}). Retrying in {:.1f}s.",
+                    "[TaskScheduler] Task '{}' failed (attempt {}) | "
+                    "correlation_id={}. Retrying in {:.1f}s.",
                     state.func.name,
                     state.retry_count,
+                    correlation_id,
                     backoff,
                 )
                 try:
@@ -316,7 +348,7 @@ class TaskScheduler:
         finally:
             state.is_executing = False
 
-    async def _execute_one(self, state: _TaskState) -> bool:
+    async def _execute_one(self, state: _TaskState, correlation_id: str) -> bool:
         """Run one iteration of the task function. Returns True on success."""
         func = state.func
         loop = asyncio.get_event_loop()
@@ -329,15 +361,19 @@ class TaskScheduler:
                 self._context,
             )
             _logger.debug(
-                "[TaskScheduler] Task '{}' iteration completed.", func.name
+                "[TaskScheduler] Task '{}' iteration completed | correlation_id={}",
+                func.name,
+                correlation_id,
             )
             return True
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             _logger.error(
-                "[TaskScheduler] Task '{}' iteration raised an exception: {}",
+                "[TaskScheduler] Task '{}' iteration raised an exception | "
+                "correlation_id={}: {}",
                 func.name,
+                correlation_id,
                 exc,
             )
             return False
