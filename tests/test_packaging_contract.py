@@ -47,3 +47,20 @@ def test_brimley_context_is_top_level_reexport() -> None:
     assert TopLevel is Canonical, (
         "brimley.BrimleyContext must be the same object as brimley.core.context.BrimleyContext"
     )
+
+
+def test_runtime_controller_not_in_public_api() -> None:
+    """BrimleyRuntimeController must not be exported from the top-level brimley package.
+
+    Embedding support was removed in v0.9. BrimleyRuntimeController remains as an
+    internal implementation detail used by the CLI but is not part of the public API.
+    """
+    import brimley
+    import brimley.runtime
+
+    assert "BrimleyRuntimeController" not in brimley.__all__, (
+        "BrimleyRuntimeController must not appear in brimley.__all__"
+    )
+    assert "BrimleyRuntimeController" not in brimley.runtime.__all__, (
+        "BrimleyRuntimeController must not appear in brimley.runtime.__all__"
+    )
