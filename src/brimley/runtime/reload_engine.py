@@ -114,6 +114,9 @@ class PartitionedReloadEngine:
             and functions_has_critical
         )
 
+        # Snapshot current functions BEFORE swap so we can compare task metadata.
+        pre_swap_functions = list(context.functions)
+
         if decisions[ReloadDomain.FUNCTIONS].can_swap or function_partial_swap:
             self._rehydrate_python_modules(context, partitions.functions)
             next_functions = self._build_functions_registry(partitions.functions)
@@ -126,6 +129,11 @@ class PartitionedReloadEngine:
                     next_functions.mark_quarantined(name, reason)
 
             context.functions = next_functions
+
+        # Detect task scheduling metadata changes against the pre-swap snapshot.
+        task_warnings = self._detect_task_metadata_changes_from_snapshot(
+            pre_swap_functions, partitions.functions
+        )
 
         tools_count = (
             len(partitions.mcp_tools)
@@ -147,6 +155,8 @@ class PartitionedReloadEngine:
                         message=f"[{domain.value}] {decisions[domain].blocked_reason}",
                     )
                 )
+
+        labeled_diagnostics.extend(task_warnings)
 
         summary = ReloadSummary(
             entities=len(context.entities),
@@ -260,6 +270,83 @@ class PartitionedReloadEngine:
 
     def _count_current_tools(self, context: BrimleyContext) -> int:
         return sum(1 for func in context.functions if getattr(getattr(func, "mcp", None), "type", None) == "tool")
+
+    def _detect_task_metadata_changes_from_snapshot(
+        self, pre_swap_functions: List[BrimleyFunction], new_functions: List[BrimleyFunction]
+    ) -> List[BrimleyDiagnostic]:
+        """Compare task scheduling metadata of re-scanned functions against a pre-swap snapshot.
+
+        Emits a ``warning`` diagnostic for each function whose scheduling metadata
+        (``interval``, ``immediate``, ``retries``, ``retry_interval``) has changed or
+        that is a new task function appearing for the first time during a hot-reload.
+        Function logic changes are reloaded normally and do not produce a warning.
+        """
+        existing_by_name = {
+            getattr(fn, "name", None): fn for fn in pre_swap_functions
+        }
+
+        warnings: List[BrimleyDiagnostic] = []
+
+        for fn in new_functions:
+            new_task = getattr(fn, "task", None)
+            if new_task is None:
+                continue
+
+            func_name = getattr(fn, "name", "<unknown>")
+            existing = existing_by_name.get(func_name)
+
+            if existing is None:
+                # Brand-new task function appearing during hot-reload — cannot be scheduled.
+                warnings.append(
+                    BrimleyDiagnostic(
+                        file_path="<runtime>",
+                        error_code="WARN_NEW_TASK_FUNCTION",
+                        severity="warning",
+                        message=(
+                            f"[Hot-Reload] New task function '{func_name}' detected. "
+                            "Restart Brimley to activate scheduling."
+                        ),
+                    )
+                )
+                continue
+
+            existing_task = getattr(existing, "task", None)
+
+            if existing_task is None:
+                # Function was not a task before; now it is — scheduling not applied.
+                warnings.append(
+                    BrimleyDiagnostic(
+                        file_path="<runtime>",
+                        error_code="WARN_NEW_TASK_FUNCTION",
+                        severity="warning",
+                        message=(
+                            f"[Hot-Reload] New task function '{func_name}' detected. "
+                            "Restart Brimley to activate scheduling."
+                        ),
+                    )
+                )
+                continue
+
+            # Both old and new have task config — compare scheduling fields.
+            changed_fields = [
+                field
+                for field in ("interval", "immediate", "retries", "retry_interval")
+                if getattr(new_task, field, None) != getattr(existing_task, field, None)
+            ]
+            if changed_fields:
+                warnings.append(
+                    BrimleyDiagnostic(
+                        file_path="<runtime>",
+                        error_code="WARN_TASK_SCHEDULE_CHANGED",
+                        severity="warning",
+                        message=(
+                            f"[Hot-Reload] Task scheduling changes detected for '{func_name}'. "
+                            "Restart Brimley to apply."
+                        ),
+                    )
+                )
+
+        return warnings
 
     def _classify_diagnostics(
         self, diagnostics: List[BrimleyDiagnostic]
