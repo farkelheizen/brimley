@@ -686,6 +686,7 @@ def mcp_serve(
     no_watch = False
     host: Optional[str] = None
     port: Optional[int] = None
+    transport_override: Optional[str] = None
     log_level_override: Optional[str] = None
     log_module_overrides: dict[str, str] = {}
 
@@ -730,6 +731,18 @@ def mcp_serve(
                 port = int(port_value)
             except ValueError as exc:
                 raise typer.BadParameter("Option --port must be an integer.") from exc
+            index += 1
+            continue
+        if token == "--transport":
+            transport_override, index = _read_option_value(tokens, index, token)
+            transport_override = transport_override.strip().lower()
+            if transport_override not in ("sse", "stdio"):
+                raise typer.BadParameter("Option --transport must be 'sse' or 'stdio'.")
+            continue
+        if token.startswith("--transport="):
+            transport_override = token.split("=", 1)[1].strip().lower()
+            if transport_override not in ("sse", "stdio"):
+                raise typer.BadParameter("Option --transport must be 'sse' or 'stdio'.")
             index += 1
             continue
         if token == "--log-level":
@@ -777,6 +790,7 @@ def mcp_serve(
     effective_watch = watch_override if watch_override is not None else context.auto_reload.enabled
     effective_host = host if host is not None else context.mcp.host
     effective_port = port if port is not None else context.mcp.port
+    effective_transport = transport_override if transport_override is not None else context.mcp.transport
 
     runtime_controller: Optional[BrimleyRuntimeController] = None
     mcp_server = None
@@ -867,12 +881,18 @@ def mcp_serve(
             OutputFormatter.log("Unable to start MCP server: no runnable server instance was created.", severity="error")
             raise typer.Exit(code=1)
 
-    OutputFormatter.log(
-        f"Serving Brimley MCP tools at http://{effective_host}:{effective_port}/sse",
-        severity="success",
-    )
+    if effective_transport == "stdio":
+        OutputFormatter.log("Serving Brimley MCP tools via stdio transport.", severity="success")
+    else:
+        OutputFormatter.log(
+            f"Serving Brimley MCP tools at http://{effective_host}:{effective_port}/sse",
+            severity="success",
+        )
     try:
-        mcp_server.run(transport="sse", host=effective_host, port=effective_port)
+        if effective_transport == "stdio":
+            mcp_server.run(transport="stdio")
+        else:
+            mcp_server.run(transport="sse", host=effective_host, port=effective_port)
     except KeyboardInterrupt:
         OutputFormatter.log("MCP server interrupted. Shutting down.", severity="info")
     finally:
