@@ -105,15 +105,17 @@ class BrimleyProvider:
 
         field_names = list(input_model.model_fields.keys())
 
-        params = []
+        required_params = []
+        defaulted_params = []
         context_type = self._resolve_fastmcp_context_type()
         for field_name in field_names:
             field_info = input_model.model_fields[field_name]
             annotation = field_info.annotation
             if field_info.default is not PydanticUndefined:
-                params.append(f"{field_name}: {annotation.__name__} = {repr(field_info.default)}")
+                defaulted_params.append(f"{field_name}: {annotation.__name__} = {repr(field_info.default)}")
             else:
-                params.append(f"{field_name}: {annotation.__name__}")
+                required_params.append(f"{field_name}: {annotation.__name__}")
+        params = required_params + defaulted_params
 
         param_list = ", ".join(params)
         arg_dict_items = [f'"{name}": {name}' for name in field_names]
@@ -146,6 +148,7 @@ def wrapper({wrapper_params}):
                 "func_name": func_name,
                 "ContextType": context_type,
                 "inspect": inspect,
+                "Any": Any,
             },
             local_vars,
         )
