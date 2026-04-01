@@ -833,6 +833,66 @@ def test_repl_mcp_starts_background_server_when_available(tmp_path, monkeypatch)
     assert any("/sse" in message for _, message in logs)
 
 
+def test_repl_mcp_initialization_failure_logs_structured_context(tmp_path, monkeypatch):
+    repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
+    repl.context.mcp.host = "127.0.0.1"
+    repl.context.mcp.port = 8123
+
+    class FakeTool:
+        name = "hello_tool"
+
+    class FakeAdapter:
+        def __init__(self, registry, context):
+            pass
+
+        def discover_tools(self):
+            return [FakeTool()]
+
+        def get_tool_schema_signatures(self, tools):
+            return {"hello_tool": "sig-1"}
+
+        def is_fastmcp_available(self):
+            return True
+
+        def register_tools(self):
+            raise RuntimeError("boom")
+
+    class FakeBoundLogger:
+        def __init__(self, captured):
+            self.captured = captured
+
+        def exception(self, message):
+            self.captured["message"] = message
+
+    class FakeLogger:
+        def __init__(self, captured):
+            self.captured = captured
+
+        def bind(self, **kwargs):
+            self.captured["kwargs"] = kwargs
+            return FakeBoundLogger(self.captured)
+
+    captured_log = {}
+    logs = []
+    monkeypatch.setattr("brimley.cli.repl.BrimleyMCPAdapter", FakeAdapter)
+    monkeypatch.setattr("brimley.cli.repl._logger", FakeLogger(captured_log))
+    monkeypatch.setattr("brimley.cli.repl.OutputFormatter.log", lambda message, severity="info": logs.append((severity, message)))
+
+    repl._initialize_mcp_server()
+
+    assert captured_log["message"] == "Embedded MCP server initialization failed."
+    assert captured_log["kwargs"]["adapter_class"] == "FakeAdapter"
+    assert captured_log["kwargs"]["mcp_host"] == "127.0.0.1"
+    assert captured_log["kwargs"]["mcp_port"] == 8123
+    assert captured_log["kwargs"]["tool_count"] == 1
+    assert captured_log["kwargs"]["tool_names"] == ["hello_tool"]
+    assert captured_log["kwargs"]["schema_signature_names"] == ["hello_tool"]
+    assert any(
+        severity == "warning" and "Unable to initialize embedded MCP server: RuntimeError: boom" in message
+        for severity, message in logs
+    )
+
+
 def test_repl_mcp_noop_when_no_tools(tmp_path, monkeypatch):
     repl = BrimleyREPL(tmp_path, mcp_enabled_override=True)
 

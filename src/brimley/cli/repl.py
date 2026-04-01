@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 import sys
+from loguru import logger as _logger
 from prompt_toolkit import PromptSession
 
 from brimley import __version__
@@ -157,7 +158,17 @@ class BrimleyREPL:
         try:
             server = adapter.register_tools()
         except Exception as exc:
-            OutputFormatter.log(f"Unable to initialize embedded MCP server: {exc}", severity="warning")
+            self._log_embedded_mcp_initialization_failure(
+                exc=exc,
+                adapter_name=adapter.__class__.__name__,
+                tools=tools,
+                schema_signatures=schema_signatures,
+            )
+            exc_summary = f"{exc.__class__.__name__}: {exc}" if str(exc) else exc.__class__.__name__
+            OutputFormatter.log(
+                f"Unable to initialize embedded MCP server: {exc_summary}",
+                severity="warning",
+            )
             return
 
         self.mcp_server = server
@@ -176,6 +187,40 @@ class BrimleyREPL:
                 f"Embedded FastMCP server running at http://{host}:{port}/sse",
                 severity="success",
             )
+
+    def _describe_mcp_tool(self, tool: object) -> str:
+        if isinstance(tool, dict):
+            for key in ("name", "function_name", "tool_name"):
+                value = tool.get(key)
+                if isinstance(value, str) and value:
+                    return value
+
+        for attr_name in ("name", "function_name", "tool_name"):
+            value = getattr(tool, attr_name, None)
+            if isinstance(value, str) and value:
+                return value
+
+        return tool.__class__.__name__
+
+    def _log_embedded_mcp_initialization_failure(
+        self,
+        *,
+        exc: Exception,
+        adapter_name: str,
+        tools: list[object],
+        schema_signatures: dict[str, str],
+    ) -> None:
+        tool_names = [self._describe_mcp_tool(tool) for tool in tools]
+        _logger.bind(
+            root_dir=str(self.root_dir.expanduser().resolve()),
+            adapter_class=adapter_name,
+            mcp_host=self.context.mcp.host,
+            mcp_port=self.context.mcp.port,
+            embedded_mcp_enabled=self.mcp_embedded_enabled,
+            tool_count=len(tools),
+            tool_names=tool_names,
+            schema_signature_names=sorted(schema_signatures.keys()),
+        ).exception("Embedded MCP server initialization failed.")
 
     def _shutdown_mcp_server(self) -> None:
         """
