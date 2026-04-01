@@ -1,7 +1,7 @@
 # Brimley Wish List
 
 > Status: Deferred ideas — not scheduled for any specific version.
-> Last updated: 2026-03-28
+> Last updated: 2026-03-31
 
 This document captures feature ideas and design improvements that surfaced during development but were intentionally deferred to avoid delaying a version release. Each entry records where the idea came from, what problem it solves, and enough detail to revisit it later.
 
@@ -346,6 +346,120 @@ mcp:
 4. Should Brimley support multiple auth providers simultaneously (e.g., JWT for API clients + OAuth for browser-based clients), or is single-provider sufficient?
 
 **Target milestone:** Unscheduled — prerequisite for any remote/production deployment. Could ship as a standalone minor release once the application server model (v0.9) is stable.
+
+---
+
+## WL-009 — Eliminate `exec()`-Based Codegen in MCP Provider
+
+**Origin:** Surfaced during post-0.9 review of `BrimleyMCPAdapter` vs. direct FastMCP management.
+
+**Problem:**
+
+`BrimleyProvider.create_tool_wrapper()` uses `exec()` to generate Python wrapper functions at runtime from interpolated source strings. This is the most complex part of the MCP provider layer and introduces three concerns:
+
+1. **Unnecessary security surface.** Interpolated values (`field_name`, `repr(default)`) originate from user-authored YAML. A maliciously crafted argument name could inject arbitrary code into the `exec()` call. The risk is low (attacker needs project directory write access, which already implies code execution), but the attack surface is unnecessary.
+
+2. **Debuggability.** Stack traces through `exec()`'d code show `<string>` as the filename, making production debugging harder.
+
+3. **Schema redundancy.** `exec()` generates wrappers with carefully typed signatures (`name: str, age: int = 25`) so that FastMCP's `Tool.from_function()` can inspect them and extract a JSON schema. Brimley then *immediately overwrites* that schema with the Pydantic input model's output (`tool.parameters = input_model.model_json_schema()`). The generated signature exists solely to pass a validation gate whose result is discarded.
+
+**Proposed: Closure factory + direct `Tool()` construction**
+
+Replace `exec()`-based wrapper generation with a plain closure and bypass `Tool.from_function()` entirely:
+
+```python
+# Closure-based wrapper (no exec)
+def create_tool_wrapper(self, func):
+    func_name = func.name
+    field_names = list(self.build_tool_input_model(func).model_fields.keys())
+
+    if func.type == "python_function":
+        async def wrapper(ctx=None, **kwargs):
+            tool_args = {k: v for k, v in kwargs.items() if k in field_names}
+            injections = {"mcp_context": ctx} if ctx is not None else None
+            result = self.execute_tool_by_name(func_name, tool_args, runtime_injections=injections)
+            if inspect.isawaitable(result):
+                return await result
+            return result
+    else:
+        def wrapper(ctx=None, **kwargs):
+            tool_args = {k: v for k, v in kwargs.items() if k in field_names}
+            injections = {"mcp_context": ctx} if ctx is not None else None
+            return self.execute_tool_by_name(func_name, tool_args, runtime_injections=injections)
+
+    wrapper.__name__ = func.name
+    wrapper.__doc__ = ...
+    return wrapper
+
+# Direct Tool construction (bypass from_function validation)
+def create_tool_object(self, func):
+    wrapper = self.create_tool_wrapper(func)
+    input_model = self.build_tool_input_model(func)
+    tool = Tool(fn=wrapper, name=func.name, description=...,
+                parameters=input_model.model_json_schema())
+    return tool
+```
+
+This eliminates `exec()`, eliminates the inspect-then-override round-trip, and reduces `create_tool_wrapper()` from ~35 lines of string template assembly to ~15 lines of plain Python.
+
+**Prerequisites / open questions:**
+
+1. Verify that `Tool.__init__` (or an equivalent constructor) in the pinned FastMCP version accepts `fn`, `name`, `description`, and `parameters` directly without going through `from_function()`. If not, a post-init `tool.parameters = ...` assignment (already proven to work) is sufficient.
+2. Confirm that FastMCP's runtime dispatcher does not re-inspect the wrapper signature at call time — only the stored `parameters` schema matters for LLM-facing input validation.
+3. Do not add external dependencies (`makefun`, `forge`) for this single use case.
+
+**Alternatives considered:**
+
+| Approach | Eliminates `exec()` | Passes FastMCP validation | New deps | Complexity |
+|----------|---------------------|--------------------------|----------|------------|
+| Current (`exec()` + override) | No | Yes | None | High |
+| Closure + direct `Tool()` construction | Yes | Bypasses (not needed) | None | Low |
+| Closure + `from_function()` | Yes | No (`**kwargs` rejected) | None | N/A |
+| `makefun` + `from_function()` | Yes | Yes | `makefun` | Medium |
+
+**Target milestone:** Unscheduled — low risk, medium effort. Current code is tested and functional. Worth revisiting when FastMCP is next upgraded or when the provider layer is touched for other reasons.
+
+---
+
+## WL-010 — YAML Pipeline Functions and Tiered Function Architecture
+
+**Origin:** Surfaced during discussion of hot-reload limitations and the AST/import duality in Python function discovery.
+
+**Problem:**
+
+Many Python `@function` handlers are orchestration glue — call a SQL function, check the result, call another function, build a return value. They use Python's full import system and runtime for what amounts to sequential function-call wiring. This creates three friction points: the AST-vs-import split during discovery, partial hot-reload (transitive dependencies are not reloaded), and unnecessary complexity for authors who only need to wire existing functions together.
+
+**Proposed: YAML pipeline function type + three-tier architecture**
+
+Introduce a declarative YAML pipeline format (`type: pipeline`) that orchestrates calls to other Brimley functions with minimal control flow (`call`, `assign`, `when`, `return`, `for_each`). Formalize a three-tier model:
+
+| Tier | Defined in | Hot-reloadable | Purpose |
+|---|---|---|---|
+| SQL / Template | `.sql` / `.md.j2` | Yes | Single atomic operations |
+| YAML Pipeline | `.yaml` | Yes (stateless data) | Orchestration of Brimley function calls |
+| Python Extension | `.py` | No — loaded at startup | Arbitrary logic, third-party libraries |
+
+Python extensions would be declared in `brimley.yaml` under an `extensions:` key and loaded once at startup, with no `@function` decorator required. This eliminates the AST/import duality for orchestration code and makes hot-reload semantics honest and unambiguous.
+
+**Design doc:** [possible-yaml-pipeline-functions.md](possible-yaml-pipeline-functions.md) — full proposal with example syntax, design constraints, open questions, and alternatives considered.
+
+**Target milestone:** Unscheduled — significant design and implementation effort. Depends on the maturity of the existing function type system.
+
+---
+
+## WL-011 — Application Directory Layout & Scan Isolation
+
+**Origin:** Surfaced during review of scanner and watcher performance in the `examples/` and `examples2/` directories.
+
+**Problem:**
+
+Brimley's scanner (`os.walk`) and watcher (`Path.rglob`) traverse the entire `--root` directory tree with no hardcoded directory exclusions. Runtime artifacts (`__pycache__/`, `.brimley/`, `.pytest_cache/`, `logs/`, `.venv/`, `dist/`), data files (SQLite databases), and configuration (`brimley.yaml`) all share the same directory as Brimley function source files. This wastes startup time, triggers false watch-mode reloads, and creates a cluttered project layout.
+
+**Proposed:** Four incremental improvements — (A) a built-in directory skip list for the scanner and watcher, (B) a `scan_paths` config key to scope discovery to explicit subdirectories, (C) a `--config` CLI flag to decouple config file location from scan root, and (D) a documented recommended project layout convention.
+
+**Design doc:** [application-directory-layout.md](application-directory-layout.md) — full proposal with current behavior analysis, code-level changes, example layouts, implementation ordering, and open questions.
+
+**Target milestone:** Unscheduled — Proposal A (skip list) is a quick win; Proposals B–D are feature work.
 
 ---
 
