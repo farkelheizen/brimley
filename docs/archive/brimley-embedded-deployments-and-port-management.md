@@ -1,6 +1,4 @@
-> **Archived (v0.9):** This deployment model is removed as of v0.9. Brimley is an application server and always owns its process and event loop. See [ADR-0006](decisions/0006-application-server-boundary.md). Supported modes: `repl`, `mcp-serve`, `invoke`.
->
-> The full archived content has been moved to [docs/archive/brimley-embedded-deployments-and-port-management.md](archive/brimley-embedded-deployments-and-port-management.md).
+> **Archived (v0.9):** This deployment model is removed as of v0.9. Brimley is an application server and always owns its process and event loop. See [ADR-0006](../decisions/0006-application-server-boundary.md). Supported modes: `repl`, `mcp-serve`, `invoke`.
 
 # Brimley Embedded Deployments & Port Management
 

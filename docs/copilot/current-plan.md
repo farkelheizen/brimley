@@ -2,9 +2,9 @@
 
 Use this file to identify the active implementation plan before starting work.
 
-- Active plan: `docs/copilot/plans/cli-version-command-plan.md`
-- Current step: `VER-S3 Completed — plan complete (version logging added in follow-up)`
-- Last updated: `2026-03-26`
+- Active plan: `docs/copilot/plans/brimley-0.9-plan.md`
+- Current step: `B09-S1 Completed`
+- Last updated: `2026-03-28`
 - Owner: `Copilot`
 
 ## Update Rules

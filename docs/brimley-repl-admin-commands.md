@@ -20,6 +20,7 @@ All admin commands start with a forward slash `/`. This distinguishes them from
 |`/entities`|`ctx.entities`|Lists all registered entities.|
 |`/databases`|`ctx.databases`|Lists configured database connections.|
 |`/reload`|Runtime reload engine|Runs one immediate reload cycle and prints standardized reload summary/diagnostics.|
+|`/tasks`|`TaskScheduler`|Lists all registered task functions with their scheduling configuration, current state, failure count, last run time, and next scheduled run. *(Introduced in 0.9)*|
 |`/errors [--limit N] [--offset N] [--history]`|Runtime diagnostics set|Shows persisted runtime diagnostics with pagination and optional resolved-history view.|
 |`/log-level LEVEL`|Logging runtime|Set global stderr log level immediately (e.g. `/log-level DEBUG`).|
 |`/log-level MODULE LEVEL`|Logging runtime|Set a module-specific log level (e.g. `/log-level brimley.mcp WARNING`).|
@@ -77,3 +78,12 @@ The REPL loop will be modified to intercept input before dispatching:
     - `/log-reset` restores all levels to the values in `brimley.yaml`.
     - `/log-level-for-id abc12345 TRACE` targets a single in-flight request; useful for live debugging.
     - `/log-level-for-id abc12345 --clear` removes the per-request override when debugging is complete.
+
+- **Task Status (`/tasks`)** *(Introduced in 0.9)*:
+
+    - Displays a columnar table of all registered task functions.
+    - Columns: `NAME`, `INTERVAL`, `STATE`, `FAILURES`, `LAST RUN`, `NEXT RUN`.
+    - `STATE` values: `IDLE` (waiting for next run), `RUNNING` (currently executing), `RETRYING` (in backoff after a failure), `EXHAUSTED` (retry limit reached — waiting for next scheduled interval).
+    - If no `TaskScheduler` is running (e.g., started without tasks), prints: `No task scheduler is configured.`
+    - If the scheduler has no registered tasks, prints: `No tasks registered.`
+    - Times are displayed in ISO 8601 local time or `—` if not yet run/scheduled.

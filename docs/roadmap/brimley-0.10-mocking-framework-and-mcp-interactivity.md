@@ -1,17 +1,17 @@
-# Brimley 0.9: Mocking Framework & MCP Interactivity
+# Brimley 0.10: Mocking Framework & MCP Interactivity
 
-> **⚠ SPEC REQUIRES FULL REWRITE before v0.9 planning begins.**
+> **⚠ SPEC REQUIRES FULL REWRITE before v0.10 planning begins.**
 >
 > This document was originally written as the v0.7 spec when Mocking preceded DI. Since then, two decisions changed:
 >
-> 1. [ADR-0001](../decisions/0001-swap-di-and-mocking-order.md): DI (v0.8) precedes Mocking (v0.9). Mocking is a consumer of the DI container.
+> 1. [ADR-0001](../decisions/0001-swap-di-and-mocking-order.md): DI (v0.8) precedes Mocking (v0.10). Mocking is a consumer of the DI container.
 > 2. [ADR-0002](../decisions/0002-accelerate-api-cli-to-v0.7.md): API & CLI functions moved to v0.7.
 >
 > **The standalone `MockRegistry` pattern described below is abandoned.** The new design:
 > - `MockRegistry` is replaced by `BrimleyContainer.override(provider_name, mock_impl)` (the `override()` API is exposed in v0.8).
 > - `@brimley.mock` becomes syntactic sugar for registering a test-scoped provider override — not a distinct parallel concept.
 > - `ApiRunner` and `CliRunner` (shipped in v0.7) are interceptable in tests via provider override, not a Dispatcher-level intercept.
-> - REPL offline development for API/CLI functions is a v0.9 feature (not available in v0.7).
+> - REPL offline development for API/CLI functions is a v0.10 feature (not available in v0.7).
 >
 > The content below is preserved for historical reference. All new implementation work must follow the `BrimleyContainer.override()` integration model.
 

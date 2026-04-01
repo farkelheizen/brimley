@@ -1,8 +1,8 @@
-# Brimley 0.12: Smart Caching & Invalidation
+# Brimley 0.13: Smart Caching & Invalidation
 
 ## Overview
 
-Brimley 0.12 introduces a declarative caching layer within the `Dispatcher`. This allows functions to skip execution if a valid result exists. Unlike standard memoization, Brimley caching supports complex invalidation strategies based on time, size, and **External Versioning**.
+Brimley 0.13 introduces a declarative caching layer within the `Dispatcher`. This allows functions to skip execution if a valid result exists. Unlike standard memoization, Brimley caching supports complex invalidation strategies based on time, size, and **External Versioning**.
 
 ## 1. Declarative Configuration
 

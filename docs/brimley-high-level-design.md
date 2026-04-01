@@ -1,15 +1,17 @@
 # Brimley High-Level Design
-> Docs baseline: 0.8.x
+> Docs baseline: 0.9.x
 
 > Status note: Brimley is currently experimental and this design is intended to support fast MCP development iteration, not to claim production readiness.
 
 ## 1. Executive Summary
 
-Brimley is a lightweight, file-based function execution engine designed to bridge the gap between static definitions (SQL, Python, Templates) and dynamic execution environments (CLI, REPL, and FastMCP). It emphasizes a "Configuration over Code" approach for discovery and a strict contract for inputs and outputs.
+Brimley is an application server for function-based AI tooling. It discovers, validates, and executes functions defined in `.py`, `.sql`, `.md`, and `.yaml` files, exposing them through an interactive REPL, a headless MCP server, or one-shot CLI invocation. It emphasizes a "Configuration over Code" approach for discovery and a strict contract for inputs and outputs.
+
+Brimley always owns its own process and event loop. It is not designed to be embedded as a library inside another Python application — external systems integrate with Brimley via MCP as a sidecar process.
 
 ## 2. Core Architecture
 
-Brimley operates as a daemon-oriented runtime with a distinct lifecycle:
+Brimley operates as an application server with a daemon-oriented runtime and a distinct lifecycle:
 
 1. **Boot & Discovery:** On startup, the engine recursively scans a `ROOT_DIR`, identifying functions based on file extensions and internal metadata markers.
     
@@ -55,9 +57,9 @@ Defined in [Discovery & Loader](brimley-discovery-and-loader-specification.md), 
 
 Brimley uses two discovery strategies depending on runtime context:
 
-- **Static Discovery (Default CLI/REPL)**: File-system scan + AST parsing for Python decorators and metadata parsing for SQL/template files.
+- **Static Discovery (Default CLI/REPL/MCP)**: File-system scan + AST parsing for Python decorators and metadata parsing for SQL/template files. This is the primary discovery mode.
 
-- **Runtime Discovery (Embedded/Compiled)**: Reflection scan (`scan_module`) for callables/classes carrying `_brimley_meta`, enabling discovery when source files are unavailable at runtime.
+- **Runtime Discovery (Compiled/Bundled)**: Reflection scan (`scan_module`) for callables/classes carrying `_brimley_meta`, enabling discovery when source files are unavailable at runtime (e.g., single-file distribution — see [WL-003](../roadmap/brimley-wish-list.md#wl-003--single-file-distribution-brimley-build---bundle)).
 
 - **Bridge for Non-Python Assets**: `brimley build` generates Python shim modules for SQL/template assets so runtime reflection can discover them uniformly.
     
@@ -81,19 +83,19 @@ Brimley supports five function primitives:
 
 Defined in [CLI & REPL Harness](brimley-cli-and-repl-harness.md):
 
-- **`invoke`**: Single-shot execution for scripts/pipes.
+- **`invoke`**: Single-shot execution for scripts/pipes. No daemon, no background services, no task scheduler.
     
-- **`repl`**: Interactive loop with state persistence and multi-line input support.
+- **`repl`**: Interactive loop with state persistence, multi-line input support, and optional embedded MCP hosting. Long-running mode — task scheduler and auto-reload are active.
 
-- **`mcp-serve`**: Non-REPL MCP hosting with optional host-managed watch lifecycle.
+- **`mcp-serve`**: Headless MCP server over SSE/stdio. Long-running mode — task scheduler and auto-reload are active.
 
-- **`build`**: Generate shim modules for SQL/template runtime reflection discovery.
+- **`build`**: Generate shim modules for SQL/template runtime reflection discovery. *(Experimental — not yet ready for use.)*
 
 - **`validate`**: Emit diagnostics reports with configurable fail thresholds for CI/local checks.
 
 - **`schema-convert`**: Convert constrained JSON Schema subsets into inline FieldSpec migration output.
 
-- **`auto_reload`**: Optional watch-mode orchestration for dynamic updates, available in REPL and via host-managed runtime controller.
+- **`auto_reload`**: Optional watch-mode orchestration for dynamic updates, available in `repl` and `mcp-serve` modes.
 
 ### F. The MCP Integration Layer
 
@@ -103,7 +105,7 @@ Defined in [MCP Integration](brimley-model-context-protocol-integration.md), thi
 
 - **Schema Filtering**: Arguments sourced from `from_context` are hidden from MCP tool input schemas.
 
-- **Embedded Hosting**: REPL can host FastMCP over SSE without conflicting with interactive terminal input.
+- **Embedded Hosting**: In REPL mode, Brimley can host FastMCP over SSE on a background thread without conflicting with interactive terminal input. In `mcp-serve` mode, the MCP server runs on the main thread.
 
 - **Provider-First Integration**: MCP tool registration uses `BrimleyProvider` as the primary integration surface, with adapter naming retained only as a compatibility shim.
 
@@ -135,9 +137,17 @@ Defined in [Dependency Injection & Managed Objects](../roadmap/brimley-0.8-depen
 - **Two-phase discovery**: `@provider`, `@on_startup`, `@on_shutdown` are detected via AST scan (zero-execution) alongside `@function` and `@entity`. Provider factories are imported and wired during the startup phase.
 - **`DependencyResolver`**: Topological sort with cycle detection. Validates the provider dependency graph at startup; aborts with a clear cycle-path message on circular dependencies.
 - **Fail-fast startup**: Unhandled exceptions in eager providers or startup hooks abort startup, run `@on_shutdown` teardowns, and exit with a non-zero status.
-- **`container.override()` seam**: Replaces a provider factory for testing (v0.9 Mocking integration seam). `reset_overrides()` restores originals.
+- **`container.override()` seam**: Replaces a provider factory for testing (v0.10 Mocking integration seam). `reset_overrides()` restores originals.
 - **`provider` secret source**: `secrets:` blocks on API/CLI functions may declare `- provider: name` sources. Resolved via `container.resolve(name)` at call time (activated in 0.8; deferred in 0.7).
 - **Database providers**: Connections declared in `databases:` are auto-registered as lazy singleton providers (`db_<name>`), resolved by `SqlRunner` through the container.
+
+### J. Managed Tasks & TaskScheduler *(0.9+)*
+
+- **`@function(task={...})`**: Marks an async Python function as a periodic managed task. Scheduling metadata (`interval`, `immediate`, `retries`, `retry_interval`) is declared inline in the decorator.
+- **`TaskScheduler`**: Runs on a dedicated daemon thread with its own asyncio event loop. Polls registered tasks by their configured interval. Supports overlap prevention, retry policy (fixed/exponential/multiplier backoff), and a 30-second global grace period for in-flight tasks on shutdown.
+- **Lifecycle**: TaskScheduler starts in `repl` and `mcp-serve` modes after DI startup. It is the first component stopped in the three-phase shutdown sequence (tasks → `@on_shutdown` hooks → singleton teardown).
+- **Immutable schedule metadata**: Hot reload refreshes function logic only. Scheduling metadata changes require a restart. The reload engine emits `WARN_TASK_SCHEDULE_CHANGED` diagnostics when reloaded metadata diverges.
+- **Scanner quarantine**: Task functions that violate invariants (MCP exposure, non-async, user-facing arguments, interval below 5 seconds) are quarantined with a warning diagnostic — the server still boots.
 
 ## 4. Data Flow
 
@@ -160,6 +170,7 @@ Defined in [Dependency Injection & Managed Objects](../roadmap/brimley-0.8-depen
 - [What’s New in 0.4](brimley-0.4-whats-new.md)
 - [What's New in 0.6 — Logging Architecture](../roadmap/brimley-0.6-logging-architecture.md)
 - [What's New in 0.8 — Dependency Injection & Managed Objects](../roadmap/brimley-0.8-dependency-injection-and-managed-objects.md)
+- [What's New in 0.9 — Application Server Boundary & Managed Tasks](../roadmap/brimley-0.9-application-server-and-managed-tasks.md)
 - [CHANGELOG](../CHANGELOG.md)- [Wish List — Deferred Ideas](../roadmap/brimley-wish-list.md)- [Project Structure](brimley-application-structure.md)
 - [Function Arguments](brimley-function-arguments.md)
 - [Return Shapes](brimley-function-return-shape.md)

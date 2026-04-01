@@ -1,12 +1,12 @@
 import os
 import re
 from pathlib import Path
-from typing import List, Set, Optional
+from typing import List, Optional, Set, Tuple
 from pydantic import BaseModel, Field
 import yaml
 
 from brimley.core.entity import Entity
-from brimley.core.models import BrimleyFunction, LifecycleHookMetadata, ProviderMetadata
+from brimley.core.models import BrimleyFunction, LifecycleHookMetadata, ProviderMetadata, PythonFunction
 from brimley.core.naming import (
     build_canonical_id,
     is_reserved_function_name,
@@ -212,6 +212,12 @@ class Scanner:
                                 suggestion="Use a distinct name to avoid confusion.",
                                 line_number=None,
                             ))
+                        # Apply task quarantine rules for task functions
+                        if isinstance(obj, PythonFunction) and obj.task is not None:
+                            passed, quarantine_diag = self._apply_task_quarantine_rules(obj, file_path)
+                            if not passed:
+                                diagnostics.append(quarantine_diag)
+                                continue
                         functions.append(obj)
                     else:
                         if obj.name in seen_entity_names:
@@ -312,3 +318,92 @@ class Scanner:
             return parse_cli_file(file_path)
         else:
             raise ValueError(f"Unknown file type: {file_type}")
+
+    def _apply_task_quarantine_rules(
+        self,
+        fn: "PythonFunction",
+        file_path: Path,
+    ) -> Tuple[bool, Optional[BrimleyDiagnostic]]:
+        """Apply the four task quarantine rules to a task-annotated PythonFunction.
+
+        Returns ``(True, None)`` when the function passes all rules.
+        Returns ``(False, diagnostic)`` when a rule is violated — the function
+        must be skipped (not registered).
+
+        Rules are evaluated in order; the first violation is reported.
+
+        Rule 1 — MCP Prohibition: task + mcpType is forbidden.
+        Rule 2 — Signature Constraint: task functions must accept only
+                  BrimleyContext and Depends() parameters.
+        Rule 3 — Async Only: task functions must be ``async def``.
+        Rule 4 — Interval Minimum: parsed interval must be >= 1 second.
+        """
+        assert fn.task is not None, "_apply_task_quarantine_rules called on non-task function"
+        name = fn.name
+
+        # Rule 1: MCP prohibition
+        if fn.mcp is not None:
+            return False, BrimleyDiagnostic(
+                file_path=str(file_path),
+                error_code="ERR_TASK_QUARANTINE",
+                message=(
+                    f"[Scanner] Skipping '{name}': task functions cannot be MCP objects. "
+                    "Remove mcpType or task configuration."
+                ),
+                severity="warning",
+            )
+
+        # Rule 2: Signature constraint — no non-injectable positional args
+        inline_args = {}
+        if fn.arguments and isinstance(fn.arguments, dict):
+            inline_args = fn.arguments.get("inline", {})
+        if inline_args:
+            return False, BrimleyDiagnostic(
+                file_path=str(file_path),
+                error_code="ERR_TASK_QUARANTINE",
+                message=(
+                    f"[Scanner] Skipping '{name}': task functions may only accept "
+                    "BrimleyContext and Depends() parameters. "
+                    f"Non-injectable parameters detected: {', '.join(inline_args.keys())}."
+                ),
+                severity="warning",
+            )
+
+        # Rule 3: Must be async def
+        if not fn.is_async:
+            return False, BrimleyDiagnostic(
+                file_path=str(file_path),
+                error_code="ERR_TASK_QUARANTINE",
+                message=(
+                    f"[Scanner] Skipping '{name}': task functions must be declared with "
+                    "'async def'."
+                ),
+                severity="warning",
+            )
+
+        # Rule 4: Interval minimum >= 1 second
+        from brimley.utils.time_parser import parse_duration
+        try:
+            interval_seconds = parse_duration(fn.task.interval)
+        except ValueError as e:
+            return False, BrimleyDiagnostic(
+                file_path=str(file_path),
+                error_code="ERR_TASK_QUARANTINE",
+                message=(
+                    f"[Scanner] Skipping '{name}': task interval is unparseable: {e}"
+                ),
+                severity="warning",
+            )
+
+        if interval_seconds < 1.0:
+            return False, BrimleyDiagnostic(
+                file_path=str(file_path),
+                error_code="ERR_TASK_QUARANTINE",
+                message=(
+                    f"[Scanner] Skipping '{name}': task interval '{fn.task.interval}' "
+                    f"({interval_seconds}s) is below the 1-second minimum."
+                ),
+                severity="warning",
+            )
+
+        return True, None

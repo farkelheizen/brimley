@@ -17,9 +17,11 @@ from brimley.runtime.daemon import (
 	write_daemon_metadata,
 )
 
+# BrimleyRuntimeController is intentionally not in __all__. It is an internal
+# implementation detail used by the CLI. Embedding support was removed in v0.9.
+# Supported modes: repl, mcp-serve, invoke.
+
 __all__ = [
-	"BrimleyRuntimeController",
-	"ReloadLifecycleEvent",
 	"DaemonMetadata",
 	"DaemonProbeResult",
 	"DaemonState",

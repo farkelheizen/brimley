@@ -1,8 +1,8 @@
-# Brimley 0.10: Testing Framework
+# Brimley 0.11: Testing Framework
 
 ## Overview
 
-Brimley 0.10 provides a built-in testing harness designed to verify Python, SQL, and Template functions in isolation or as integrated flows. The testing framework leverages the existing `MockRegistry` and `Dispatcher` to provide a "flight simulator" for Brimley applications.
+Brimley 0.11 provides a built-in testing harness designed to verify Python, SQL, and Template functions in isolation or as integrated flows. The testing framework leverages the existing `MockRegistry` and `Dispatcher` to provide a "flight simulator" for Brimley applications.
 
 ## 1. The `brimley test` Command
 

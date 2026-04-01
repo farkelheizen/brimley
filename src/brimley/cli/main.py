@@ -82,6 +82,33 @@ def _run_di_startup(scan_result: object, context: "BrimleyContext", root_dir: "O
     context.container = container
 
 
+def _setup_task_scheduler(
+    scan_result: object,
+    context: "BrimleyContext",
+    dispatcher: object,
+    *,
+    start: bool,
+) -> None:
+    """
+    Instantiate TaskScheduler from registry task functions and wire it into the container.
+
+    Called after ``_run_di_startup()`` so that ``@on_startup`` hooks have already
+    ran and all singletons are available.  ``start`` controls whether the scheduler
+    daemon thread is actually started (True for repl/mcp-serve, False for invoke).
+    """
+    from brimley.core.task_scheduler import TaskScheduler
+
+    tasks = [fn for fn in context.functions if getattr(fn, "task", None) is not None]
+    scheduler = TaskScheduler(tasks=tasks, dispatcher=dispatcher, context=context)
+
+    if context.container is not None:
+        context.container.task_scheduler = scheduler
+
+    if start:
+        scheduler.start()
+    # invoke mode: scheduler created but never started; phase-1 shutdown is a no-op
+
+
 def _coerce_bool_like(value: object) -> bool:
     if isinstance(value, bool):
         return value
@@ -659,6 +686,7 @@ def mcp_serve(
     no_watch = False
     host: Optional[str] = None
     port: Optional[int] = None
+    transport_override: Optional[str] = None
     log_level_override: Optional[str] = None
     log_module_overrides: dict[str, str] = {}
 
@@ -703,6 +731,18 @@ def mcp_serve(
                 port = int(port_value)
             except ValueError as exc:
                 raise typer.BadParameter("Option --port must be an integer.") from exc
+            index += 1
+            continue
+        if token == "--transport":
+            transport_override, index = _read_option_value(tokens, index, token)
+            transport_override = transport_override.strip().lower()
+            if transport_override not in ("sse", "stdio"):
+                raise typer.BadParameter("Option --transport must be 'sse' or 'stdio'.")
+            continue
+        if token.startswith("--transport="):
+            transport_override = token.split("=", 1)[1].strip().lower()
+            if transport_override not in ("sse", "stdio"):
+                raise typer.BadParameter("Option --transport must be 'sse' or 'stdio'.")
             index += 1
             continue
         if token == "--log-level":
@@ -750,6 +790,7 @@ def mcp_serve(
     effective_watch = watch_override if watch_override is not None else context.auto_reload.enabled
     effective_host = host if host is not None else context.mcp.host
     effective_port = port if port is not None else context.mcp.port
+    effective_transport = transport_override if transport_override is not None else context.mcp.transport
 
     runtime_controller: Optional[BrimleyRuntimeController] = None
     mcp_server = None
@@ -816,6 +857,11 @@ def mcp_serve(
             OutputFormatter.log(f"DI startup failed: {exc}", severity="error")
             raise typer.Exit(code=1)
 
+        # Start TaskScheduler for task functions (mcp-serve mode)
+        from brimley.execution.dispatcher import Dispatcher as _Dispatcher
+        _mcp_serve_dispatcher = _Dispatcher()
+        _setup_task_scheduler(scan_result, context, _mcp_serve_dispatcher, start=True)
+
         adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
         tools = adapter.discover_tools()
         if not tools:
@@ -835,12 +881,18 @@ def mcp_serve(
             OutputFormatter.log("Unable to start MCP server: no runnable server instance was created.", severity="error")
             raise typer.Exit(code=1)
 
-    OutputFormatter.log(
-        f"Serving Brimley MCP tools at http://{effective_host}:{effective_port}/sse",
-        severity="success",
-    )
+    if effective_transport == "stdio":
+        OutputFormatter.log("Serving Brimley MCP tools via stdio transport.", severity="success")
+    else:
+        OutputFormatter.log(
+            f"Serving Brimley MCP tools at http://{effective_host}:{effective_port}/sse",
+            severity="success",
+        )
     try:
-        mcp_server.run(transport="sse", host=effective_host, port=effective_port)
+        if effective_transport == "stdio":
+            mcp_server.run(transport="stdio")
+        else:
+            mcp_server.run(transport="sse", host=effective_host, port=effective_port)
     except KeyboardInterrupt:
         OutputFormatter.log("MCP server interrupted. Shutting down.", severity="info")
     finally:
@@ -853,7 +905,7 @@ def mcp_serve(
 def build(
     ctx: typer.Context,
 ):
-    """Compile SQL/template assets into a Python shim module for runtime discovery."""
+    """[Experimental] Compile SQL/template assets into a Python shim module for runtime discovery."""
     root_dir = Path(".")
     output: Optional[Path] = None
 
@@ -1256,6 +1308,11 @@ def invoke(
     except Exception as exc:
         OutputFormatter.log(f"DI startup failed: {exc}", severity="error")
         raise typer.Exit(code=1)
+
+    # Create TaskScheduler (not started in invoke mode — one-shot execution)
+    from brimley.execution.dispatcher import Dispatcher as _Dispatcher
+    _invoke_dispatcher = _Dispatcher()
+    _setup_task_scheduler(scan_result, context, _invoke_dispatcher, start=False)
 
     # 3. Parse Input
     parsed_input = {}

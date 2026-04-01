@@ -133,7 +133,7 @@ Used by the `json` parser to extract nested data. No JSONPath dependency â€” imp
 
 ### Future Extensibility
 
-The `ResultParser` interface is designed for future extensibility (v0.13 plugin architecture). Additional parsers (`xml`, `binary`, `jsonpath`) can be registered without changing core code. If an unknown parser name is used, `BrimleyExecutionError` is raised with a clear message listing available parsers.
+The `ResultParser` interface is designed for future extensibility (v0.14 plugin architecture). Additional parsers (`xml`, `binary`, `jsonpath`) can be registered without changing core code. If an unknown parser name is used, `BrimleyExecutionError` is raised with a clear message listing available parsers.
 
 ## 5. Key Features
 
@@ -171,6 +171,6 @@ Before v0.7 can be released, a **Security Acceptance gate** must be completed â€
 ## 8. Known Gaps (v0.7 Release)
 
 - **`provider` secret source:** Declared in `secrets:` YAML but raises `BrimleySecretResolutionError` at startup if `provider` is the **only** declared source (no `env` fallback). If `env` is listed first and `provider` is a fallback, a diagnostic **warning** is emitted (not error) since the `env` path may succeed at runtime. The ordered-resolution schema ([ADR-0003](../decisions/0003-secrets-block-ordered-resolution.md)) is forward-compatible with no breaking changes needed in v0.8.
-- **MockRegistry intercept:** `ApiRunner` cannot be intercepted in offline tests until v0.9 Mocking. A documented stub intercept point is left in `Dispatcher.run()` to avoid a structural change when v0.9 lands.
+- **MockRegistry intercept:** `ApiRunner` cannot be intercepted in offline tests until v0.10 Mocking. A documented stub intercept point is left in `Dispatcher.run()` to avoid a structural change when v0.10 lands.
 - **Startup time:** `httpx.AsyncClient` is not yet a singleton provider; it will be refactored to a `@provider(scope="singleton")` when DI lands in v0.8.
-- **Plugin architecture:** `BaseRunner` ships as an internal-only interface. External plugin loading is deferred to v0.13 ([ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.13.md)).
+- **Plugin architecture:** `BaseRunner` ships as an internal-only interface. External plugin loading is deferred to v0.14 ([ADR-0004](../decisions/0004-defer-plugin-architecture-to-v0.14.md)).

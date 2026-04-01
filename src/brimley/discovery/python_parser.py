@@ -8,6 +8,7 @@ from brimley.core.models import (
     LifecycleHookMetadata,
     ProviderMetadata,
     PythonFunction,
+    TaskConfig,
     normalize_type_expression,
 )
 
@@ -420,12 +421,23 @@ def parse_python_file(
                 "handler": f"{module_name}.{node.name}",
                 "reload": bool(kwargs.get("reload", True)),
                 "return_shape": return_shape,
+                "is_async": isinstance(node, ast.AsyncFunctionDef),
             }
 
             if arguments:
                 meta["arguments"] = arguments
             if mcp is not None:
                 meta["mcp"] = mcp
+
+            # Extract task metadata if present
+            raw_task = kwargs.get("task")
+            if isinstance(raw_task, dict):
+                try:
+                    meta["task"] = TaskConfig(**raw_task)
+                except (ValidationError, TypeError) as e:
+                    raise ValueError(
+                        f"Invalid task configuration for function '{node.name}' in {file_path}: {e}"
+                    )
 
             try:
                 parsed_items.append(PythonFunction(**meta))

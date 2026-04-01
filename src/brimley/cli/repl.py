@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 import sys
+from loguru import logger as _logger
 from prompt_toolkit import PromptSession
 
 from brimley import __version__
@@ -116,8 +117,9 @@ class BrimleyREPL:
 
         # DI startup: container, eager providers, @on_startup hooks
         try:
-            from brimley.cli.main import _run_di_startup
+            from brimley.cli.main import _run_di_startup, _setup_task_scheduler
             _run_di_startup(scan_result, self.context, root_dir=self.root_dir)
+            _setup_task_scheduler(scan_result, self.context, self.dispatcher, start=True)
         except Exception as exc:
             OutputFormatter.log(f"DI startup failed: {exc}", severity="warning")
 
@@ -156,7 +158,17 @@ class BrimleyREPL:
         try:
             server = adapter.register_tools()
         except Exception as exc:
-            OutputFormatter.log(f"Unable to initialize embedded MCP server: {exc}", severity="warning")
+            self._log_embedded_mcp_initialization_failure(
+                exc=exc,
+                adapter_name=adapter.__class__.__name__,
+                tools=tools,
+                schema_signatures=schema_signatures,
+            )
+            exc_summary = f"{exc.__class__.__name__}: {exc}" if str(exc) else exc.__class__.__name__
+            OutputFormatter.log(
+                f"Unable to initialize embedded MCP server: {exc_summary}",
+                severity="warning",
+            )
             return
 
         self.mcp_server = server
@@ -175,6 +187,40 @@ class BrimleyREPL:
                 f"Embedded FastMCP server running at http://{host}:{port}/sse",
                 severity="success",
             )
+
+    def _describe_mcp_tool(self, tool: object) -> str:
+        if isinstance(tool, dict):
+            for key in ("name", "function_name", "tool_name"):
+                value = tool.get(key)
+                if isinstance(value, str) and value:
+                    return value
+
+        for attr_name in ("name", "function_name", "tool_name"):
+            value = getattr(tool, attr_name, None)
+            if isinstance(value, str) and value:
+                return value
+
+        return tool.__class__.__name__
+
+    def _log_embedded_mcp_initialization_failure(
+        self,
+        *,
+        exc: Exception,
+        adapter_name: str,
+        tools: list[object],
+        schema_signatures: dict[str, str],
+    ) -> None:
+        tool_names = [self._describe_mcp_tool(tool) for tool in tools]
+        _logger.bind(
+            root_dir=str(self.root_dir.expanduser().resolve()),
+            adapter_class=adapter_name,
+            mcp_host=self.context.mcp.host,
+            mcp_port=self.context.mcp.port,
+            embedded_mcp_enabled=self.mcp_embedded_enabled,
+            tool_count=len(tools),
+            tool_names=tool_names,
+            schema_signature_names=sorted(schema_signatures.keys()),
+        ).exception("Embedded MCP server initialization failed.")
 
     def _shutdown_mcp_server(self) -> None:
         """
@@ -289,6 +335,7 @@ class BrimleyREPL:
             "functions": self._cmd_functions,
             "entities": self._cmd_entities,
             "databases": self._cmd_databases,
+            "tasks": self._cmd_tasks,
             "log-level": self._cmd_log_level,
             "log-modules": self._cmd_log_modules,
             "log-reset": self._cmd_log_reset,
@@ -386,6 +433,7 @@ class BrimleyREPL:
             ("/entities", "Lists all registered entities."),
             ("/databases", "Lists configured database connections."),
             ("/errors [--limit N] [--offset N] [--history]", "Lists persisted runtime diagnostics."),
+            ("/tasks", "Lists all task functions and their scheduling state."),
             ("/reload", "Triggers one immediate reload cycle."),
             ("/log-level LEVEL", "Set global stderr log level (e.g. /log-level DEBUG)."),
             ("/log-level MODULE LEVEL", "Set module-specific log level (e.g. /log-level brimley.mcp DEBUG)."),
@@ -578,6 +626,35 @@ class BrimleyREPL:
         reset_tools = getattr(server, "reset_tools", None)
         if callable(reset_tools):
             reset_tools()
+
+    def _cmd_tasks(self, args) -> bool:
+        scheduler = None
+        if self.context.container is not None:
+            scheduler = getattr(self.context.container, "task_scheduler", None)
+
+        if scheduler is None:
+            OutputFormatter.log("Task scheduler not available.", severity="info")
+            return True
+
+        statuses = scheduler.get_task_status()
+        if not statuses:
+            OutputFormatter.log("No task functions registered.", severity="info")
+            return True
+
+        OutputFormatter.log(f"Scheduled Tasks ({len(statuses)}):", severity="info")
+        header = f"  {'NAME':<30} {'INTERVAL':<12} {'STATE':<10} {'FAILURES':<10} {'SKIPS':<8} {'LAST RUN':<25} {'NEXT RUN'}"
+        typer.echo(header)
+        typer.echo("  " + "-" * (len(header) - 2))
+        for s in statuses:
+            name = s["name"]
+            interval = s["interval"] or "-"
+            state = s["status"]
+            failures = str(s["consecutive_failure_count"])
+            skips = str(s.get("consecutive_skip_count", 0))
+            last_run = s["last_run"] or "-"
+            next_run = s["next_run"] or "-"
+            typer.echo(f"  {name:<30} {interval:<12} {state:<10} {failures:<10} {skips:<8} {last_run:<25} {next_run}")
+        return True
 
     def _cmd_settings(self, args) -> bool:
         typer.echo(self.context.settings.model_dump_json(indent=2))

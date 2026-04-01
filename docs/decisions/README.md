@@ -21,8 +21,10 @@ Records follow the [MADR](https://adr.github.io/madr/) (Markdown Architectural D
 | [0001](0001-swap-di-and-mocking-order.md) | Swap DI and Mocking release order | Accepted |
 | [0002](0002-accelerate-api-cli-to-v0.7.md) | Accelerate API & CLI functions to v0.7 | Accepted |
 | [0003](0003-secrets-block-ordered-resolution.md) | Uniform `secrets:` block with ordered-source resolution | Accepted |
-| [0004](0004-defer-plugin-architecture-to-v0.13.md) | Defer Plugin Architecture (external runners) to v0.13 | Accepted |
-| [0005](0005-defer-manifest-to-v0.14.md) | Defer `brimley manifest` to v0.14 | Accepted |
+| [0004](0004-defer-plugin-architecture-to-v0.14.md) | Defer Plugin Architecture (external runners) to v0.14 | Accepted |
+| [0005](0005-defer-manifest-to-v0.15.md) | Defer `brimley manifest` to v0.15 | Accepted |
+| [0006](0006-application-server-boundary.md) | Application Server Boundary | Accepted |
+| [0007](0007-managed-tasks-design-decisions.md) | Managed Tasks Design Decisions | Accepted |
 
 ## Process
 

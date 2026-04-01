@@ -6,6 +6,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.9.0] - 2025-01-01
+
+### Added
+
+- **Managed Tasks (`@function(task={...})`)** — Python functions can declare periodic scheduling metadata inline. Parameters: `interval` (required; human-time format: `"5m"`, `"1h 30s"`), `immediate` (run once at startup), `retries` (retry count on exception), `retry_interval` (backoff: `"5s fixed"`, `"10s exponential"`, `"3s multiplier:2.0"`). Tasks are discovered by the Scanner, registered on the `TaskScheduler`, and executed automatically in `repl` and `mcp-serve` modes.
+- **`TaskScheduler`** — Dedicated daemon thread with its own asyncio event loop. Handles overlap prevention (scheduler-only; manual invocation bypasses the guard), retry policy with fixed/exponential/multiplier backoff up to the interval ceiling, overlap warning after 3 consecutive scheduler-initiated skips, and a 30-second global grace period on shutdown.
+- **Human-time parser** — Parses strings like `"1h 30m"`, `"45s"`, `"2m 10s"` into seconds. Used by `TaskConfig` for `interval` and `retry_interval`.
+- **Scanner quarantine rules for tasks** — validates 4 invariants: MCP prohibition, signature constraint (context/`Depends` only), async validation, interval minimum (5 seconds). Violations produce warning diagnostics; the server still boots.
+- **Three-phase shutdown** — `BrimleyContainer.shutdown()` now runs: `TaskScheduler.stop()` → `@on_shutdown` hooks → singleton teardown. Ensures no scheduled task starts after shutdown and that hooks have access to live singletons.
+- **`/tasks` REPL admin command** — lists all task functions with columns: NAME, INTERVAL, STATE, FAILURES, LAST RUN, NEXT RUN.
+- **`mcp-serve --transport` flag** — `brimley mcp-serve --transport stdio` runs FastMCP over stdio. Recommended for local MCP client connections (Claude Desktop, VS Code MCP). `--transport sse` is the default. Overrides `mcp.transport` from `brimley.yaml`.
+- **Hot-reload task warning** — `PartitionedReloadEngine` detects scheduling metadata changes on reload and emits `WARN_TASK_SCHEDULE_CHANGED` / `WARN_NEW_TASK_FUNCTION` diagnostics. Schedule changes require a restart.
+- **ADR-0006: Application Server Boundary** — documents the removal of embedding support and the three supported modes.
+- **ADR-0007: Managed Tasks Design Decisions** — documents key design choices: tasks-as-functions, overlap guard scope, three-phase shutdown ordering, 30-second grace period, immutable schedule metadata.
+- **`examples/task_reconciler.py`** — example demonstrating `@function(task={...})` with `@provider` and `Depends()` injection.
+
+### Changed
+
+- **Three-phase shutdown ordering** — `BrimleyContainer.shutdown()` now stops `TaskScheduler` before running `@on_shutdown` hooks (previously hooks ran first). The new ordering ensures no scheduled work runs after teardown begins.
+- **Hot-reload detection** — `PartitionedReloadEngine.apply_reload_with_policy()` now snapshots function registry before each swap and compares task metadata; emits diagnostics on changes.
+- **`pyproject.toml` version** bumped to `0.9.0`.
+
+### Removed
+
+- **`BrimleyRuntimeController` from public API** — embedding support removed. `BrimleyRuntimeController` is no longer in `brimley.__all__` or `brimley.runtime.__all__`. It remains as an internal implementation detail used by the CLI. The three supported runtime modes are `repl`, `mcp-serve`, and `invoke`. See [ADR-0006](docs/decisions/0006-application-server-boundary.md).
+
+---
+
 ## [0.8.1] - 2026-03-26
 
 ### Added

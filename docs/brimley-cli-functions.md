@@ -201,7 +201,7 @@ See [MCP integration](brimley-model-context-protocol-integration.md) for full de
 
 ## 7. Known Gaps / Open Items
 
-- **MockRegistry intercept:** `CliRunner` cannot be intercepted in offline tests until v0.9 Mocking. Stub intercept point left in `Dispatcher`.
+- **MockRegistry intercept:** `CliRunner` cannot be intercepted in offline tests until v0.10 Mocking. Stub intercept point left in `Dispatcher`.
 - **Path traversal:** `../` sequences in `command_arguments` are not rejected (shell=False already prevents shell interpretation of path sequences). Document in threat model.
 - **Resource limits:** `timeout_seconds` is the only resource constraint. Memory and file descriptor limits are a future enhancement.
 

@@ -1,5 +1,5 @@
 # Brimley Discovery & Loader Specification
-> Docs baseline: 0.8.x
+> Docs baseline: 0.9.x
 
 The Discovery Engine translates assets on disk (or reflected module metadata) into executable function/entity models, then loads them into Brimley registries.
 
@@ -63,6 +63,17 @@ For every identified object:
 2. **Name check:** must pass naming regex and uniqueness constraints.
 3. **Handler check (Python):** handler path must be derivable/importable by runtime.
 4. **MCP metadata check:** if MCP metadata exists, validate it against supported schema (`type: tool` + optional fields).
+
+### Task Function Quarantine Rules *(0.9+)*
+
+When a Python function includes `task={...}` metadata, the Scanner applies four additional quarantine checks. A failure in any check produces a **warning diagnostic** and skips the function (the server still boots).
+
+| Rule | Check | Diagnostic |
+|---|---|---|
+| MCP prohibition | `task` and `mcpType` must not both be set. | Task functions cannot be exposed as MCP tools. |
+| Signature constraint | Parameters must be limited to `BrimleyContext` and `Depends()` injections. | Task functions cannot accept user-facing arguments. |
+| Async validation | Function must be declared `async def`. | Task functions must be async. |
+| Interval minimum | `interval` must parse to ≥ 5 seconds. | Interval below minimum (5 seconds). |
 
 ### Entities
 

@@ -91,3 +91,7 @@ docs_local/*
 **/.brimley/daemon.json
 **/.brimley/repl_client.json
 **/.brimley/repl_client_history
+
+# examples2
+examples2/
+

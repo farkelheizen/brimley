@@ -236,6 +236,31 @@ class MCPConfig(BaseModel):
     type: Literal["tool"]
     description: Optional[str] = None
 
+
+class TaskConfig(BaseModel):
+    """
+    Scheduling metadata for a Brimley managed task function.
+
+    Applied via ``@function(task={...})``. Introduced in Brimley v0.9.
+
+    Attributes:
+        interval: Human-readable execution interval (e.g. ``"5m"``, ``"30s"``).
+            Must be >= 1 second. Parsed by :func:`~brimley.utils.time_parser.parse_duration`.
+        immediate: If True, the first iteration runs immediately at startup
+            instead of waiting for the first interval.
+        retries: Maximum retry attempts on failure. None = unlimited.
+        retry_interval: Retry backoff spec (e.g. ``"10s exponential"``).
+            Parsed by :func:`~brimley.utils.time_parser.parse_retry_interval`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    interval: str = Field(..., min_length=1)
+    immediate: bool = False
+    retries: Optional[int] = Field(default=None, ge=0)
+    retry_interval: str = "1s exponential"
+
+
 class BrimleyFunction(BaseEntity):
     """
     Abstract base class for all function types in Brimley.
@@ -248,6 +273,7 @@ class BrimleyFunction(BaseEntity):
     mcp: Optional[MCPConfig] = None
     timeout_seconds: Optional[float] = Field(default=None, gt=0)
     return_shape: Union[str, Dict[str, Any]]
+    task: Optional["TaskConfig"] = None  # populated by Scanner for task functions (v0.9)
 
 class PythonFunction(BrimleyFunction):
     """
@@ -256,6 +282,7 @@ class PythonFunction(BrimleyFunction):
     type: Literal["python_function"]
     reload: bool = True
     handler: Optional[str] = None  # e.g., "my_pkg.mod.func_name"
+    is_async: bool = False  # set by python_parser; True for async def functions
 
 
 class DiscoveredEntity(BaseEntity):

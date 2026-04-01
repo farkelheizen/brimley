@@ -209,6 +209,65 @@ def test_create_tool_wrapper_ctx_parameter_uses_resolved_context_annotation(monk
     assert ctx_annotation is FakeContextType
 
 
+def test_create_tool_wrapper_orders_required_params_before_defaults():
+    """Required params must precede defaulted params to avoid SyntaxError."""
+    context = BrimleyContext()
+    func = TemplateFunction(
+        name="mixed_args",
+        type="template_function",
+        return_shape="string",
+        template_body="{{ args.a }} {{ args.b }} {{ args.c }}",
+        mcp={"type": "tool"},
+        arguments={
+            "inline": {
+                "a": {"type": "int"},
+                "b": {"type": "int", "default": -1},
+                "c": {"type": "str"},
+            }
+        },
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
+    wrapper = adapter.create_tool_wrapper(func)
+
+    sig = inspect.signature(wrapper)
+    param_names = [p for p in sig.parameters if p != "ctx"]
+
+    # 'a' and 'c' are required, 'b' has a default — required must come first
+    assert param_names == ["a", "c", "b"]
+
+    result = wrapper(a=1, c="hello")
+    assert "-1" in result and "hello" in result
+
+
+def test_create_tool_wrapper_handles_any_typed_arguments():
+    """Arguments with unrecognized types map to Any and must not cause NameError."""
+    context = BrimleyContext()
+    func = TemplateFunction(
+        name="any_arg",
+        type="template_function",
+        return_shape="string",
+        template_body="{{ args.payload }}",
+        mcp={"type": "tool"},
+        arguments={
+            "inline": {
+                "payload": {"type": "any"},
+            }
+        },
+    )
+
+    adapter = BrimleyMCPAdapter(registry=context.functions, context=context)
+    context.functions.register(func)
+    wrapper = adapter.create_tool_wrapper(func)
+
+    sig = inspect.signature(wrapper)
+    assert "payload" in sig.parameters
+
+    result = wrapper(payload="test-data")
+    assert "test-data" in result
+
+
 def test_create_tool_object_for_template_function_like_hello_md(monkeypatch):
     """Test creating a tool object for a template function similar to examples/hello.md"""
     context = BrimleyContext(config_dict={"config": {"support_email": "support@example.com"}})
