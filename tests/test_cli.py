@@ -119,8 +119,8 @@ def test_invoke_help():
     assert result.exit_code == 0
     assert "Invoke a Brimley function" in result.stdout
 
-def test_invoke_missing_function():
-    result = runner.invoke(app, ["invoke", "non_existent_func"])
+def test_invoke_missing_function(tmp_path):
+    result = runner.invoke(app, ["invoke", "non_existent_func", "--root", str(tmp_path)])
     assert result.exit_code == 1
     assert "Function 'non_existent_func' not found" in _combined_output(result)
 
