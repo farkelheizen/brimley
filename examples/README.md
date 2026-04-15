@@ -2,7 +2,7 @@
 
 > **Note:** The version header is kept at `0.6.x` for the pre-existing examples. New 0.7 additions are described in the **What's New in 0.7** section above.
 
-> Examples baseline: 0.9.x
+> Examples baseline: 0.9.1
 
 This directory contains exploratory Brimley examples and configuration for Python, SQL, and Template functions.
 

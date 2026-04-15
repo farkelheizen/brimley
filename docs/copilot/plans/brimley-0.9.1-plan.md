@@ -39,7 +39,7 @@ Ship `0.9.1` as a patch release that keeps Oracle support fully optional, adds a
 | B091-S1 | Completed | Lock the optional Oracle boundary | Audit and normalize package/docs language so Oracle remains an optional extra; clarify baseline vs optional install paths in `pyproject.toml`, `README.md`, and SQL/config docs | `tests/test_database_init.py`; `poetry check` |
 | B091-S2 | Completed | Add an isolated Oracle example project | Create a separate optional Oracle example workspace (recommended: `oracle_examples/`) with a partitioned `app/` subtree for Brimley assets, plus env template and Docker startup instructions for Oracle Free | Optional smoke instructions only; no required CI runtime Oracle test |
 | B091-S3 | Completed | Integrate the Oracle example into project docs without polluting the baseline path | Update top-level docs and example indexes to point to the optional Oracle example, explain when to use it, and keep baseline examples SQLite-first | `poetry run pytest tests/test_config_loader.py tests/test_context_config.py -v` |
-| B091-S4 | Not Started | Align release metadata and targeted docs for 0.9.1 | Bump `pyproject.toml` to `0.9.1`, update `CHANGELOG.md`, scan targeted docs/reference maps, and update any affected example/version markers | `poetry run pytest tests/test_database_init.py tests/test_config_loader.py tests/test_context_config.py -v`; `poetry check` |
+| B091-S4 | Completed | Align release metadata and targeted docs for 0.9.1 | Bump `pyproject.toml` to `0.9.1`, update `CHANGELOG.md`, scan targeted docs/reference maps, and update any affected example/version markers | `poetry run pytest tests/test_database_init.py tests/test_config_loader.py tests/test_context_config.py -v`; `poetry check` |
 | B091-S5 | Not Started | Final validation and release gate | Run focused/regression/full validation, confirm no Oracle dependency is pulled into the baseline install path, and record results in plan notes | `poetry run pytest`; optional manual doc/example review |
 
 Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
@@ -189,9 +189,9 @@ Record results:
 - Validation: `poetry run pytest tests/test_config_loader.py tests/test_context_config.py -v`; `poetry run pytest`
 
 ### B091-S4 Notes
-- Changes made: [not started]
-- Deviations: [none / description]
-- Validation: [not run]
+- Changes made: Bumped `pyproject.toml` to `0.9.1`, promoted the Oracle work into a dated `0.9.1` changelog release entry, and updated the affected example version marker.
+- Deviations: none
+- Validation: `poetry run pytest tests/test_database_init.py tests/test_config_loader.py tests/test_context_config.py -v`; `poetry check`; `poetry run pytest`
 
 ### B091-S5 Notes
 - Changes made: [not started]
