@@ -4,6 +4,9 @@ from sqlalchemy import create_engine, Engine
 from sqlalchemy.engine import make_url
 
 
+_NON_ENGINE_CONFIG_KEYS = {"url", "connector"}
+
+
 def _resolve_database_url(url: str, base_dir: Optional[Path]) -> str:
     """Resolve relative SQLite database URLs against a configured base directory."""
     if base_dir is None:
@@ -29,6 +32,15 @@ def _resolve_database_url(url: str, base_dir: Optional[Path]) -> str:
     return parsed.set(database=str(resolved_db)).render_as_string(hide_password=False)
 
 
+def _build_engine_options(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract SQLAlchemy create_engine options from a database config block."""
+    return {
+        key: value
+        for key, value in config.items()
+        if key not in _NON_ENGINE_CONFIG_KEYS
+    }
+
+
 def initialize_databases(db_configs: Dict[str, Any], base_dir: Optional[Path] = None) -> Dict[str, Engine]:
     """
     Initializes database engines from a configuration dictionary.
@@ -49,9 +61,9 @@ def initialize_databases(db_configs: Dict[str, Any], base_dir: Optional[Path] = 
             # We might want to use Diagnostics here later, but for now a simple check
             continue
 
-        connect_args = config.get("connect_args", {})
         resolved_url = _resolve_database_url(url, base_dir=base_dir)
-        engine = create_engine(resolved_url, **connect_args)
+        engine_options = _build_engine_options(config)
+        engine = create_engine(resolved_url, **engine_options)
         engines[name] = engine
 
     return engines

@@ -22,7 +22,6 @@ state:
 # 4. Database Definitions (ctx.databases)
 databases:
   default:
-    connector: sqlite
     url: "sqlite:///./data.db"
 
 auto_reload:

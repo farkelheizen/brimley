@@ -14,6 +14,8 @@ The configuration file is divided into seven sections, mapping directly to the C
     
 4. **`databases`**: Definitions for SQL connections (hydrates `ctx.databases`).
 
+Database entries are passed to SQLAlchemy `create_engine(...)`. `url` is required. All other keys are treated as engine keyword arguments, except the legacy `connector` metadata key, which is ignored.
+
 5. **`mcp`**: MCP runtime settings (mapped to MCP runtime configuration in the application context/runtime).
 
 6. **`auto_reload`**: Watch-mode settings for polling interval, debounce, and file filters.
@@ -64,9 +66,11 @@ state:
 # 4. Database Definitions
 databases:
   default:
-    connector: postgresql
     url: ${DATABASE_URL}
     pool_size: 5
+    pool_pre_ping: true
+    connect_args:
+      stmtcachesize: 50
 
 # 5. Model Context Protocol Integration
 mcp:
@@ -94,6 +98,26 @@ execution:
   queue:
     max_size: 128           # Max queued invocations when workers are busy
     on_full: reject         # 'reject' (default) or 'block'
+```
+
+Oracle support requires an Oracle DBAPI driver. In this repository, install it with:
+
+```bash
+poetry install -E oracle
+```
+
+Optional Oracle example:
+
+```yaml
+databases:
+  oracle:
+    url: ${ORACLE_URL}
+    pool_size: 5
+    max_overflow: 10
+    pool_pre_ping: true
+    pool_recycle: 1800
+    connect_args:
+      stmtcachesize: 50
 ```
 
 ## 2. Environment Variable Substitution

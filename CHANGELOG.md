@@ -6,6 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Optional `oracle` dependency extra (`oracledb`) for Oracle-backed SQLAlchemy connections.
+- Oracle database configuration examples and setup guidance for pooled SQL tools.
+
+### Fixed
+
+- Database initialization now forwards SQLAlchemy engine options from `databases.*` configuration blocks correctly, including nested `connect_args` and pool settings such as `pool_size`, `max_overflow`, and `pool_pre_ping`.
+
 ## [0.9.0] - 2025-01-01
 
 ### Added

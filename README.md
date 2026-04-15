@@ -48,6 +48,14 @@ Optional MCP support:
 poetry install -E fastmcp
 ```
 
+Optional Oracle SQL support:
+
+```bash
+poetry install -E oracle
+```
+
+This is only needed if you want Brimley SQL tools to connect to Oracle.
+
 ### 2) Add `brimley.yaml`
 
 ```yaml
@@ -62,7 +70,6 @@ state:
 
 databases:
   default:
-    connector: sqlite
     url: "sqlite:///./data.db"
 
 auto_reload:
@@ -94,6 +101,30 @@ PYTHONPATH=src poetry run brimley repl --root .
 ```bash
 PYTHONPATH=src poetry run brimley invoke calculate_tax --root . --input "{amount: 100, rate: 8.25}"
 ```
+
+## Optional Oracle SQL Tools
+
+Brimley's SQL tools execute against SQLAlchemy `Engine` objects. For Oracle, that means Brimley needs:
+
+- the Oracle driver installed (`poetry install -E oracle`, which installs `oracledb`)
+- an Oracle SQLAlchemy URL such as `oracle+oracledb://user:pass@dbhost:1521/?service_name=FREEPDB1`
+- any pool settings you want under `databases.<name>` in `brimley.yaml`
+
+Example:
+
+```yaml
+databases:
+  oracle:
+    url: ${ORACLE_URL}
+    pool_size: 5
+    max_overflow: 10
+    pool_pre_ping: true
+    pool_recycle: 1800
+    connect_args:
+      stmtcachesize: 50
+```
+
+Any SQL function with `connection: oracle` will use that pooled engine. Brimley forwards SQLAlchemy engine options from the database config block directly to `create_engine(...)`, except for `url` and the legacy `connector` metadata key.
 
 ## Core CLI Commands
 

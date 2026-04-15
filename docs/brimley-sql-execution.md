@@ -16,9 +16,19 @@ databases:
   
   warehouse:
     url: "postgresql://user:pass@localhost:5432/warehouse"
+
+  oracle:
+    url: "oracle+oracledb://user:pass@dbhost:1521/?service_name=FREEPDB1"
+    pool_size: 5
+    max_overflow: 10
+    pool_pre_ping: true
+    connect_args:
+      stmtcachesize: 50
 ```
 
 For SQLite URLs that use relative filesystem paths (for example `sqlite:///./brimley.db`), Brimley resolves the path against the active project root (`--root` when provided, otherwise the current project root).
+
+Brimley forwards database config keys directly to SQLAlchemy `create_engine(...)`, except for `url` and the legacy `connector` metadata key. That means pool configuration such as `pool_size`, `max_overflow`, `pool_recycle`, `pool_pre_ping`, `pool_timeout`, `poolclass`, and nested `connect_args` are supported without runner changes.
 
 ## 2. Infrastructure Layer
 
@@ -29,6 +39,8 @@ Brimley uses **SQLAlchemy** as its database abstraction layer.
 - **Initialization**: At startup, the context hydration process reads the database config definitions and hydrates `ctx.databases`.
     
 - **Engine Creation**: It iterates through these definitions and creates a SQLAlchemy `Engine` for each.
+
+- **Pooling**: Pooling behavior comes from SQLAlchemy engine configuration. Brimley does not implement a separate Oracle-specific pool layer; SQL tools use the configured SQLAlchemy engine and its pool.
     
 - **Storage**: These engines are stored in `ctx.databases` (a `Dict[str, Engine]`), keyed by the definition name (e.g., "default", "warehouse").
     
@@ -79,3 +91,5 @@ _(Future Phase: Automatic casting of results to defined Entities)_
 - **`sqlalchemy`**: Core ORM and expression language.
     
 - **Drivers**: Users must install drivers appropriate for their connection strings (e.g., `psycopg2` for Postgres). SQLite is included in Python.
+
+- **Oracle**: Install `oracledb` for Oracle connection strings such as `oracle+oracledb://...`. In this repository, use `poetry install -E oracle`.
