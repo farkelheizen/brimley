@@ -40,7 +40,7 @@ Ship `0.9.1` as a patch release that keeps Oracle support fully optional, adds a
 | B091-S2 | Completed | Add an isolated Oracle example project | Create a separate optional Oracle example workspace (recommended: `oracle_examples/`) with a partitioned `app/` subtree for Brimley assets, plus env template and Docker startup instructions for Oracle Free | Optional smoke instructions only; no required CI runtime Oracle test |
 | B091-S3 | Completed | Integrate the Oracle example into project docs without polluting the baseline path | Update top-level docs and example indexes to point to the optional Oracle example, explain when to use it, and keep baseline examples SQLite-first | `poetry run pytest tests/test_config_loader.py tests/test_context_config.py -v` |
 | B091-S4 | Completed | Align release metadata and targeted docs for 0.9.1 | Bump `pyproject.toml` to `0.9.1`, update `CHANGELOG.md`, scan targeted docs/reference maps, and update any affected example/version markers | `poetry run pytest tests/test_database_init.py tests/test_config_loader.py tests/test_context_config.py -v`; `poetry check` |
-| B091-S5 | Not Started | Final validation and release gate | Run focused/regression/full validation, confirm no Oracle dependency is pulled into the baseline install path, and record results in plan notes | `poetry run pytest`; optional manual doc/example review |
+| B091-S5 | Completed | Final validation and release gate | Run focused/regression/full validation, confirm no Oracle dependency is pulled into the baseline install path, and record results in plan notes | `poetry run pytest`; optional manual doc/example review |
 
 Status values: `Not Started` | `In Progress` | `Completed` | `Blocked`
 
@@ -194,9 +194,9 @@ Record results:
 - Validation: `poetry run pytest tests/test_database_init.py tests/test_config_loader.py tests/test_context_config.py -v`; `poetry check`; `poetry run pytest`
 
 ### B091-S5 Notes
-- Changes made: [not started]
-- Deviations: [none / description]
-- Validation: [not run]
+- Changes made: Completed the final release gate, built the 0.9.1 sdist and wheel, and verified from wheel metadata that `oracledb` remains gated behind the `oracle` extra instead of the baseline install path.
+- Deviations: none
+- Validation: `poetry run pytest tests/test_database_init.py tests/test_config_loader.py tests/test_context_config.py tests/test_oracle_example_bootstrap.py -v`; `poetry check` (warning only: deprecated license classifiers); `poetry build`; wheel metadata check via `unzip -p dist/brimley-0.9.1-py3-none-any.whl brimley-0.9.1.dist-info/METADATA | grep -E '^Requires-Dist: (oracledb|fastmcp|sqlalchemy|httpx)'`; `poetry run pytest`
 
 ---
 
