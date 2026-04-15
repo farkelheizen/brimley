@@ -23,17 +23,26 @@ From the repository root, install the optional Oracle driver:
 poetry install -E oracle
 ```
 
-You also need Docker and an Oracle Container Registry login.
+You also need Docker.
 
-Oracle publishes the safest default image for this example at:
+For local development, this example uses the multi-arch Oracle Free image maintained at:
 
 ```text
-container-registry.oracle.com/database/free:latest
+gvenzl/oracle-free:23-slim-faststart
 ```
 
-If `docker compose pull` or `docker compose up` fails with an authorization error, sign in to Oracle Container Registry and accept the Oracle Database Free repository terms first.
+This image is a better default for Docker Compose on Apple Silicon and other local developer machines. It also supports Compose-native app-user creation, which this example uses for the Brimley schema.
 
 ## Start Oracle Free
+
+Verified recovery flow from a clean local state:
+
+```bash
+cd /Volumes/Lab1/GitHub2/brimley/oracle_examples
+cp .env.example .env
+docker compose down -v
+docker compose up -d
+```
 
 Change into the example workspace:
 
@@ -41,12 +50,24 @@ Change into the example workspace:
 cd oracle_examples
 ```
 
-Create a local `.env` file from `.env.example`, then export it into your current shell before running Brimley:
+Create or refresh your local `.env` file from `.env.example`, then export it into your current shell before running Brimley:
+
+```bash
+cp .env.example .env
+```
+
+Then load it into your current shell:
 
 ```bash
 set -a
 source .env
 set +a
+```
+
+If you previously started the Oracle registry-based image, or if you still have an older `.env` that points at `pdbadmin`, remove the old volume before retrying:
+
+```bash
+docker compose down -v
 ```
 
 Start the container:
@@ -55,7 +76,7 @@ Start the container:
 docker compose up -d
 ```
 
-Watch startup logs until Oracle prints:
+Watch startup logs until the container becomes healthy and Oracle prints:
 
 ```text
 DATABASE IS READY TO USE!
@@ -65,6 +86,12 @@ Example:
 
 ```bash
 docker compose logs -f oracle-free
+```
+
+You can also check the health status directly:
+
+```bash
+docker ps --filter name=brimley-oracle-free
 ```
 
 ## Initialize the Brimley App
@@ -85,6 +112,12 @@ After startup completes, the hook will create:
 and seed a few demo customer rows if the customer table is empty.
 
 You can then exit the REPL.
+
+To confirm the startup hook created and seeded the tables, run:
+
+```bash
+PYTHONPATH=../src poetry run brimley invoke list_customers --root ./app --input '{}'
+```
 
 ## Invoke the SQL Tools
 
@@ -118,7 +151,7 @@ This example uses the Oracle Free defaults documented by Oracle Database contain
 
 - SID: `FREE`
 - PDB / service name: `FREEPDB1`
-- schema user for this example: `pdbadmin`
+- schema user for this example: `brimley_demo`
 
 The Brimley app reads these values from shell environment variables referenced in `app/brimley.yaml`.
 

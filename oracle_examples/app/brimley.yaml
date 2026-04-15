@@ -14,3 +14,19 @@ auto_reload:
 
 mcp:
   embedded: false
+
+# Logging Configuration
+logging:
+  level: TRACE                  # Global default level for the stderr sink
+  modules:                     # Module-level overrides (Log4J-style prefix matching)
+    brimley.execution: TRACE
+    fastmcp: WARNING
+    sqlalchemy: WARNING
+    oracle: TRACE
+  file:
+    path: ../logs/brimley.log     # Relative to project root, or absolute
+    level: TRACE               # File sink can be more verbose than stderr
+    format: jsonl              # 'text' (default) or 'jsonl' for structured logs
+    rotation: 10 MB            # 'N MB', 'daily', etc.
+    retention: 7 days          # '7 days', '4 weeks', etc.
+  managed: true                # Set false to disable Brimley's Loguru setup entirely

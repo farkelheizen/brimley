@@ -25,6 +25,9 @@ def _execute_ddl(connection: Any, statement: str) -> None:
 @on_startup
 def initialize_oracle_demo_schema(ctx: BrimleyContext) -> None:
     """Create and seed the Oracle demo schema when the app starts."""
+
+    logger.info("Starting Oracle demo schema initialization on app startup")
+
     engine = ctx.databases["default"]
 
     with engine.begin() as connection:
