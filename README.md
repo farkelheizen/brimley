@@ -126,6 +126,8 @@ databases:
 
 Any SQL function with `connection: oracle` will use that pooled engine. Brimley forwards SQLAlchemy engine options from the database config block directly to `create_engine(...)`, except for `url` and the legacy `connector` metadata key.
 
+If you want a complete optional Oracle walkthrough, including Docker startup and a startup-hook-created demo schema, use the isolated example in `oracle_examples/README.md`. The baseline `examples/` directory remains SQLite-first.
+
 ## Core CLI Commands
 
 - `brimley repl --root . [--mcp|--no-mcp] [--watch|--no-watch]`
@@ -173,6 +175,8 @@ Brimley is an application server that owns its process and event loop. It does n
 - [Configuration](docs/brimley-configuration.md)
 - [Discovery & loader spec](docs/brimley-discovery-and-loader-specification.md)
 - [MCP integration](docs/brimley-model-context-protocol-integration.md)
+- [SQLite-first baseline examples](examples/README.md)
+- [Optional Oracle example](oracle_examples/README.md)
 - [API Functions](docs/brimley-api-functions.md) *(0.7+)*
 - [CLI Functions](docs/brimley-cli-functions.md) *(0.7+)*
 - [Secrets](docs/brimley-secrets.md) *(0.7+)*

@@ -8,6 +8,10 @@ This directory contains exploratory Brimley examples and configuration for Pytho
 
 These examples are for development iteration and behavior validation. They are not production deployment guidance.
 
+This directory remains the SQLite-first baseline example set.
+
+If you want the optional Oracle walkthrough, use `oracle_examples/README.md`. That example keeps Docker and shell environment files outside the Brimley scan root and uses `oracle_examples/app/` as the application subtree.
+
 ## What's New in 0.9
 
 Brimley 0.9 establishes the application server boundary and introduces Managed Tasks:
