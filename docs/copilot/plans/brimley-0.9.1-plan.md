@@ -37,7 +37,7 @@ Ship `0.9.1` as a patch release that keeps Oracle support fully optional, adds a
 | Step ID | Status | Goal | Planned Changes | Test Coverage |
 |---|---|---|---|---|
 | B091-S1 | Completed | Lock the optional Oracle boundary | Audit and normalize package/docs language so Oracle remains an optional extra; clarify baseline vs optional install paths in `pyproject.toml`, `README.md`, and SQL/config docs | `tests/test_database_init.py`; `poetry check` |
-| B091-S2 | Not Started | Add an isolated Oracle example project | Create a separate optional Oracle example workspace (recommended: `oracle_examples/`) with a partitioned `app/` subtree for Brimley assets, plus env template and Docker startup instructions for Oracle Free | Optional smoke instructions only; no required CI runtime Oracle test |
+| B091-S2 | Completed | Add an isolated Oracle example project | Create a separate optional Oracle example workspace (recommended: `oracle_examples/`) with a partitioned `app/` subtree for Brimley assets, plus env template and Docker startup instructions for Oracle Free | Optional smoke instructions only; no required CI runtime Oracle test |
 | B091-S3 | Not Started | Integrate the Oracle example into project docs without polluting the baseline path | Update top-level docs and example indexes to point to the optional Oracle example, explain when to use it, and keep baseline examples SQLite-first | `poetry run pytest tests/test_config_loader.py tests/test_context_config.py -v` |
 | B091-S4 | Not Started | Align release metadata and targeted docs for 0.9.1 | Bump `pyproject.toml` to `0.9.1`, update `CHANGELOG.md`, scan targeted docs/reference maps, and update any affected example/version markers | `poetry run pytest tests/test_database_init.py tests/test_config_loader.py tests/test_context_config.py -v`; `poetry check` |
 | B091-S5 | Not Started | Final validation and release gate | Run focused/regression/full validation, confirm no Oracle dependency is pulled into the baseline install path, and record results in plan notes | `poetry run pytest`; optional manual doc/example review |
@@ -179,9 +179,9 @@ Record results:
 - Validation: Focused `poetry run pytest tests/test_database_init.py -v` passed (4/4). Regression `poetry run pytest tests/test_config_loader.py tests/test_context_config.py -v` passed (18/18). Full suite `poetry run pytest` passed (987/987, warnings only).
 
 ### B091-S2 Notes
-- Changes made: [not started]
-- Deviations: [none / description]
-- Validation: [not run]
+- Changes made: Added `oracle_examples/` with Oracle Container Registry Compose startup, shell-driven env template, a partitioned `oracle_examples/app/` Brimley subtree, an `@on_startup` Oracle schema bootstrap hook, and Oracle SQL demo tools. Added unit coverage for the startup bootstrap logic.
+- Deviations: none
+- Validation: `poetry run pytest tests/test_oracle_example_bootstrap.py -v`; `poetry run pytest tests/test_database_init.py tests/test_config_loader.py tests/test_context_config.py tests/test_oracle_example_bootstrap.py -v`; `poetry run pytest`
 
 ### B091-S3 Notes
 - Changes made: [not started]

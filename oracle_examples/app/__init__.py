@@ -1,0 +1,1 @@
+"""Brimley Oracle example application assets."""

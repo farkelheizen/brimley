@@ -1,0 +1,16 @@
+brimley:
+  app_name: "Brimley Oracle Example"
+
+databases:
+  default:
+    url: "oracle+oracledb://${ORACLE_DB_USER:pdbadmin}:${ORACLE_DB_PASSWORD}@${ORACLE_HOST:127.0.0.1}:${ORACLE_PORT:1521}/?service_name=${ORACLE_SERVICE_NAME:FREEPDB1}"
+    pool_size: 5
+    max_overflow: 10
+    pool_pre_ping: true
+    pool_recycle: 1800
+
+auto_reload:
+  enabled: false
+
+mcp:
+  embedded: false
