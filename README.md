@@ -48,6 +48,14 @@ Optional MCP support:
 poetry install -E fastmcp
 ```
 
+Optional Oracle SQL support:
+
+```bash
+poetry install -E oracle
+```
+
+This is only needed if you want Brimley SQL tools to connect to Oracle.
+
 ### 2) Add `brimley.yaml`
 
 ```yaml
@@ -62,7 +70,6 @@ state:
 
 databases:
   default:
-    connector: sqlite
     url: "sqlite:///./data.db"
 
 auto_reload:
@@ -94,6 +101,32 @@ PYTHONPATH=src poetry run brimley repl --root .
 ```bash
 PYTHONPATH=src poetry run brimley invoke calculate_tax --root . --input "{amount: 100, rate: 8.25}"
 ```
+
+## Optional Oracle SQL Tools
+
+Brimley's SQL tools execute against SQLAlchemy `Engine` objects. For Oracle, that means Brimley needs:
+
+- the Oracle driver installed (`poetry install -E oracle`, which installs `oracledb`)
+- an Oracle SQLAlchemy URL such as `oracle+oracledb://user:pass@dbhost:1521/?service_name=FREEPDB1`
+- any pool settings you want under `databases.<name>` in `brimley.yaml`
+
+Example:
+
+```yaml
+databases:
+  oracle:
+    url: ${ORACLE_URL}
+    pool_size: 5
+    max_overflow: 10
+    pool_pre_ping: true
+    pool_recycle: 1800
+    connect_args:
+      stmtcachesize: 50
+```
+
+Any SQL function with `connection: oracle` will use that pooled engine. Brimley forwards SQLAlchemy engine options from the database config block directly to `create_engine(...)`, except for `url` and the legacy `connector` metadata key.
+
+If you want a complete optional Oracle walkthrough, including Docker startup and a startup-hook-created demo schema, use the isolated example in `oracle_examples/README.md`. The baseline `examples/` directory remains SQLite-first.
 
 ## Core CLI Commands
 
@@ -142,6 +175,8 @@ Brimley is an application server that owns its process and event loop. It does n
 - [Configuration](docs/brimley-configuration.md)
 - [Discovery & loader spec](docs/brimley-discovery-and-loader-specification.md)
 - [MCP integration](docs/brimley-model-context-protocol-integration.md)
+- [SQLite-first baseline examples](examples/README.md)
+- [Optional Oracle example](oracle_examples/README.md)
 - [API Functions](docs/brimley-api-functions.md) *(0.7+)*
 - [CLI Functions](docs/brimley-cli-functions.md) *(0.7+)*
 - [Secrets](docs/brimley-secrets.md) *(0.7+)*

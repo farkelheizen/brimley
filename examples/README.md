@@ -2,11 +2,15 @@
 
 > **Note:** The version header is kept at `0.6.x` for the pre-existing examples. New 0.7 additions are described in the **What's New in 0.7** section above.
 
-> Examples baseline: 0.9.x
+> Examples baseline: 0.9.1
 
 This directory contains exploratory Brimley examples and configuration for Python, SQL, and Template functions.
 
 These examples are for development iteration and behavior validation. They are not production deployment guidance.
+
+This directory remains the SQLite-first baseline example set.
+
+If you want the optional Oracle walkthrough, use `oracle_examples/README.md`. That example keeps Docker and shell environment files outside the Brimley scan root and uses `oracle_examples/app/` as the application subtree.
 
 ## What's New in 0.9
 

@@ -1,0 +1,32 @@
+brimley:
+  app_name: "Brimley Oracle Example"
+
+databases:
+  default:
+    url: "oracle+oracledb://${ORACLE_DB_USER:pdbadmin}:${ORACLE_DB_PASSWORD}@${ORACLE_HOST:127.0.0.1}:${ORACLE_PORT:1521}/?service_name=${ORACLE_SERVICE_NAME:FREEPDB1}"
+    pool_size: 5
+    max_overflow: 10
+    pool_pre_ping: true
+    pool_recycle: 1800
+
+auto_reload:
+  enabled: false
+
+mcp:
+  embedded: false
+
+# Logging Configuration
+logging:
+  level: TRACE                  # Global default level for the stderr sink
+  modules:                     # Module-level overrides (Log4J-style prefix matching)
+    brimley.execution: TRACE
+    fastmcp: WARNING
+    sqlalchemy: WARNING
+    oracle: TRACE
+  file:
+    path: ../logs/brimley.log     # Relative to project root, or absolute
+    level: TRACE               # File sink can be more verbose than stderr
+    format: jsonl              # 'text' (default) or 'jsonl' for structured logs
+    rotation: 10 MB            # 'N MB', 'daily', etc.
+    retention: 7 days          # '7 days', '4 weeks', etc.
+  managed: true                # Set false to disable Brimley's Loguru setup entirely

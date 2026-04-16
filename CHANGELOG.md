@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased]
+
+## [0.9.1] - 2026-04-15
+
+### Added
+
+- Optional `oracle` dependency extra (`oracledb`) for Oracle-backed SQLAlchemy connections.
+- Oracle database configuration examples and setup guidance for pooled SQL tools.
+- Optional `oracle_examples/` workspace with an isolated `app/` subtree, Oracle Free Docker Compose instructions, and startup-hook-created demo tables.
+
+### Fixed
+
+- Database initialization now forwards SQLAlchemy engine options from `databases.*` configuration blocks correctly, including nested `connect_args` and pool settings such as `pool_size`, `max_overflow`, and `pool_pre_ping`.
+
 ## [0.9.0] - 2025-01-01
 
 ### Added
